@@ -1,0 +1,544 @@
+import { useState } from "react";
+import "../estilos.css";
+import EquipoSelect from "../components/EquipoSelect";
+import EquipamientoCuerpo from "../components/EquipamientoCuerpo";
+
+export default function Equipamiento({setSeccion, sistemaActivo, configBombas}) {
+
+  /* ================= ESTADOS ================= */
+  const [hoveredField, setHoveredField] = useState(null);
+  const [sistemaAbierto, setSistemaAbierto] = useState(null);
+
+  // Filtrado
+  const [usaPrefiltro, setUsaPrefiltro] = useState(false);
+  const [tipoFiltro, setTipoFiltro] = useState(""); // arena | cartucho
+
+  // Calentamiento
+  const [usaPanelSolar, setUsaPanelSolar] = useState(false);
+  const [usaBombaCalor, setUsaBombaCalor] = useState(false);
+  const [usaCaldera, setUsaCaldera] = useState(false);
+
+    // Sanitización
+  const [tipoCloro, setTipoCloro] = useState(""); 
+  // "cloro" | "fuera-linea" | "en-linea"
+  const [usaUV, setUsaUV] = useState(false);
+  const [usaOzono, setUsaOzono] = useState(false);
+
+// Iluminación
+const [usaExtraplanoLED, setUsaExtraplanoLED] = useState(false);
+const [usaIncandescente, setUsaIncandescente] = useState(false);
+const [usaSinNichoLED, setUsaSinNichoLED] = useState(false);
+// Iluminación
+const [tipoReflector, setTipoReflector] = useState(""); 
+// "extraplano-led" | "incandescente" | "sin-nicho-led"
+
+  /* ================= DESCRIPCIONES ================= */
+  const descripcionesCampos = {
+    filtrado: "Sistema de protección, recirculación y limpieza hidráulica",
+    calentamiento: "Sistema encargado del aporte energético térmico",
+    sanitizacion: "Sistema de desinfección y control microbiológico",
+    iluminacion: "Sistema de iluminación subacuática",
+    empotrables: "Elementos hidráulicos integrados al vaso",
+    jacuzzi: "Sistema especializado de hidromasaje",
+    recubrimiento: "Acabados interiores del cuerpo de agua",
+    default: "Configuración integral del equipamiento del sistema"
+  };
+
+  const toggleSistema = (id) => {
+    setSistemaAbierto(prev => (prev === id ? null : id));
+  };
+
+  /* ================= TARJETA SISTEMA ================= */
+  function renderSistemaCard({ id, titulo, abierto, contenido }) {
+    return (
+      <div className="tarjeta-tecnica sistema-card">
+        <div
+          className={`sistema-header-interno ${abierto ? "abierto" : ""}`}
+          onClick={() => toggleSistema(id)}
+        >
+          <div className="sistema-titulo">{titulo}</div>
+          <div className="sistema-boton">
+            {abierto ? "Cerrar" : "Configurar"}
+          </div>
+        </div>
+
+        <div className={`sistema-contenido-interno ${abierto ? "expandido" : ""}`}>
+          {contenido}
+        </div>
+      </div>
+    );
+  }
+
+  function GrupoSistema({ titulo, subtitulo, children }) {
+    return (
+      <div className="grupo-sistema">
+        <div className="grupo-sistema-header">
+          <div className="grupo-sistema-titulo">{titulo}</div>
+          {subtitulo && (
+            <div className="grupo-sistema-subtitulo">{subtitulo}</div>
+          )}
+        </div>
+
+        <div className="grupo-sistema-contenido">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= BLOQUES DE SISTEMA ================= */
+const bloquesSistema = (() => {
+  if (!sistemaActivo) return [];
+
+  switch (sistemaActivo) {
+    /* ===== 1 CUERPO ===== */
+    case "alberca":
+      return [
+        {
+          id: "cuerpo-1",
+          titulo: "Cuerpo 1",
+          subtitulo: "Alberca · Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    case "jacuzzi":
+      return [
+        {
+          id: "jacuzzi-1",
+          titulo: "Jacuzzi",
+          subtitulo: "1 cuerpo · Tipo de sistema seleccionado",
+          tieneJacuzzi: true
+        }
+      ];
+
+    case "chapoteadero":
+      return [
+        {
+          id: "chapoteadero-1",
+          titulo: "Chapoteadero",
+          subtitulo: "1 cuerpo · Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    /* ===== 1 CUERPO COMBINADO ===== */
+    case "albercaJacuzzi1":
+      return [
+        {
+          id: "alberca-combinado",
+          titulo: "Alberca · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        },
+        {
+          id: "jacuzzi-combinado",
+          titulo: "Jacuzzi · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: true
+        }
+      ];
+
+    case "albercaChapo1":
+      return [
+        {
+          id: "alberca-combinado",
+          titulo: "Alberca · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        },
+        {
+          id: "chapoteadero-combinado",
+          titulo: "Chapoteadero · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    case "jacuzziChapo1":
+      return [
+        {
+          id: "jacuzzi-combinado",
+          titulo: "Jacuzzi · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: true
+        },
+        {
+          id: "chapoteadero-combinado",
+          titulo: "Chapoteadero · 1 cuerpo combinado",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    /* ===== 2 CUERPOS ===== */
+    case "albercaJacuzzi2":
+      return [
+        {
+          id: "cuerpo-1",
+          titulo: "Alberca · Cuerpo 1 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        },
+        {
+          id: "cuerpo-2",
+          titulo: "Jacuzzi · Cuerpo 2 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: true
+        }
+      ];
+
+    case "albercaChapo2":
+      return [
+        {
+          id: "cuerpo-1",
+          titulo: "Alberca · Cuerpo 1 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        },
+        {
+          id: "cuerpo-2",
+          titulo: "Chapoteadero · Cuerpo 2 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    case "jacuzziChapo2":
+      return [
+        {
+          id: "cuerpo-1",
+          titulo: "Jacuzzi · Cuerpo 1 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: true
+        },
+        {
+          id: "cuerpo-2",
+          titulo: "Chapoteadero · Cuerpo 2 independiente",
+          subtitulo: "Tipo de sistema seleccionado",
+          tieneJacuzzi: false
+        }
+      ];
+
+    default:
+      return [];
+  }
+})();
+
+  /* ================= RENDER ================= */
+  return (
+    <div className="form-section hero-wrapper equipamiento">
+      <div className="selector-tecnico modo-experto">
+
+        {/* HEADER */}
+        <div className="selector-header">
+          <div className="selector-titulo">Equipamiento del sistema</div>
+          <div className="selector-subtitulo-tecnico">
+            Selección técnica de equipos y empotrables
+          </div>
+        </div>
+
+        <div className="selector-acciones">
+          <button
+            className="btn-secundario"
+            onClick={() => setSeccion("calentamiento")}
+          >
+            ← Volver a Calentamiento
+          </button>
+        </div>
+
+        <div className="selector-contenido entrada">
+          <div className="selector-grupo">
+            <div className="selector-subtitulo">Sistemas del proyecto</div>
+
+        {bloquesSistema.map((bloque) => (
+          <GrupoSistema
+            key={bloque.id}
+            titulo={bloque.titulo}
+            subtitulo={bloque.subtitulo}
+          >
+
+            <div className="tarjetas-grid">
+
+              {/* ================= FILTRADO ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-filtrado`,
+                titulo: "💧 Filtrado",
+                abierto: sistemaAbierto === `${bloque.id}-filtrado`,
+                contenido: (
+                  <>
+                    <div className="decision-card">
+                      <div className="decision-grupo">
+                        <label className="decision-label">¿Incluir prefiltro?</label>
+                        <select
+                          className="input-azul"
+                          value={usaPrefiltro ? "si" : "no"}
+                          onChange={(e) => setUsaPrefiltro(e.target.value === "si")}
+                        >
+                          <option value="no">No</option>
+                          <option value="si">Sí</option>
+                        </select>
+                      </div>
+
+                      <div className="decision-grupo">
+                        <label className="decision-label">Tipo de filtro</label>
+                        <select
+                          className="input-azul"
+                          value={tipoFiltro}
+                          onChange={(e) => setTipoFiltro(e.target.value)}
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="arena">Filtro de arena</option>
+                          <option value="cartucho">Filtro de cartucho</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {usaPrefiltro && <EquipoSelect titulo="Prefiltro" />}
+                    {tipoFiltro === "arena" && <EquipoSelect titulo="Filtro de arena" />}
+                    {tipoFiltro === "cartucho" && <EquipoSelect titulo="Filtro de cartucho" />}
+                  </>
+                )
+              })}
+
+              {/* ================= CALENTAMIENTO ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-calentamiento`,
+                titulo: "🔥 Calentamiento",
+                abierto: sistemaAbierto === `${bloque.id}-calentamiento`,
+                contenido: (
+                  <>
+                    <div className="decision-card">
+                      <div
+                        className={`decision-toggle ${usaPanelSolar ? "activo" : ""}`}
+                        onClick={() => setUsaPanelSolar(!usaPanelSolar)}
+                      >
+                        <span>Panel solar</span>
+                        <span className="decision-estado">
+                          {usaPanelSolar ? "Incluido" : "No incluido"}
+                        </span>
+                      </div>
+
+                      <div
+                        className={`decision-toggle ${usaBombaCalor ? "activo" : ""}`}
+                        onClick={() => setUsaBombaCalor(!usaBombaCalor)}
+                      >
+                        <span>Bomba de calor</span>
+                        <span className="decision-estado">
+                          {usaBombaCalor ? "Incluida" : "No incluida"}
+                        </span>
+                      </div>
+
+                      <div
+                        className={`decision-toggle ${usaCaldera ? "activo" : ""}`}
+                        onClick={() => setUsaCaldera(!usaCaldera)}
+                      >
+                        <span>Caldera</span>
+                        <span className="decision-estado">
+                          {usaCaldera ? "Incluida" : "No incluida"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {usaPanelSolar && <EquipoSelect titulo="Panel solar" />}
+                    {usaBombaCalor && <EquipoSelect titulo="Bomba de calor" />}
+                    {usaCaldera && <EquipoSelect titulo="Caldera" />}
+                  </>
+                )
+              })}
+
+              {/* ================= SANITIZACIÓN ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-sanitizacion`,
+                titulo: "🧪 Sanitización",
+                abierto: sistemaAbierto === `${bloque.id}-sanitizacion`,
+                contenido: (
+                  <>
+                    <div className="decision-card">
+                      <div className="decision-grupo">
+                        <label className="decision-label">
+                          Sistema principal de cloro
+                        </label>
+                        <select
+                          className="input-azul"
+                          value={tipoCloro}
+                          onChange={(e) => setTipoCloro(e.target.value)}
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="cloro">Generador de cloro</option>
+                          <option value="fuera-linea">
+                            Clorador automático fuera de línea
+                          </option>
+                          <option value="en-linea">
+                            Clorador automático en línea
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="decision-card">
+                      <div
+                        className={`decision-toggle ${usaUV ? "activo" : ""}`}
+                        onClick={() => setUsaUV(!usaUV)}
+                      >
+                        <span>Generador UV</span>
+                        <span className="decision-estado">
+                          {usaUV ? "Incluido" : "No incluido"}
+                        </span>
+                      </div>
+
+                      <div
+                        className={`decision-toggle ${usaOzono ? "activo" : ""}`}
+                        onClick={() => setUsaOzono(!usaOzono)}
+                      >
+                        <span>Generador de ozono</span>
+                        <span className="decision-estado">
+                          {usaOzono ? "Incluido" : "No incluido"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {tipoCloro === "cloro" && (
+                      <EquipoSelect titulo="Generador de cloro" />
+                    )}
+                    {tipoCloro === "fuera-linea" && (
+                      <EquipoSelect titulo="Clorador automático fuera de línea" />
+                    )}
+                    {tipoCloro === "en-linea" && (
+                      <EquipoSelect titulo="Clorador automático en línea" />
+                    )}
+                    {usaUV && <EquipoSelect titulo="Generador UV" />}
+                    {usaOzono && <EquipoSelect titulo="Generador de ozono" />}
+                  </>
+                )
+              })}
+
+              {/* ================= ILUMINACIÓN ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-iluminacion`,
+                titulo: "💡 Iluminación",
+                abierto: sistemaAbierto === `${bloque.id}-iluminacion`,
+                contenido: (
+                  <>
+                    <div className="decision-card">
+                      <div className="decision-grupo">
+                        <label className="decision-label">Tipo de reflector</label>
+                        <select
+                          className="input-azul"
+                          value={tipoReflector}
+                          onChange={(e) => setTipoReflector(e.target.value)}
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="extraplano-led">Reflector extraplano LED</option>
+                          <option value="incandescente">
+                            Reflector tradicional incandescente
+                          </option>
+                          <option value="sin-nicho-led">Reflector sin nicho LED</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {tipoReflector === "extraplano-led" && (
+                      <EquipoSelect titulo="Reflector extraplano LED" />
+                    )}
+                    {tipoReflector === "incandescente" && (
+                      <EquipoSelect titulo="Reflector tradicional incandescente" />
+                    )}
+                    {tipoReflector === "sin-nicho-led" && (
+                      <EquipoSelect titulo="Reflector sin nicho LED" />
+                    )}
+                    {tipoReflector && <EquipoSelect titulo="Transformador" />}
+                  </>
+                )
+              })}
+
+              {/* ================= EMPOTRABLES ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-empotrables`,
+                titulo: "🔹 Empotrables",
+                abierto: sistemaAbierto === `${bloque.id}-empotrables`,
+                contenido: (
+                  <>
+                    <EquipoSelect titulo="Boquilla de retorno" />
+                    <EquipoSelect titulo="Desnatador" />
+                    <EquipoSelect titulo="Dren de fondo" />
+                    <EquipoSelect titulo="Dren de canal" />
+                    <EquipoSelect titulo="Boquilla de barredora" />
+                    <EquipoSelect titulo="Rejilla perimetral" />
+                  </>
+                )
+              })}
+
+              {/* ================= MOTOBOMBAS ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-motobombas`,
+                titulo: "🌀 Motobombas",
+                abierto: sistemaAbierto === `${bloque.id}-motobombas`,
+                contenido: (
+                  <>
+                    <EquipoSelect titulo="Motobomba de filtrado" />
+                    {configBombas?.calentamiento && (
+                      <EquipoSelect titulo="Motobomba de calentamiento" />
+                    )}
+                    {configBombas?.infinity && (
+                      <EquipoSelect titulo="Motobomba de infinity" />
+                    )}
+                  </>
+                )
+              })}
+
+              {/* ================= JACUZZI ================= */}
+              {bloque.tieneJacuzzi &&
+                renderSistemaCard({
+                  id: `${bloque.id}-jacuzzi`,
+                  titulo: "💨 Jacuzzi",
+                  abierto: sistemaAbierto === `${bloque.id}-jacuzzi`,
+                  contenido: (
+                    <>
+                      <EquipoSelect titulo="Motobomba hidrojets" />
+                      <EquipoSelect titulo="Empotrables hidrojets" />
+                      <EquipoSelect titulo="Empotrables salero" />
+                      <EquipoSelect titulo="Soplador" />
+                      <EquipoSelect titulo="Dren de fondo jacuzzi" />
+                      <EquipoSelect titulo="Retorno jacuzzi" />
+                      <EquipoSelect titulo="Desnatador jacuzzi" />
+                      <EquipoSelect titulo="Barredora jacuzzi" />
+                      <EquipoSelect titulo="Reflector jacuzzi" />
+                    </>
+                  )
+                })}
+
+              {/* ================= RECUBRIMIENTO ================= */}
+              {renderSistemaCard({
+                id: `${bloque.id}-recubrimiento`,
+                titulo: "🎨 Recubrimiento",
+                abierto: sistemaAbierto === `${bloque.id}-recubrimiento`,
+                contenido: (
+                  <>
+                    <EquipoSelect titulo="Recubrimiento m²" />
+                    <EquipoSelect titulo="Adhesivo" />
+                  </>
+                )
+              })}
+
+            </div>
+          </GrupoSistema>
+        ))}
+            </div>
+
+
+        {/* FOOTER */}
+        <div className="selector-footer fijo equipamiento">
+          <span>Modo ingeniería · Equipamiento</span>
+          <span className="footer-highlight">
+            {hoveredField
+              ? descripcionesCampos[hoveredField]
+              : descripcionesCampos.default}
+          </span>
+        </div>
+          </div>
+        </div>
+      </div>
+
+  );
+}
