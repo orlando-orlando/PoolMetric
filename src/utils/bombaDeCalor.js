@@ -160,9 +160,11 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
   const { bomba, cantidad } = seleccion;
   const flujoPorBomba = bomba.specs.flujo;
 
-  /* ── 2. Tramos de 1m entre BDC ──────────────────────────────────
-     resumen         → incluye tramos BDC + CM + altura (para carga hidráulica)
-     resumenTuberia  → solo CM + altura (para pérdida de calor en qTuberia)
+  /* ── 2. Tramos entre BDC ─────────────────────────────────────────
+     Con 1 BDC: 1m de tubería + 2 codos (entrada y salida del equipo)
+     Con N BDC: loop con tees/codos por tramo, mismo 1m entre equipos
+     resumen        → hidráulico completo (tramos BDC + CM + altura)
+     resumenTuberia → solo CM + altura (para pérdida de calor en qTuberia)
   ─────────────────────────────────────────────────────────────── */
   const tablaTramos = [];
   let cargaAcumuladaTramos = 0;
@@ -179,79 +181,128 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
 
   let tubAnterior = null;
 
-  // Solo corre si hay más de 1 equipo (con 1 BDC no hay tramos entre equipos)
-  for (let i = 0; i < cantidad && cantidad > 1; i++) {
-    const flujoActual = (cantidad - i) * flujoPorBomba;
-    const esUltimo    = i === cantidad - 1;
-    const { tuberia, velocidad, cargaBase } = seleccionarDiametro(flujoActual);
+  if (cantidad === 1) {
+    /* ── Caso 1 BDC: 1m de tubería + 2 codos ── */
+    const { tuberia, velocidad, cargaBase } = seleccionarDiametro(flujoPorBomba);
+    const longEqCodo     = CODO[tuberia] ?? CODO["tuberia 18.00"];
+    const cargaTramoBDC  = cargaTramo(1, cargaBase);
+    const cargaCodos     = (2 * longEqCodo * cargaBase) / 100;
+    const cargaFilaTotal = cargaTramoBDC + cargaCodos;
 
-    const cargaTramoBDC = cargaTramo(1, cargaBase);
-
-    const cantTees  = esUltimo ? 0 : 2;
-    const cantCodos = esUltimo ? 2 : 0;
-
-    const longEqTee  = TEE_LINEA[tuberia] ?? TEE_LINEA["tuberia 18.00"];
-    const longEqCodo = CODO[tuberia]      ?? CODO["tuberia 18.00"];
-
-    const cargaTees  = (cantTees  * longEqTee  * cargaBase) / 100;
-    const cargaCodos = (cantCodos * longEqCodo * cargaBase) / 100;
-
-    let cargaRed = 0;
-    let longEqRed = 0;
-    let cantRed   = 0;
-    if (tubAnterior && tubAnterior !== tuberia) {
-      longEqRed = REDUCCION[tuberia] ?? REDUCCION["tuberia 18.00"];
-      cargaRed  = (longEqRed * cargaBase) / 100;
-      cantRed   = 1;
-    }
-
-    const cargaFilaTotal = cargaTramoBDC + cargaTees + cargaCodos + cargaRed;
     cargaAcumuladaTramos += cargaFilaTotal;
 
-    console.log(`%c── BDC Tramo ${i + 1} ──────────────────────────────`, "color:#38bdf8;font-weight:bold");
-    console.log(`  Flujo en tramo             : ${fix2(flujoActual)} GPM`);
+    console.log(`%c── BDC Tramo 1 (equipo único) ──────────────────────`, "color:#38bdf8;font-weight:bold");
+    console.log(`  Flujo en tramo             : ${fix2(flujoPorBomba)} GPM`);
     console.log(`  Tubería seleccionada        : ${tuberia}`);
     console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
     console.log(`  Longitud de tubería         : 1.00 m`);
     console.log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
-    console.log(`  Núm. tees                   : ${cantTees}`);
-    console.log(`  Long. eq. tee               : ${fix2(cantTees  > 0 ? longEqTee  : 0)} ft`);
-    console.log(`  Carga por tees              : ${fix2(cargaTees)} ft`);
-    console.log(`  Núm. codos                  : ${cantCodos}`);
-    console.log(`  Long. eq. codo              : ${fix2(cantCodos > 0 ? longEqCodo : 0)} ft`);
+    console.log(`  Núm. codos                  : 2`);
+    console.log(`  Long. eq. codo              : ${fix2(longEqCodo)} ft`);
     console.log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
-    console.log(`  Núm. reducciones            : ${cantRed}`);
-    console.log(`  Carga por reducción         : ${fix2(cargaRed)} ft`);
     console.log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
 
     tablaTramos.push({
-      tramo:      i + 1,
-      flujo:      fix2(flujoActual),
+      tramo:      1,
+      flujo:      fix2(flujoPorBomba),
       tuberia,
       velocidad:  fix2(velocidad),
       longitud_m: "1.00",
       cargaBase:  fix2(cargaBase),
       cargaTramo: fix2(cargaTramoBDC),
-      cantTees,
-      longEqTee:  fix2(cantTees  > 0 ? longEqTee  : 0),
-      cargaTees:  fix2(cargaTees),
-      cantCodos,
-      longEqCodo: fix2(cantCodos > 0 ? longEqCodo : 0),
+      cantTees:   0,
+      longEqTee:  "0.00",
+      cargaTees:  "0.00",
+      cantCodos:  2,
+      longEqCodo: fix2(longEqCodo),
       cargaCodos: fix2(cargaCodos),
-      cantRed,
-      longEqRed:  fix2(longEqRed),
-      cargaRed:   fix2(cargaRed),
+      cantRed:    0,
+      longEqRed:  "0.00",
+      cargaRed:   "0.00",
       cargaTotal: fix2(cargaFilaTotal),
     });
 
-    // Solo en resumen hidráulico, NO en resumenTuberia
     addDiam(tuberia);
-    resumen[tuberia].tuberia_m   += 1;
-    resumen[tuberia].tees        += cantTees;
-    resumen[tuberia].codos       += cantCodos;
-    resumen[tuberia].reducciones += cantRed;
+    resumen[tuberia].tuberia_m += 1;
+    resumen[tuberia].codos     += 2;
 
     tubAnterior = tuberia;
+
+  } else {
+    /* ── Caso N BDC: loop por tramos ── */
+    for (let i = 0; i < cantidad; i++) {
+      const flujoActual = (cantidad - i) * flujoPorBomba;
+      const esUltimo    = i === cantidad - 1;
+      const { tuberia, velocidad, cargaBase } = seleccionarDiametro(flujoActual);
+
+      const cargaTramoBDC = cargaTramo(1, cargaBase);
+
+      const cantTees  = esUltimo ? 0 : 2;
+      const cantCodos = esUltimo ? 2 : 0;
+
+      const longEqTee  = TEE_LINEA[tuberia] ?? TEE_LINEA["tuberia 18.00"];
+      const longEqCodo = CODO[tuberia]      ?? CODO["tuberia 18.00"];
+
+      const cargaTees  = (cantTees  * longEqTee  * cargaBase) / 100;
+      const cargaCodos = (cantCodos * longEqCodo * cargaBase) / 100;
+
+      let cargaRed = 0;
+      let longEqRed = 0;
+      let cantRed   = 0;
+      if (tubAnterior && tubAnterior !== tuberia) {
+        longEqRed = REDUCCION[tuberia] ?? REDUCCION["tuberia 18.00"];
+        cargaRed  = (longEqRed * cargaBase) / 100;
+        cantRed   = 1;
+      }
+
+      const cargaFilaTotal = cargaTramoBDC + cargaTees + cargaCodos + cargaRed;
+      cargaAcumuladaTramos += cargaFilaTotal;
+
+      console.log(`%c── BDC Tramo ${i + 1} ──────────────────────────────`, "color:#38bdf8;font-weight:bold");
+      console.log(`  Flujo en tramo             : ${fix2(flujoActual)} GPM`);
+      console.log(`  Tubería seleccionada        : ${tuberia}`);
+      console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
+      console.log(`  Longitud de tubería         : 1.00 m`);
+      console.log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
+      console.log(`  Núm. tees                   : ${cantTees}`);
+      console.log(`  Long. eq. tee               : ${fix2(cantTees  > 0 ? longEqTee  : 0)} ft`);
+      console.log(`  Carga por tees              : ${fix2(cargaTees)} ft`);
+      console.log(`  Núm. codos                  : ${cantCodos}`);
+      console.log(`  Long. eq. codo              : ${fix2(cantCodos > 0 ? longEqCodo : 0)} ft`);
+      console.log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
+      console.log(`  Núm. reducciones            : ${cantRed}`);
+      console.log(`  Carga por reducción         : ${fix2(cargaRed)} ft`);
+      console.log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
+
+      tablaTramos.push({
+        tramo:      i + 1,
+        flujo:      fix2(flujoActual),
+        tuberia,
+        velocidad:  fix2(velocidad),
+        longitud_m: "1.00",
+        cargaBase:  fix2(cargaBase),
+        cargaTramo: fix2(cargaTramoBDC),
+        cantTees,
+        longEqTee:  fix2(cantTees  > 0 ? longEqTee  : 0),
+        cargaTees:  fix2(cargaTees),
+        cantCodos,
+        longEqCodo: fix2(cantCodos > 0 ? longEqCodo : 0),
+        cargaCodos: fix2(cargaCodos),
+        cantRed,
+        longEqRed:  fix2(longEqRed),
+        cargaRed:   fix2(cargaRed),
+        cargaTotal: fix2(cargaFilaTotal),
+      });
+
+      // Solo en resumen hidráulico, NO en resumenTuberia
+      addDiam(tuberia);
+      resumen[tuberia].tuberia_m   += 1;
+      resumen[tuberia].tees        += cantTees;
+      resumen[tuberia].codos       += cantCodos;
+      resumen[tuberia].reducciones += cantRed;
+
+      tubAnterior = tuberia;
+    }
   }
 
   /* ── 3. Tramo distancia cuarto de máquinas — IDA y REGRESO ── */
@@ -259,13 +310,13 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
   const { tuberia: tubCM, velocidad: velCM, cargaBase: cargaBaseCM } =
     seleccionarDiametro(flujoTotalBDC);
 
-  const distCM_ft      = distanciaCM * 3.28084;
-  const longEqCodoCM   = CODO[tubCM] ?? CODO["tuberia 18.00"];
+  const distCM_ft    = distanciaCM * 3.28084;
+  const longEqCodoCM = CODO[tubCM] ?? CODO["tuberia 18.00"];
 
   // ── IDA ──
-  const cargaTuberiaIda  = (distCM_ft * cargaBaseCM) / 100;
-  const cargaCodoIda     = (longEqCodoCM * cargaBaseCM) / 100;
-  const cargaTotalIda    = cargaTuberiaIda + cargaCodoIda;
+  const cargaTuberiaIda = (distCM_ft * cargaBaseCM) / 100;
+  const cargaCodoIda    = (longEqCodoCM * cargaBaseCM) / 100;
+  const cargaTotalIda   = cargaTuberiaIda + cargaCodoIda;
 
   console.log("%c── TRAMO CUARTO DE MÁQUINAS — IDA ─────────────────", "color:#f59e0b;font-weight:bold");
   console.log(`  Distancia (metros)          : ${fix2(distanciaCM)} m`);
@@ -299,20 +350,20 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
   const cargaTotalCM = cargaTotalIda + cargaTotalRegreso;
 
   const tablaDistancia = {
-    distancia_m:       fix2(distanciaCM),
-    flujo:             fix2(flujoTotalBDC),
-    tuberia:           tubCM,
-    velocidad:         fix2(velCM),
-    cargaBase:         fix2(cargaBaseCM),
-    cargaTuberiaIda:   fix2(cargaTuberiaIda),
-    cargaCodoIda:      fix2(cargaCodoIda),
-    cargaTotalIda:     fix2(cargaTotalIda),
-    cargaTuberiaReg:   fix2(cargaTuberiaRegreso),
-    cargaCodoReg:      fix2(cargaCodoRegreso),
-    cargaTotalReg:     fix2(cargaTotalRegreso),
-    cantCodos:         2,
-    longEqCodo:        fix2(longEqCodoCM),
-    cargaTotal:        fix2(cargaTotalCM),
+    distancia_m:     fix2(distanciaCM),
+    flujo:           fix2(flujoTotalBDC),
+    tuberia:         tubCM,
+    velocidad:       fix2(velCM),
+    cargaBase:       fix2(cargaBaseCM),
+    cargaTuberiaIda: fix2(cargaTuberiaIda),
+    cargaCodoIda:    fix2(cargaCodoIda),
+    cargaTotalIda:   fix2(cargaTotalIda),
+    cargaTuberiaReg: fix2(cargaTuberiaRegreso),
+    cargaCodoReg:    fix2(cargaCodoRegreso),
+    cargaTotalReg:   fix2(cargaTotalRegreso),
+    cantCodos:       2,
+    longEqCodo:      fix2(longEqCodoCM),
+    cargaTotal:      fix2(cargaTotalCM),
   };
 
   // Tubería CM → en ambos resúmenes (hidráulico + pérdida de calor)
