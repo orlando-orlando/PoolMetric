@@ -54,8 +54,8 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
 
   const GRUPOS_SISTEMAS = [
     { label: "1 cuerpo de agua",    keys: ["alberca", "jacuzzi", "chapoteadero", "espejoAgua"] },
-    { label: "2 cuerpos combinados", keys: ["albercaJacuzzi1", "albercaChapo1"] },
-    { label: "3 cuerpos combinados", keys: ["albercaJacuzziJacuzzi", "albercaChapoAsoleadero", "albercaJacuzziChapo", "albercaAsoleaderoAsoleadero"] },
+    { label: "2 cuerpos de agua combinados", keys: ["albercaJacuzzi1", "albercaChapo1"] },
+    { label: "3 cuerpos de agua combinados", keys: ["albercaJacuzziJacuzzi", "albercaChapoAsoleadero", "albercaJacuzziChapo", "albercaAsoleaderoAsoleadero"] },
   ];
 
   const TASAS_GENERAL = ["4", "6", "8"];

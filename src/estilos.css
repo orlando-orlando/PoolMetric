@@ -289,6 +289,10 @@ body.no-scroll { overflow: hidden !important; }
   .panel-izquierdo.colapsado .nav-item { justify-content: center; flex-direction: column; padding: 0.4rem 0.6rem; }
   .panel-izquierdo.colapsado .toggle-navegacion-fija, .panel-izquierdo.colapsado .toggle-seccion { display: none; }
   .panel-bottom { display: none; }
+  /* Toggle BDC en móvil */
+  .bdc-modo-toggle-wrapper { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .layout-clima-bdc-fila2 { grid-template-columns: 1fr; }
+  .celda-bdc-manual { border-top: 1px solid rgba(255,255,255,0.07); }
 }
 
 @media (max-width: 400px) { .nav-text { display: none; } .nav-item { padding: 0.5rem; } .nav-icon { font-size: 1.25rem; } .panel-derecho-contenido { padding: 0.5rem; } }
@@ -806,3 +810,197 @@ select option:hover { background-color: #d1d5db; }
 .bdc-manual-cant-ctrl span { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; min-width: 16px; text-align: center; }
 .bdc-insuf { color: #f87171 !important; }
 .bdc-manual-aviso { font-size: 0.68rem; color: #fbbf24; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 6px; padding: 5px 8px; }
+
+/* ==========================================================
+   🔀 TOGGLE MODO BDC — Recomendado / Manual
+   ========================================================== */
+
+.bdc-modo-toggle-wrapper {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(15,23,42,0.4);
+  border: 1px solid rgba(51,65,85,0.6);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bdc-modo-toggle {
+  display: flex;
+  gap: 0.375rem;
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(51,65,85,0.8);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.bdc-modo-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.bdc-modo-btn:hover:not(.bdc-modo-activo) {
+  color: #94a3b8;
+  background: rgba(51,65,85,0.4);
+}
+
+.bdc-modo-btn.bdc-modo-activo {
+  background: rgba(30,64,175,0.5);
+  border: 1px solid rgba(56,189,248,0.35);
+  color: #7dd3fc;
+  font-weight: 600;
+  box-shadow: 0 1px 6px rgba(56,189,248,0.12);
+}
+
+.bdc-modo-btn svg {
+  flex-shrink: 0;
+  color: #38bdf8;
+}
+
+.bdc-modo-aviso-deficit {
+  font-size: 0.75rem;
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.2);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+}
+
+/* ── Badge modo activo en la tarjeta ── */
+.bdc-modo-badge {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.badge-auto {
+  background: rgba(30,64,175,0.25);
+  color: #38bdf8;
+  border: 1px solid rgba(56,189,248,0.25);
+}
+
+.badge-manual {
+  background: rgba(251,146,60,0.15);
+  color: #fb923c;
+  border: 1px solid rgba(251,146,60,0.3);
+}
+
+/* ── Tarjeta con acento naranja en modo manual ── */
+.bdc-card-manual-activa {
+  border-color: rgba(251,146,60,0.25) !important;
+}
+
+.bdc-card-manual-activa .bdc-rec-label {
+  color: #fb923c !important;
+}
+
+/* ==========================================================
+   📊 PANEL INFO AUTOMÁTICO (modo recomendado, panel derecho)
+   ========================================================== */
+
+.bdc-info-automatica {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+}
+
+.bdc-auto-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.25rem 0;
+}
+
+.bdc-auto-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+
+.bdc-auto-fila:hover {
+  background: rgba(51,65,85,0.2);
+}
+
+.bdc-auto-fila.bdc-auto-total {
+  background: rgba(30,64,175,0.12);
+  border: 1px solid rgba(56,189,248,0.15);
+  border-radius: 6px;
+  margin-top: 0.125rem;
+}
+
+.bdc-auto-label {
+  font-size: 0.73rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.bdc-auto-val {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.bdc-auto-sep {
+  height: 1px;
+  background: rgba(51,65,85,0.5);
+  margin: 0.35rem 0.25rem;
+}
+
+.bdc-hid-val-highlight {
+  color: #38bdf8 !important;
+  font-weight: 600 !important;
+}
+
+/* ==========================================================
+   🔧 DETALLE HIDRÁULICO EN MODO MANUAL
+   ========================================================== */
+
+.bdc-manual-hidraulica-detalle {
+  margin-top: 0.25rem;
+}
+
+.bdc-hid-detalle-titulo {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #7dd3fc;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+  padding: 0 0.25rem;
+}
+
+/* ── Hint cuando no hay equipo seleccionado en modo manual ── */
+.bdc-manual-hint {
+  padding: 0.75rem 0.5rem;
+  font-size: 0.74rem;
+  color: #475569;
+  text-align: center;
+  font-style: italic;
+}
