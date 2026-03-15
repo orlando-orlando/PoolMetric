@@ -52,11 +52,15 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
     chapoteadero: "Chapoteadero", asoleadero: "Asoleadero", espejoAgua: "Espejo de agua",
   };
 
-  // Tasas como STRING — el <select> compara por igualdad de string
+  const GRUPOS_SISTEMAS = [
+    { label: "1 cuerpo de agua",    keys: ["alberca", "jacuzzi", "chapoteadero", "espejoAgua"] },
+    { label: "2 cuerpos combinados", keys: ["albercaJacuzzi1", "albercaChapo1"] },
+    { label: "3 cuerpos combinados", keys: ["albercaJacuzziJacuzzi", "albercaChapoAsoleadero", "albercaJacuzziChapo", "albercaAsoleaderoAsoleadero"] },
+  ];
+
   const TASAS_GENERAL = ["4", "6", "8"];
   const TASAS_JACUZZI = ["0.5", "1"];
 
-  // Tasa sugerida por uso — también STRING
   const tasaSugeridaPorUso = {
     residencial: "8",
     publica:     "6",
@@ -86,37 +90,25 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
   const hayJacuzzi = (d) => d?.tasaJacuzzi !== null && d?.tasaJacuzzi !== undefined;
   const hayGeneral = (d) => d?.usoGeneral  !== null && d?.usoGeneral  !== undefined;
 
-  /*
-   * actualizarDatos usa setState funcional para evitar closures stale.
-   * Recibe el key del sistema activo como parámetro para que no dependa
-   * de tipoSeleccionado del closure.
-   */
   const actualizarDatos = useCallback((patch) => {
     setDatos((prev) => ({ ...prev, ...patch }));
   }, []);
 
   useEffect(() => {
     if (!datos || !sistemaActivo) return;
-
-    setDatosPorSistema((prev) => ({
-      ...prev,
-      [sistemaActivo]: datos,
-    }));
+    setDatosPorSistema((prev) => ({ ...prev, [sistemaActivo]: datos }));
   }, [datos, sistemaActivo, setDatosPorSistema]);
 
-  /* ── Reacción automática: cuando cambia usoGeneral → actualizar tasaGeneral ── */
+  /* ── Reacción automática: usoGeneral → tasaGeneral ── */
   useEffect(() => {
     if (!datos || !hayGeneral(datos)) return;
-    // Solo pre-llenar si el uso tiene sugerencia definida
     const sugerida = tasaSugeridaPorUso[datos.usoGeneral];
     if (sugerida !== undefined) {
-      // Solo actualizar si la tasa actual NO es una de las válidas ya elegidas
-      // (para no pisar si el usuario la cambió manualmente después)
-    setDatos((prev) => {
-      if (!prev) return prev;
-      if (prev.tasaGeneral !== "" && prev.tasaGeneral !== sugerida) return prev;
-      return { ...prev, tasaGeneral: sugerida };
-    });
+      setDatos((prev) => {
+        if (!prev) return prev;
+        if (prev.tasaGeneral !== "" && prev.tasaGeneral !== sugerida) return prev;
+        return { ...prev, tasaGeneral: sugerida };
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datos?.usoGeneral]);
@@ -165,9 +157,7 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
 
   useEffect(() => {
     if (!sistemaActivo || !sistemas[sistemaActivo]) return;
-
     setTipoSeleccionado(sistemaActivo);
-
     const existente = datosPorSistema[sistemaActivo];
     if (existente) {
       setDatos(existente);
@@ -233,7 +223,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
     return (
       <div className="selector-bloque-inputs">
 
-        {/* ── Dimensiones por cuerpo ─────────────────────────── */}
         {datos.cuerpos.map((cuerpo, i) => {
           const etiquetaCuerpo = config.cuerpos > 1
             ? nombreTipoCuerpo[cuerpo.tipoCuerpo] ?? `Cuerpo ${i + 1}`
@@ -304,7 +293,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
           );
         })}
 
-        {/* ── Bloque uso GENERAL (no-jacuzzi) ────────────────── */}
         {hayGeneral(datos) && (
           <div className="selector-grupo">
             <div className="selector-subtitulo">
@@ -313,15 +301,12 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                 <span className="subtitulo-detalle"> — {etiquetaGrupoGeneral()}</span>
               )}
             </div>
-
             <div className="selector-grid">
-
               <div className="campo">
                 <label>Uso</label>
                 <select
                   value={datos.usoGeneral}
                   onChange={(e) => {
-                    // Solo actualizar usoGeneral — el useEffect se encarga de tasaGeneral
                     actualizarDatos({ usoGeneral: e.target.value, tasaGeneral: tasaSugeridaPorUso[e.target.value] ?? "" });
                   }}
                   className={mostrarErrores && errores.usoGeneral ? "input-error" : ""}
@@ -335,7 +320,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                   <option value="parque">Parque acuático</option>
                 </select>
               </div>
-
               <div className="campo">
                 <label>Tasa de rotación (h)</label>
                 <select
@@ -351,20 +335,16 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                   ))}
                 </select>
               </div>
-
             </div>
           </div>
         )}
 
-        {/* ── Bloque uso JACUZZI ─────────────────────────────── */}
         {hayJacuzzi(datos) && (
           <div className="selector-grupo">
             <div className="selector-subtitulo">
               Uso hidráulico <span className="subtitulo-detalle">— Jacuzzi</span>
             </div>
-
             <div className="selector-grid">
-
               <div className="campo">
                 <label>Uso</label>
                 <select value="hidromasaje" disabled>
@@ -372,7 +352,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                 </select>
                 <span className="badge-ok">✔ Uso fijado como hidromasaje</span>
               </div>
-
               <div className="campo">
                 <label>Tasa de rotación (h)</label>
                 <select
@@ -387,12 +366,10 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                   ))}
                 </select>
               </div>
-
             </div>
           </div>
         )}
 
-        {/* ── Instalación ────────────────────────────────────── */}
         <div className="selector-grupo">
           <div className="selector-subtitulo">Instalación</div>
           <div className="selector-grid">
@@ -410,11 +387,9 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
           </div>
         </div>
 
-        {/* ── Desborde ───────────────────────────────────────── */}
         {config.desborde && (
           <div className="selector-grupo">
             <div className="selector-subtitulo">Tipo de desborde</div>
-
             <div className={`selector-radios ${mostrarErrores && errores.desborde ? "input-error" : ""}`}>
               {["infinity", "canal", "ambos", "ninguno"].map((v) => (
                 <label key={v}
@@ -453,7 +428,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                     />
                   </div>
                 </div>
-
                 <div className="selector-grupo">
                   <div className="selector-subtitulo">Motobomba para sistema infinity</div>
                   <div
@@ -496,6 +470,45 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
     );
   };
 
+  /* ── Render fila individual ───────────────────────────────────── */
+  const renderFilaSistema = (key) => {
+    const s = sistemas[key];
+    return (
+      <div key={key}
+        className={`fila-sistema ${tipoSeleccionado === key ? "activo" : ""}`}
+        onClick={() => {
+          setSistemaActivo(key);
+          setDatosPorSistema((prev) => {
+            if (prev[key]) return prev;
+            const tipoCuerpos = tipoCuerposPorSistema[key] ?? [];
+            return { ...prev, [key]: crearDatosSistema(s.cuerpos, tipoCuerpos) };
+          });
+        }}
+        onMouseEnter={() => setHoveredTipo(key)}
+        onMouseLeave={() => setHoveredTipo(null)}
+      >
+        <div className="sistema-info">
+          <div className="sistema-nombre">
+            {s.nombre}
+            <span className={`badge-cuerpo ${s.cuerpos > 1 ? "doble" : "simple"}`}>
+              {s.cuerpos}C
+            </span>
+          </div>
+          <div className="sistema-meta">
+            {s.desborde ? "Desborde activo" : "Sin desborde"}
+          </div>
+        </div>
+        <div className="sistema-imagen">
+          <img src={s.img} alt={s.nombre} className="img-zoomable"
+            onClick={(e) => {
+              e.stopPropagation();
+              setImagenZoom({ src: s.img, titulo: s.nombre });
+            }} />
+        </div>
+      </div>
+    );
+  };
+
   /* ── Render principal ─────────────────────────────────────────── */
   return (
     <div className="form-section hero-wrapper">
@@ -526,7 +539,6 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
             }}>
               ← Volver a Dimensiones
             </button>
-
             <div className="aviso-wrapper">
               <button
                 className={`btn-primario ${mostrarAviso ? "error" : ""}`}
@@ -554,44 +566,20 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
           </div>
         )}
 
-        <div className="lista-sistemas">
-          {(tipoSeleccionado
-            ? [[tipoSeleccionado, sistemas[tipoSeleccionado]]]
-            : Object.entries(sistemas)
-          ).map(([key, s]) => (
-            <div key={key}
-              className={`fila-sistema ${tipoSeleccionado === key ? "activo" : ""}`}
-              onClick={() => {
-                setSistemaActivo(key);
-                setDatosPorSistema((prev) => {
-                  if (prev[key]) return prev;
-                  const tipoCuerpos = tipoCuerposPorSistema[key] ?? [];
-                  return { ...prev, [key]: crearDatosSistema(s.cuerpos, tipoCuerpos) };
-                });
-              }}
-              onMouseEnter={() => setHoveredTipo(key)}
-              onMouseLeave={() => setHoveredTipo(null)}
-            >
-              <div className="sistema-info">
-                <div className="sistema-nombre">
-                  {s.nombre}
-                  <span className={`badge-cuerpo ${s.cuerpos > 1 ? "doble" : "simple"}`}>
-                    {s.cuerpos}C
-                  </span>
+        {/* ── Lista: con-grupos solo cuando no hay sistema seleccionado ── */}
+        <div className={`lista-sistemas ${!tipoSeleccionado ? "con-grupos" : ""}`}>
+          {tipoSeleccionado ? (
+            renderFilaSistema(tipoSeleccionado)
+          ) : (
+            GRUPOS_SISTEMAS.map(({ label, keys }) => (
+              <div key={label} className="lista-sistemas-grupo">
+                <div className="lista-sistemas-grupo-label">
+                  <span className="lista-sistemas-grupo-pill">{label}</span>
                 </div>
-                <div className="sistema-meta">
-                  {s.desborde ? "Desborde activo" : "Sin desborde"}
-                </div>
+                {keys.map((key) => renderFilaSistema(key))}
               </div>
-              <div className="sistema-imagen">
-                <img src={s.img} alt={s.nombre} className="img-zoomable"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setImagenZoom({ src: s.img, titulo: s.nombre });
-                  }} />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         <div className="selector-footer fijo">
@@ -616,6 +604,7 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                 : "Modo ingeniería"}
           </span>
         </div>
+
       </div>
 
       {calculadorArea && (
