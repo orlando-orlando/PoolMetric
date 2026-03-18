@@ -16,8 +16,10 @@ import { flujoFinal }      from "../utils/flujoFinal";
 import { flujoMaximo }     from "../utils/flujoMaximo";
 import { flujoInfinity }   from "../utils/flujoInfinity";
 import { volumenPorGrupo } from "../utils/volumenPorGrupo";
-import { bombaDeCalor }    from "../utils/bombaDeCalor";
+import { bombaDeCalor, calcularCargaManual } from "../utils/bombaDeCalor";
 import { bombasCalor }     from "../data/bombasDeCalor";
+import { panelSolar, calcularPanelSolarManual } from "../utils/panelSolar";
+import { panelesSolares }  from "../data/panelesSolares";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -132,7 +134,7 @@ const SISTEMAS_CALENTAMIENTO = [
 ];
 
 const TASAS_ELEVACION = [0.25, 0.50, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0];
-const SISTEMA_DEFAULTS = () => ({ distancia: "", alturaVertical: "", tasaElevacion: null });
+const SISTEMA_DEFAULTS = () => ({ distancia: "", alturaVertical: "", tasaElevacion: null, alturaVerticalPS: "" });
 
 function enriquecerCuerpos(cuerpos = []) {
   return cuerpos.map((c) => ({ ...c, volumen: volumen(c), tipo: c.tipoCuerpo ?? "alberca" }));
@@ -191,6 +193,11 @@ export default function Calentamiento({
 
   /* ── BDC seleccionada (recomendada o manual) para usar en cálculo ── */
   const [bdcConfirmada, setBdcConfirmada] = useState(datosPrevios.bdcConfirmada ?? null);
+
+  /* ── Panel Solar ── */
+  const [modoPS,           setModoPS]           = useState(datosPrevios.modoPS           ?? "recomendado");
+  const [selManualPSPct,   setSelManualPSPct]   = useState(datosPrevios.selManualPSPct   ?? 100);   // 30 | 60 | 100
+  const [selManualPSCant,  setSelManualPSCant]  = useState(datosPrevios.selManualPSCant  ?? null);  // cantidad libre
 
   const toggleSistema = (key) => {
     setSistemasSeleccionados(prev => {
@@ -348,6 +355,7 @@ export default function Calentamiento({
     catch (e) { console.error("Error en bombaDeCalor() paso 1:", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalPaso1]);
 
+  /* ── resumenBDCR paso 1: siempre de la selección automática (para el primer qTuberia) ── */
   const resumenBDCR = useMemo(() => {
     if (!bdcPaso1?.resumenMaterialesTuberia) return {};
     return Object.fromEntries(
@@ -358,32 +366,30 @@ export default function Calentamiento({
     );
   }, [bdcPaso1]);
 
-  /* ── PASO 2 ── */
-  const perdidaTuberia = useMemo(() => {
-    if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
-    const { resumenTramosR, resumenDisparosR } = resultadoRetorno;
-    const resultado = qTuberia(resumenTramosR, resumenDisparosR, resumenBDCR, { tempDeseada }, mesMasFrio);
-    return resultado.total_BTU_h ?? 0;
-  }, [resultadoRetorno, resumenBDCR, mesMasFrio, tempDeseada]);
+  /* ── PASO 2: resumen efectivo BDC según modo activo (auto o manual) ── */
+  const resumenBDCRFinal = useMemo(() => {
+    if (modoBDC === "manual" && selManualBDCId) {
+      const bombaElegida = bombasCalor.find(b => b.id === selManualBDCId);
+      if (bombaElegida) {
+        const distancia      = parseFloat(sistemasSeleccionados.bombaCalor?.distancia)      || 0;
+        const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor?.alturaVertical) || 0;
+        try {
+          const hid = calcularCargaManual(bombaElegida.specs.flujo, selManualCantidad, distancia, alturaVertical);
+          if (!hid?.error && hid.resumenMaterialesTuberia) {
+            return Object.fromEntries(
+              hid.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
+                tuberia,
+                { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
+              ])
+            );
+          }
+        } catch { /* fall through to auto */ }
+      }
+    }
+    return resumenBDCR;
+  }, [modoBDC, selManualBDCId, selManualCantidad, sistemasSeleccionados, resumenBDCR]);
 
-  const perdidasBTU = useMemo(() => ({
-    evaporacion: perdidaEvaporacion, conveccion: perdidaConveccion,
-    radiacion:   perdidaRadiacion,   transmision: perdidaTransmision,
-    infinity:    perdidaInfinity,    canal: perdidaCanal,
-    tuberia:     perdidaTuberia,
-  }), [perdidaEvaporacion, perdidaConveccion, perdidaRadiacion, perdidaTransmision, perdidaInfinity, perdidaCanal, perdidaTuberia]);
 
-  const perdidaTotalBTU = useMemo(() => Object.values(perdidasBTU).reduce((a, b) => a + b, 0), [perdidasBTU]);
-
-  /* ── BDC recomendada (siempre se calcula) ── */
-  const bdcSeleccionada = useMemo(() => {
-    if (!sistemasSeleccionados.bombaCalor) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
-    try { return bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical); }
-    catch (e) { console.error("Error en bombaDeCalor() paso 2:", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalBTU]);
 
   /* ── Catálogo ── */
   const marcasDisponibles = useMemo(() =>
@@ -399,33 +405,151 @@ export default function Calentamiento({
     }),
   [filtroBDCMarca, filtroBDCVelocidad]);
 
-  /* ── BDC Manual: hidráulica calculada con bombaDeCalor() ── */
+  /* ── Panel Solar: altura BDC efectiva para comparar carga estática ── */
+  const alturaBDCEfectiva = useMemo(() => {
+    if (!sistemasSeleccionados.bombaCalor) return 0;
+    return parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
+  }, [sistemasSeleccionados]);
+
+  /* ── Panel Solar recomendado (100%) ── */
+  /* ── PS PASO 1: cantidad preliminar para obtener tubería CM+altura ── */
+  const psPaso1 = useMemo(() => {
+    if (!sistemasSeleccionados.panelSolar) return null;
+    if (perdidaTotalPaso1 <= 0) return null;
+    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
+    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
+    try { return panelSolar(perdidaTotalPaso1, distancia, alturaPS, alturaBDCEfectiva); }
+    catch (e) { console.error("Error en psPaso1():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaBDCEfectiva]);
+
+  /* ── Panel Solar manual ── */
+
+
+  /* ── Resumen tubería panel solar — solo CM + altura (igual que BDC) ── */
+  /* ── Resumen tubería PS paso 1 — solo CM+altura, para qTuberia ── */
+  const resumenPSRFinal = useMemo(() => {
+    if (!psPaso1?.hidraulica?.resumenMaterialesTuberia) return {};
+    return Object.fromEntries(
+      psPaso1.hidraulica.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
+        tuberia,
+        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
+      ])
+    );
+  }, [psPaso1]);
+
+  /* ── Resumen combinado BDC + PS para qTuberia ── */
+  const resumenCalentadoresR = useMemo(() => {
+    const combinado = { ...resumenBDCRFinal };
+    for (const [diam, vals] of Object.entries(resumenPSRFinal)) {
+      if (!combinado[diam]) {
+        combinado[diam] = { ...vals };
+      } else {
+        combinado[diam] = {
+          tuberia_m:   (combinado[diam].tuberia_m   || 0) + (vals.tuberia_m   || 0),
+          tees:        (combinado[diam].tees        || 0) + (vals.tees        || 0),
+          codos:       (combinado[diam].codos       || 0) + (vals.codos       || 0),
+          reducciones: (combinado[diam].reducciones || 0) + (vals.reducciones || 0),
+        };
+      }
+    }
+    return combinado;
+  }, [resumenBDCRFinal, resumenPSRFinal]);
+
+  const perdidaTuberia = useMemo(() => {
+    if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
+    const { resumenTramosR, resumenDisparosR } = resultadoRetorno;
+    const resultado = qTuberia(resumenTramosR, resumenDisparosR, resumenCalentadoresR, { tempDeseada }, mesMasFrio);
+    return resultado.total_BTU_h ?? 0;
+  }, [resultadoRetorno, resumenCalentadoresR, mesMasFrio, tempDeseada]);
+
+  const perdidasBTU = useMemo(() => ({
+    evaporacion: perdidaEvaporacion, conveccion: perdidaConveccion,
+    radiacion:   perdidaRadiacion,   transmision: perdidaTransmision,
+    infinity:    perdidaInfinity,    canal: perdidaCanal,
+    tuberia:     perdidaTuberia,
+  }), [perdidaEvaporacion, perdidaConveccion, perdidaRadiacion, perdidaTransmision, perdidaInfinity, perdidaCanal, perdidaTuberia]);
+
+  const perdidaTotalBTU = useMemo(() => Object.values(perdidasBTU).reduce((a, b) => a + b, 0), [perdidasBTU]);
+
+  /* ── PS PASO 2: cantidad final con demanda real (incluye pérdida por tubería PS) ── */
+  const psSeleccionado = useMemo(() => {
+    if (!sistemasSeleccionados.panelSolar) return null;
+    if (perdidaTotalBTU <= 0) return null;
+    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
+    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
+    try { return panelSolar(perdidaTotalBTU, distancia, alturaPS, alturaBDCEfectiva); }
+    catch (e) { console.error("Error en psSeleccionado():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalBTU, alturaBDCEfectiva]);
+
+  /* ── PS Manual: cantidad elegida por el usuario, hidráulica con flujo real ── */
+  const psManual = useMemo(() => {
+    if (!sistemasSeleccionados.panelSolar) return null;
+    if (perdidaTotalBTU <= 0) return null;
+    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
+    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
+    if (modoPS === "recomendado") return null;
+    if (selManualPSCant && selManualPSCant > 0) {
+      try {
+        const res = calcularPanelSolarManual(selManualPSCant, distancia, alturaPS, alturaBDCEfectiva, perdidaTotalBTU);
+        return res?.error ? null : res;
+      } catch { return null; }
+    }
+    if (psSeleccionado && [30, 60, 100].includes(selManualPSPct)) {
+      const key = `p${selManualPSPct}`;
+      const opcion = psSeleccionado.opciones?.[key];
+      if (!opcion) return null;
+      const capTotal = opcion.capTotal;
+      const exceso   = capTotal - perdidaTotalBTU;
+      const cubre    = capTotal >= perdidaTotalBTU;
+      return {
+        panel:        psSeleccionado.panel,
+        totalPaneles: opcion.cantidad,
+        capUnitaria:  psSeleccionado.panel.specs.capacidadCalentamiento,
+        capTotal,
+        exceso:       exceso.toFixed(2),
+        cubre,
+        porcentaje:   selManualPSPct,
+        flujoTotal:   opcion.flujoTotal,
+        tandems:      opcion.tandems,
+        hidraulica:   opcion.hidraulica,
+      };
+    }
+    return null;
+  }, [modoPS, selManualPSPct, selManualPSCant, psSeleccionado, sistemasSeleccionados, perdidaTotalBTU, alturaBDCEfectiva]);
+
+  /* ── PS efectivo para cálculos posteriores ── */
+  const psEfectivo = useMemo(() => {
+    if (!sistemasSeleccionados.panelSolar) return null;
+    if (modoPS === "manual" && psManual) return psManual.hidraulica;
+    return psSeleccionado?.hidraulica ?? null;
+  }, [modoPS, psManual, psSeleccionado, sistemasSeleccionados]);
+
+  /* ── BDC recomendada: paso 2 con demanda real ── */
+  const bdcSeleccionada = useMemo(() => {
+    if (!sistemasSeleccionados.bombaCalor) return null;
+    if (perdidaTotalBTU <= 0) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
+    try { return bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical); }
+    catch (e) { console.error("Error en bombaDeCalor() paso 2:", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalBTU]);
+
+  /* ── BDC Manual: hidráulica recalculada con flujo y cantidad reales ── */
   const bdcManual = useMemo(() => {
     if (!selManualBDCId || perdidaTotalBTU <= 0) return null;
     const bombaElegida = bombasCalor.find(b => b.id === selManualBDCId);
     if (!bombaElegida) return null;
     const distancia      = parseFloat(sistemasSeleccionados.bombaCalor?.distancia)      || 0;
     const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor?.alturaVertical) || 0;
-    const capTotal = bombaElegida.specs.capacidadCalentamiento * selManualCantidad;
-    const exceso   = capTotal - perdidaTotalBTU;
-    const cubre    = capTotal >= perdidaTotalBTU;
-
-    /* Calcular hidráulica usando el flujo real de las bombas manuales seleccionadas */
-    const flujoManualTotal = bombaElegida.specs.flujo * selManualCantidad;
+    const capTotal      = bombaElegida.specs.capacidadCalentamiento * selManualCantidad;
+    const exceso        = capTotal - perdidaTotalBTU;
+    const cubre         = capTotal >= perdidaTotalBTU;
+    const flujoPorBomba = bombaElegida.specs.flujo;
+    const flujoTotal    = flujoPorBomba * selManualCantidad;
     try {
-      /* Llamamos bombaDeCalor con la pérdida real pero la función internamente
-         usa el catálogo para seleccionar flujo, así que también calculamos
-         la carga hidráulica directamente para el flujo manual */
-      const hidraulica = bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical);
-      return {
-        bomba: bombaElegida,
-        cantidad: selManualCantidad,
-        capTotal,
-        exceso,
-        cubre,
-        flujoTotal: flujoManualTotal,
-        hidraulica,
-      };
+      const hidraulica = calcularCargaManual(flujoPorBomba, selManualCantidad, distancia, alturaVertical);
+      if (hidraulica?.error) return null;
+      return { bomba: bombaElegida, cantidad: selManualCantidad, capTotal, exceso, cubre, flujoTotal, hidraulica };
     } catch { return null; }
   }, [selManualBDCId, selManualCantidad, perdidaTotalBTU, sistemasSeleccionados]);
 
@@ -456,12 +580,20 @@ export default function Calentamiento({
         bdcSeleccionada,
         bdcManual: bdcManual ?? null,
         bdcEfectiva,
+        modoPS,
+        selManualPSPct,
+        selManualPSCant,
+        psSeleccionado: psSeleccionado ?? null,
+        psManual:       psManual       ?? null,
+        psEfectivo:     psEfectivo     ?? null,
       }
     }));
   }, [decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
       mesesCalentar, perdidasBTU, perdidaTotalBTU, sistemasSeleccionados,
       modoBDC, selManualBDCId, selManualCantidad,
-      resultadoRetorno, bdcSeleccionada, bdcManual, bdcEfectiva, setDatosPorSistema]);
+      modoPS, selManualPSPct, selManualPSCant,
+      resultadoRetorno, bdcSeleccionada, bdcManual, bdcEfectiva,
+      psSeleccionado, psManual, psEfectivo, setDatosPorSistema]);
 
   useEffect(() => {
     if (clima.length && Object.keys(mesesCalentar).length === 0) {
@@ -481,6 +613,7 @@ export default function Calentamiento({
     usarBombaCalentamiento: "Define si el sistema de calentamiento contará con una motobomba independiente",
     sistemasCalentamiento: "Tipo(s) de fuente de calor. Selecciona uno o varios; cada uno requiere distancia y altura respecto al espejo de agua",
     modoBDC: "Elige si usas la bomba de calor recomendada automáticamente o seleccionas manualmente del catálogo",
+    modoPS:  "Elige si usas la cantidad de paneles recomendada o defines manualmente cuántos instalar",
     default: "Configuración térmica del sistema"
   };
 
@@ -505,6 +638,7 @@ export default function Calentamiento({
   const fmtBTU = (v) => Math.round(v).toLocaleString("es-MX");
   const formularioBloqueado = decision === null;
   const mostrarSelectorBDC = sistemasSeleccionados.bombaCalor && perdidaTotalBTU > 0;
+  const mostrarSelectorPS  = sistemasSeleccionados.panelSolar  && perdidaTotalBTU > 0;
 
   /* ── Determinar qué BDC mostrar en la tarjeta activa ── */
   const bdcActivaParaMostrar = useMemo(() => {
@@ -1127,6 +1261,325 @@ export default function Calentamiento({
             )}{/* fin fila2 */}
 
           </div>{/* fin selector-grupo análisis climático */}
+
+          {/* ── PANEL SOLAR ── */}
+          {sistemasSeleccionados.panelSolar && (
+            <div
+              className="selector-grupo"
+              onMouseEnter={() => !formularioBloqueado && setHoveredField("modoPS")}
+              onMouseLeave={() => setHoveredField(null)}
+            >
+              <div className="selector-subtitulo">
+                Panel solar
+                <span className="selector-subtitulo-hint">Cobertura y cálculo hidráulico</span>
+              </div>
+
+              {/* Toggle Recomendado / Manual */}
+              <div className="bdc-modo-toggle-wrapper" style={{ marginBottom: "0.75rem" }}>
+                <div className="bdc-modo-toggle">
+                  <button
+                    type="button"
+                    className={`bdc-modo-btn ${modoPS === "recomendado" ? "bdc-modo-activo" : ""}`}
+                    onClick={() => { setModoPS("recomendado"); setSelManualPSCant(null); }}
+                  >
+                    {modoPS === "recomendado" && <IconoCheck />}
+                    <span>Recomendado (100%)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bdc-modo-btn ${modoPS === "manual" ? "bdc-modo-activo" : ""}`}
+                    onClick={() => setModoPS("manual")}
+                  >
+                    {modoPS === "manual" && <IconoCheck />}
+                    <span>Selección manual</span>
+                  </button>
+                </div>
+                {modoPS === "manual" && psManual && !psManual.cubre && (
+                  <div className="bdc-modo-aviso-deficit">
+                    ⚠ La selección no cubre la demanda térmica.
+                  </div>
+                )}
+              </div>
+
+              {!mostrarSelectorPS && (
+                <div style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#475569" }}>
+                  Completa los datos térmicos para ver la selección de paneles
+                </div>
+              )}
+
+              {mostrarSelectorPS && (
+                <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+
+                  {/* ── Tarjeta resumen activo ── */}
+                  <div className="layout-clima-bdc-celda celda-bdc-rec">
+                    {(() => {
+                      const info = modoPS === "manual" && psManual ? psManual
+                                 : psSeleccionado ? { ...psSeleccionado.seleccion, hidraulica: psSeleccionado.hidraulica, panel: psSeleccionado.panel, totalPaneles: psSeleccionado.seleccion.cantidad, capUnitaria: psSeleccionado.panel?.specs.capacidadCalentamiento, capTotal: psSeleccionado.seleccion.capTotal, exceso: psSeleccionado.seleccion.exceso, cubre: true, porcentaje: 100, flujoTotal: psSeleccionado.seleccion.flujoTotal, tandems: psSeleccionado.seleccion.tandems }
+                                 : null;
+                      if (!info) return (
+                        <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+                          <div className="bdc-rec-header">
+                            <IconoPanelSolar />
+                            <div className="bdc-rec-titulo">
+                              <span className="bdc-rec-label">Panel solar</span>
+                              <span className="bdc-rec-modelo bdc-pendiente-txt">Completa los datos térmicos</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      const hid = info.hidraulica;
+                      return (
+                        <div className={`bdc-recomendada-card bdc-inset ${modoPS === "manual" ? "bdc-card-manual-activa" : ""}`}>
+                          <div className="bdc-rec-header">
+                            <IconoPanelSolar />
+                            <div className="bdc-rec-titulo">
+                              <span className="bdc-rec-label">{modoPS === "manual" ? "Manual" : "Recomendado"}</span>
+                              <span className="bdc-rec-modelo">{info.panel?.marca} · {info.panel?.modelo}</span>
+                            </div>
+                            <span className={`bdc-modo-badge ${modoPS === "manual" ? "badge-manual" : "badge-auto"}`}>
+                              {info.porcentaje != null ? `${info.porcentaje}%` : (modoPS === "manual" ? "Manual" : "Auto")}
+                            </span>
+                          </div>
+                          <div className="bdc-rec-stats">
+                            <div className="bdc-stat">
+                              <span className="bdc-stat-valor">{info.totalPaneles ?? info.cantidad}</span>
+                              <span className="bdc-stat-label">paneles</span>
+                            </div>
+                            <div className="bdc-stat-sep" />
+                            <div className="bdc-stat">
+                              <span className="bdc-stat-valor">{(info.tandems ?? []).length}</span>
+                              <span className="bdc-stat-label">tándems</span>
+                            </div>
+                            <div className="bdc-stat-sep" />
+                            <div className="bdc-stat">
+                              <span className="bdc-stat-valor">{parseFloat(info.flujoTotal).toFixed(1)}</span>
+                              <span className="bdc-stat-label">GPM total</span>
+                            </div>
+                          </div>
+                          <div className="bdc-rec-demanda">
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">Demanda</span>
+                              <span className="bdc-demanda-valor">{fmtBTU(perdidaTotalBTU)} BTU/h</span>
+                            </div>
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">Capacidad instalada</span>
+                              <span className={`bdc-demanda-valor ${info.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                {fmtBTU(info.capTotal)} BTU/h
+                              </span>
+                            </div>
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">{info.cubre ? "Exceso" : "Déficit"}</span>
+                              <span className={`bdc-demanda-valor ${info.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                {info.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(info.exceso)))} BTU/h
+                              </span>
+                            </div>
+                            {hid?.tablaAltura && (
+                              <div className="bdc-demanda-fila" style={{ marginTop: "0.3rem", flexDirection: "column", alignItems: "flex-start", gap: "0.15rem" }}>
+                                <span className="bdc-demanda-label" style={{ color: "#7dd3fc", fontWeight: 600 }}>Carga estática</span>
+                                <span className="bdc-demanda-valor" style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+                                  BDC: {hid.tablaAltura.alturaBDC_m}m + Δ paneles: {hid.tablaAltura.deltaAltura_m}m = {hid.tablaAltura.alturaEfectiva_m}m total
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {hid && (
+                            <div className="bdc-rec-hidraulica">
+                              <span className="bdc-hid-label">Carga hidráulica</span>
+                              <span className="bdc-hid-valor">{hid.cargaTotal} ft · {hid.cargaTotalPSI} PSI</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* ── Panel derecho ── */}
+                  <div className="layout-clima-bdc-celda celda-bdc-manual">
+
+                    {/* MODO RECOMENDADO: detalle automático */}
+                    {modoPS === "recomendado" && psSeleccionado && (
+                      <div className="bdc-info-automatica bdc-inset">
+                        <div className="bdc-manual-header">
+                          <span className="bdc-manual-titulo">Detalle de selección automática</span>
+                        </div>
+                        <div className="bdc-auto-detalle">
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Modelo</span>
+                            <span className="bdc-auto-val">{psSeleccionado.panel?.modelo}</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Paneles totales</span>
+                            <span className="bdc-auto-val">{psSeleccionado.seleccion.cantidad}</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Distribución tándems</span>
+                            <span className="bdc-auto-val">{psSeleccionado.seleccion.tandems.join(" + ")} paneles</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Flujo total</span>
+                            <span className="bdc-auto-val">{psSeleccionado.seleccion.flujoTotal} GPM</span>
+                          </div>
+                          <div className="bdc-auto-sep" />
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Carga tándems</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaTramos} ft</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                            <span className="bdc-auto-val">
+                              {(parseFloat(psSeleccionado.hidraulica.cargaDistanciaIda) + parseFloat(psSeleccionado.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                            </span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Carga estática</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaEstatica} ft</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Carga fricción Δ</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFriccionAltura} ft</span>
+                          </div>
+                          <div className="bdc-auto-fila">
+                            <span className="bdc-auto-label">Carga fija global</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFija_ft} ft</span>
+                          </div>
+                          <div className="bdc-auto-sep" />
+                          <div className="bdc-auto-fila bdc-auto-total">
+                            <span className="bdc-auto-label">Carga total</span>
+                            <span className="bdc-auto-val bdc-hid-val-highlight">{psSeleccionado.hidraulica.cargaTotal} ft · {psSeleccionado.hidraulica.cargaTotalPSI} PSI</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {modoPS === "recomendado" && !psSeleccionado && (
+                      <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                        Completa los datos térmicos para ver el detalle
+                      </div>
+                    )}
+
+                    {/* MODO MANUAL */}
+                    {modoPS === "manual" && mostrarSelectorPS && (
+                      <div className="bdc-selector-manual bdc-inset">
+                        <div className="bdc-manual-header">
+                          <span className="bdc-manual-titulo">Opciones de cobertura</span>
+                        </div>
+
+                        {/* Botones de porcentaje */}
+                        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.6rem" }}>
+                          {[30, 60, 100].map(pct => {
+                            const key     = `p${pct}`;
+                            const opcion  = psSeleccionado?.opciones?.[key];
+                            const activo  = selManualPSCant == null && selManualPSPct === pct;
+                            return (
+                              <button
+                                key={pct}
+                                type="button"
+                                className={`tasa-btn ${activo ? "tasa-activa" : ""}`}
+                                style={{ flex: 1 }}
+                                onClick={() => { setSelManualPSPct(pct); setSelManualPSCant(null); }}
+                              >
+                                {pct}%{opcion ? ` · ${opcion.cantidad}p` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Cantidad libre */}
+                        <div className="bdc-manual-cant-row" style={{ marginBottom: "0.5rem" }}>
+                          <span className="bdc-manual-cant-label">Cantidad libre</span>
+                          <div className="bdc-manual-cant-ctrl">
+                            <button onClick={() => {
+                              const base = selManualPSCant ?? (psSeleccionado?.seleccion.cantidad ?? 1);
+                              setSelManualPSCant(Math.max(1, base - 1));
+                            }}>−</button>
+                            <span>{selManualPSCant ?? "—"}</span>
+                            <button onClick={() => {
+                              const base = selManualPSCant ?? (psSeleccionado?.seleccion.cantidad ?? 0);
+                              setSelManualPSCant(base + 1);
+                            }}>+</button>
+                          </div>
+                        </div>
+                        {selManualPSCant != null && (
+                          <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "0.5rem", textAlign: "right" }}>
+                            Cantidad libre activa: {selManualPSCant} paneles
+                          </div>
+                        )}
+
+                        {/* Detalle hidráulico del modo manual activo */}
+                        {psManual && (
+                          <div className="bdc-manual-resultado">
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">Capacidad instalada</span>
+                              <span className={`bdc-demanda-valor ${psManual.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                {fmtBTU(psManual.capTotal)} BTU/h
+                              </span>
+                            </div>
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">{psManual.cubre ? "Exceso" : "Déficit"}</span>
+                              <span className={`bdc-demanda-valor ${psManual.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                {psManual.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(psManual.exceso)))} BTU/h
+                              </span>
+                            </div>
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">Tándems</span>
+                              <span className="bdc-demanda-valor">{(psManual.tandems ?? []).join(" + ")} paneles</span>
+                            </div>
+                            <div className="bdc-demanda-fila">
+                              <span className="bdc-demanda-label">Flujo total</span>
+                              <span className="bdc-demanda-valor">{parseFloat(psManual.flujoTotal).toFixed(1)} GPM</span>
+                            </div>
+                            {psManual.hidraulica && (
+                              <div className="bdc-manual-hidraulica-detalle">
+                                <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Carga tándems</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaTramos} ft</span>
+                                </div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                                  <span className="bdc-auto-val">
+                                    {(parseFloat(psManual.hidraulica.cargaDistanciaIda) + parseFloat(psManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                  </span>
+                                </div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Carga estática</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaEstatica} ft</span>
+                                </div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Carga fricción Δ</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFriccionAltura} ft</span>
+                                </div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Carga fija global</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFija_ft} ft</span>
+                                </div>
+                                <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                <div className="bdc-auto-fila bdc-auto-total">
+                                  <span className="bdc-auto-label">Carga total</span>
+                                  <span className="bdc-auto-val bdc-hid-val-highlight">
+                                    {psManual.hidraulica.cargaTotal} ft · {psManual.hidraulica.cargaTotalPSI} PSI
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                            {!psManual.cubre && (
+                              <div className="bdc-manual-aviso">⚠ Capacidad insuficiente — los cálculos usarán esta configuración</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {modoPS === "manual" && !mostrarSelectorPS && (
+                      <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                        Completa los datos térmicos para habilitar la selección manual
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── MOTOBOMBA ── */}
           <div className="selector-grupo">

@@ -187,6 +187,13 @@ function LogoIcono() {
 }
 
 /* =====================================================
+   HELPERS FORMAT
+===================================================== */
+const fmtFt  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} ft` : "—";
+const fmtPSI = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} psi` : "—";
+const fmtGPM = (v) => v != null && !isNaN(v) && parseFloat(v) > 0 ? `${parseFloat(v).toFixed(1)} gpm` : "—";
+
+/* =====================================================
    APP
 ===================================================== */
 export default function App() {
@@ -262,6 +269,7 @@ export default function App() {
     return "—";
   }, [datosDim]);
 
+  /* ── Pérdidas de calor ── */
   const perdidaTotalBTU    = datosPorSistema?.calentamiento?.perdidaTotalBTU          ?? 0;
   const perdidaEvaporacion = datosPorSistema?.calentamiento?.perdidasBTU?.evaporacion ?? 0;
   const perdidaConveccion  = datosPorSistema?.calentamiento?.perdidasBTU?.conveccion  ?? 0;
@@ -270,6 +278,65 @@ export default function App() {
   const perdidaInfinity    = datosPorSistema?.calentamiento?.perdidasBTU?.infinity    ?? 0;
   const perdidaCanal       = datosPorSistema?.calentamiento?.perdidasBTU?.canal       ?? 0;
   const perdidaTuberia     = datosPorSistema?.calentamiento?.perdidasBTU?.tuberia     ?? 0;
+
+  /* ── Bomba de calor efectiva (recomendada o manual según modo) ── */
+  const calentamiento     = datosPorSistema?.calentamiento;
+  const modoBDC           = calentamiento?.modoBDC ?? "recomendado";
+  const bdcEfectiva       = calentamiento?.bdcEfectiva;
+  const bdcSeleccionada   = calentamiento?.bdcSeleccionada;
+  const bdcManual         = calentamiento?.bdcManual;
+
+  /* Flujo BDC: viene de bdcEfectiva.seleccion.flujoTotal (recomendado)
+     o de bdcManual.flujoTotal (manual con cantidad × flujo por equipo)    */
+  const flujoBDC = useMemo(() => {
+    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
+    if (modoBDC === "manual" && bdcManual) {
+      return parseFloat(bdcManual.flujoTotal) || null;
+    }
+    if (bdcSeleccionada && !bdcSeleccionada.error) {
+      return parseFloat(bdcSeleccionada.seleccion?.flujoTotal) || null;
+    }
+    return null;
+  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+
+  /* Carga hidráulica BDC: ft y PSI */
+  const cargaBDCft = useMemo(() => {
+    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
+    if (modoBDC === "manual" && bdcManual?.hidraulica && !bdcManual.hidraulica.error) {
+      return parseFloat(bdcManual.hidraulica.cargaTotal) || null;
+    }
+    if (bdcSeleccionada && !bdcSeleccionada.error) {
+      return parseFloat(bdcSeleccionada.cargaTotal) || null;
+    }
+    return null;
+  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+
+  const cargaBDCpsi = useMemo(() => {
+    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
+    if (modoBDC === "manual" && bdcManual?.hidraulica && !bdcManual.hidraulica.error) {
+      return parseFloat(bdcManual.hidraulica.cargaTotalPSI) || null;
+    }
+    if (bdcSeleccionada && !bdcSeleccionada.error) {
+      return parseFloat(bdcSeleccionada.cargaTotalPSI) || null;
+    }
+    return null;
+  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+
+  /* Modelo BDC activo para mostrar en tabla */
+  const modeloBDC = useMemo(() => {
+    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
+    if (modoBDC === "manual" && bdcManual) {
+      const cant = bdcManual.cantidad > 1 ? ` ×${bdcManual.cantidad}` : "";
+      return `${bdcManual.bomba.marca} ${bdcManual.bomba.modelo}${cant}`;
+    }
+    if (bdcSeleccionada && !bdcSeleccionada.error) {
+      const cant = bdcSeleccionada.seleccion.cantidad > 1 ? ` ×${bdcSeleccionada.seleccion.cantidad}` : "";
+      return `${bdcSeleccionada.seleccion.marca} ${bdcSeleccionada.seleccion.modelo}${cant}`;
+    }
+    return null;
+  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+
+  const bdcListaParaMostrar = sistemaListoCalor && flujoBDC != null;
 
   return (
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
@@ -320,12 +387,15 @@ export default function App() {
           <div className="seccion-resultados">
             <table className="tabla-resultados">
               <tbody>
+                {/* ── Dimensiones ── */}
                 <tr><th>Área total:</th><td>{formatM2(areaCalculada)}</td></tr>
                 <tr><th>Volumen total:</th><td>{formatM3(volumenTotal)}</td></tr>
                 <tr><th>Profundidad promedio:</th><td>{formatMetro(profundidadPromedio)}</td></tr>
                 <tr><th>Flujo filtrado:</th><td>{formatGPM(flujoFiltrado)}</td></tr>
                 <tr><th>Flujo infinity:</th><td>{formatGPM(flujoInfinitySistema)}</td></tr>
                 <tr><th>Motobomba para infinity:</th><td>{textoBombaInfinity}</td></tr>
+
+                {/* ── Pérdidas de calor ── */}
                 <tr><th>Pérdida por evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
                 <tr><th>Pérdida por convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion) : "—"}</td></tr>
                 <tr><th>Pérdida por radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion) : "—"}</td></tr>
@@ -334,8 +404,29 @@ export default function App() {
                 <tr><th>Pérdida por infinity:</th><td>{sistemaListoCalor ? formatBTU(perdidaInfinity) : "—"}</td></tr>
                 <tr><th>Pérdida por canal perimetral:</th><td>{sistemaListoCalor ? formatBTU(perdidaCanal) : "—"}</td></tr>
                 <tr><th>Pérdida total de calor:</th><td>{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
+
+                {/* ── Bomba de calor ── */}
+                <tr>
+                  <th>Flujo bomba de calor:</th>
+                  <td style={{ color: bdcListaParaMostrar ? "#34d399" : undefined }}>
+                    {bdcListaParaMostrar ? fmtGPM(flujoBDC) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga bomba de calor:</th>
+                  <td style={{ color: bdcListaParaMostrar ? "#60a5fa" : undefined }}>
+                    {bdcListaParaMostrar ? fmtFt(cargaBDCft) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga bomba de calor (PSI):</th>
+                  <td style={{ color: bdcListaParaMostrar ? "#60a5fa" : undefined }}>
+                    {bdcListaParaMostrar ? fmtPSI(cargaBDCpsi) : "—"}
+                  </td>
+                </tr>
+
+                {/* ── Pendientes ── */}
                 <tr><th>Flujo panel solar:</th><td>—</td></tr>
-                <tr><th>Flujo bomba de calor:</th><td>—</td></tr>
                 <tr><th>Flujo caldera de gas:</th><td>—</td></tr>
                 <tr><th>Flujo sanitizador:</th><td>—</td></tr>
                 <tr><th>Flujo máximo:</th><td>—</td></tr>
