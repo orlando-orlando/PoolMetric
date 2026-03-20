@@ -64,6 +64,17 @@ const REDUCCION = {
 };
 
 /* ================================================================
+   DEDUPLICACIÓN DE LOGS
+   Cada combinación única de inputs genera una clave.
+   Si esa clave ya fue logueada, se omite — así la consola muestra
+   el cálculo solo una vez aunque la función se llame varias veces
+   con los mismos parámetros (paso1, paso2, auto, manual).
+   Exportamos resetBDCLog() para poder limpiar desde tests si se necesita.
+   ================================================================ */
+const _loggedBDC = new Set();
+export function resetBDCLog() { _loggedBDC.clear(); }
+
+/* ================================================================
    HELPERS
    ================================================================ */
 const fix2 = (v) => (parseFloat(v) || 0).toFixed(2);
@@ -96,14 +107,29 @@ function cargaTramo(longMetros, cargaBase) {
 }
 
 /* ================================================================
-   LÓGICA HIDRÁULICA COMPARTIDA
-   El parámetro `modo` ("auto" | "manual") colorea los logs
-   para distinguir fácilmente en consola cuál cálculo se ejecutó.
+   LÓGICA HIDRÁULICA
+
+   Regla de carga estática — prioridad BDC:
+     • alturaVertical (BDC) >= alturaMaxSistema  →  BDC lleva carga estática completa
+     • alturaVertical (BDC) <  alturaMaxSistema  →  cargaEstatica BDC = 0
+
+   En todos los casos:
+     • cargaFriccionAltura  = fricción sobre alturaVertical propia de la BDC
+     • resumenTuberia       acumula alturaVertical * 2  (pérdida de calor)
    ================================================================ */
-function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertical, modo = "auto" }) {
+function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertical, alturaMaxSistema = null, modo = "auto" }) {
+
+  /* ── Clave de deduplicación: mismos inputs → mismo log, no se repite ── */
+  const logKey = `bdc|${modo}|${flujoPorBomba}|${cantidad}|${distanciaCM}|${alturaVertical}|${alturaMaxSistema}`;
+  const debeLoguear = !_loggedBDC.has(logKey);
+  if (debeLoguear) _loggedBDC.add(logKey);
 
   const colorLog  = modo === "manual" ? "#fb923c" : "#34d399";
   const labelModo = modo === "manual" ? "MANUAL" : "AUTO";
+
+  const log = debeLoguear
+    ? (msg, ...args) => console.log(msg, ...args)
+    : () => {};
 
   const tablaTramos          = [];
   let   cargaAcumuladaTramos = 0;
@@ -130,16 +156,16 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
 
     cargaAcumuladaTramos += cargaFilaTotal;
 
-    console.log(`%c── [${labelModo}] BDC Tramo 1 (equipo único) ──────────────────────`, `color:${colorLog};font-weight:bold`);
-    console.log(`  Flujo en tramo             : ${fix2(flujoPorBomba)} GPM`);
-    console.log(`  Tubería seleccionada        : ${tuberia}`);
-    console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
-    console.log(`  Longitud de tubería         : 1.00 m`);
-    console.log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
-    console.log(`  Núm. codos                  : 2`);
-    console.log(`  Long. eq. codo              : ${fix2(longEqCodo)} ft`);
-    console.log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
-    console.log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
+    log(`%c── [${labelModo}] BDC Tramo 1 (equipo único) ──────────────────────`, `color:${colorLog};font-weight:bold`);
+    log(`  Flujo en tramo             : ${fix2(flujoPorBomba)} GPM`);
+    log(`  Tubería seleccionada        : ${tuberia}`);
+    log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
+    log(`  Longitud de tubería         : 1.00 m`);
+    log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
+    log(`  Núm. codos                  : 2`);
+    log(`  Long. eq. codo              : ${fix2(longEqCodo)} ft`);
+    log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
+    log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
 
     tablaTramos.push({
       tramo: 1, flujo: fix2(flujoPorBomba), tuberia,
@@ -182,21 +208,21 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
       const cargaFilaTotal = cargaTramoBDC + cargaTees + cargaCodos + cargaRed;
       cargaAcumuladaTramos += cargaFilaTotal;
 
-      console.log(`%c── [${labelModo}] BDC Tramo ${i + 1} ──────────────────────────────────`, `color:${colorLog};font-weight:bold`);
-      console.log(`  Flujo en tramo             : ${fix2(flujoActual)} GPM`);
-      console.log(`  Tubería seleccionada        : ${tuberia}`);
-      console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
-      console.log(`  Longitud de tubería         : 1.00 m`);
-      console.log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
-      console.log(`  Núm. tees                   : ${cantTees}`);
-      console.log(`  Long. eq. tee               : ${fix2(cantTees  > 0 ? longEqTee  : 0)} ft`);
-      console.log(`  Carga por tees              : ${fix2(cargaTees)} ft`);
-      console.log(`  Núm. codos                  : ${cantCodos}`);
-      console.log(`  Long. eq. codo              : ${fix2(cantCodos > 0 ? longEqCodo : 0)} ft`);
-      console.log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
-      console.log(`  Núm. reducciones            : ${cantRed}`);
-      console.log(`  Carga por reducción         : ${fix2(cargaRed)} ft`);
-      console.log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
+      log(`%c── [${labelModo}] BDC Tramo ${i + 1} ──────────────────────────────────`, `color:${colorLog};font-weight:bold`);
+      log(`  Flujo en tramo             : ${fix2(flujoActual)} GPM`);
+      log(`  Tubería seleccionada        : ${tuberia}`);
+      log(`  Carga base (Hazen-Williams) : ${fix2(cargaBase)} ft/100ft`);
+      log(`  Longitud de tubería         : 1.00 m`);
+      log(`  Carga por tubería           : ${fix2(cargaTramoBDC)} ft`);
+      log(`  Núm. tees                   : ${cantTees}`);
+      log(`  Long. eq. tee               : ${fix2(cantTees  > 0 ? longEqTee  : 0)} ft`);
+      log(`  Carga por tees              : ${fix2(cargaTees)} ft`);
+      log(`  Núm. codos                  : ${cantCodos}`);
+      log(`  Long. eq. codo              : ${fix2(cantCodos > 0 ? longEqCodo : 0)} ft`);
+      log(`  Carga por codos             : ${fix2(cargaCodos)} ft`);
+      log(`  Núm. reducciones            : ${cantRed}`);
+      log(`  Carga por reducción         : ${fix2(cargaRed)} ft`);
+      log(`  CARGA TOTAL TRAMO           : ${fix2(cargaFilaTotal)} ft`);
 
       tablaTramos.push({
         tramo: i + 1, flujo: fix2(flujoActual), tuberia,
@@ -236,29 +262,29 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
 
   const cargaTotalCM = cargaTotalIda + cargaTotalRegreso;
 
-  console.log(`%c── [${labelModo}] TRAMO CUARTO DE MÁQUINAS — IDA ─────────────────`, `color:${colorLog};font-weight:bold`);
-  console.log(`  Distancia (metros)          : ${fix2(distanciaCM)} m`);
-  console.log(`  Distancia (pies)            : ${fix2(distCM_ft)} ft`);
-  console.log(`  Flujo                       : ${fix2(flujoTotalBDC)} GPM`);
-  console.log(`  Tubería seleccionada        : ${tubCM}`);
-  console.log(`  Velocidad en tubería        : ${fix2(velCM)} ft/s`);
-  console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBaseCM)} ft/100ft`);
-  console.log(`  Carga por tubería           : ${fix2(cargaTuberiaIda)} ft`);
-  console.log(`  Long. eq. codo (1 codo)     : ${fix2(longEqCodoCM)} ft`);
-  console.log(`  Carga por codo              : ${fix2(cargaCodoIda)} ft`);
-  console.log(`  CARGA TOTAL IDA             : ${fix2(cargaTotalIda)} ft`);
+  log(`%c── [${labelModo}] TRAMO CUARTO DE MÁQUINAS — IDA ─────────────────`, `color:${colorLog};font-weight:bold`);
+  log(`  Distancia (metros)          : ${fix2(distanciaCM)} m`);
+  log(`  Distancia (pies)            : ${fix2(distCM_ft)} ft`);
+  log(`  Flujo                       : ${fix2(flujoTotalBDC)} GPM`);
+  log(`  Tubería seleccionada        : ${tubCM}`);
+  log(`  Velocidad en tubería        : ${fix2(velCM)} ft/s`);
+  log(`  Carga base (Hazen-Williams) : ${fix2(cargaBaseCM)} ft/100ft`);
+  log(`  Carga por tubería           : ${fix2(cargaTuberiaIda)} ft`);
+  log(`  Long. eq. codo (1 codo)     : ${fix2(longEqCodoCM)} ft`);
+  log(`  Carga por codo              : ${fix2(cargaCodoIda)} ft`);
+  log(`  CARGA TOTAL IDA             : ${fix2(cargaTotalIda)} ft`);
 
-  console.log(`%c── [${labelModo}] TRAMO CUARTO DE MÁQUINAS — REGRESO ───────────`, `color:${colorLog};font-weight:bold`);
-  console.log(`  Distancia (metros)          : ${fix2(distanciaCM)} m`);
-  console.log(`  Distancia (pies)            : ${fix2(distCM_ft)} ft`);
-  console.log(`  Flujo                       : ${fix2(flujoTotalBDC)} GPM`);
-  console.log(`  Tubería seleccionada        : ${tubCM}`);
-  console.log(`  Velocidad en tubería        : ${fix2(velCM)} ft/s`);
-  console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBaseCM)} ft/100ft`);
-  console.log(`  Carga por tubería           : ${fix2(cargaTuberiaRegreso)} ft`);
-  console.log(`  Long. eq. codo (1 codo)     : ${fix2(longEqCodoCM)} ft`);
-  console.log(`  Carga por codo              : ${fix2(cargaCodoRegreso)} ft`);
-  console.log(`  CARGA TOTAL REGRESO         : ${fix2(cargaTotalRegreso)} ft`);
+  log(`%c── [${labelModo}] TRAMO CUARTO DE MÁQUINAS — REGRESO ───────────`, `color:${colorLog};font-weight:bold`);
+  log(`  Distancia (metros)          : ${fix2(distanciaCM)} m`);
+  log(`  Distancia (pies)            : ${fix2(distCM_ft)} ft`);
+  log(`  Flujo                       : ${fix2(flujoTotalBDC)} GPM`);
+  log(`  Tubería seleccionada        : ${tubCM}`);
+  log(`  Velocidad en tubería        : ${fix2(velCM)} ft/s`);
+  log(`  Carga base (Hazen-Williams) : ${fix2(cargaBaseCM)} ft/100ft`);
+  log(`  Carga por tubería           : ${fix2(cargaTuberiaRegreso)} ft`);
+  log(`  Long. eq. codo (1 codo)     : ${fix2(longEqCodoCM)} ft`);
+  log(`  Carga por codo              : ${fix2(cargaCodoRegreso)} ft`);
+  log(`  CARGA TOTAL REGRESO         : ${fix2(cargaTotalRegreso)} ft`);
 
   const tablaDistancia = {
     distancia_m: fix2(distanciaCM), flujo: fix2(flujoTotalBDC),
@@ -271,7 +297,6 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
     cargaTotal: fix2(cargaTotalCM),
   };
 
-  // CM + altura → ambos resúmenes (hidráulico completo Y pérdida de calor)
   addDiam(tubCM);
   resumen[tubCM].tuberia_m += distanciaCM * 2;
   resumen[tubCM].codos     += 2;
@@ -280,28 +305,33 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
   resumenTuberia[tubCM].tuberia_m += distanciaCM * 2;
   resumenTuberia[tubCM].codos     += 2;
 
-  /* ── Altura vertical ── */
-  const alturaVertical_ft   = alturaVertical * 3.28084;
-  const cargaFriccionAltura = (alturaVertical_ft * cargaBaseCM) / 100;
-  const cargaEstaticaAltura = alturaVertical_ft;
-  const cargaTotalAltura    = cargaEstaticaAltura + cargaFriccionAltura;
+  /* ── Carga estática + fricción ── */
+  const alturaMaxEfectiva     = alturaMaxSistema !== null ? alturaMaxSistema : alturaVertical;
+  const bdcLlevaCargaEstatica = alturaVertical >= alturaMaxEfectiva - 0.001;
+  const alturaVertical_ft     = alturaVertical * 3.28084;
+  const cargaEstaticaAltura   = bdcLlevaCargaEstatica ? (alturaMaxEfectiva * 3.28084) : 0;
+  const cargaFriccionAltura   = (alturaVertical_ft * cargaBaseCM) / 100;
+  const cargaTotalAltura      = cargaEstaticaAltura + cargaFriccionAltura;
 
-  console.log(`%c── [${labelModo}] ALTURA VERTICAL (carga estática + fricción) ──`, `color:${colorLog};font-weight:bold`);
-  console.log(`  Altura (metros)             : ${fix2(alturaVertical)} m`);
-  console.log(`  Altura (pies)               : ${fix2(alturaVertical_ft)} ft`);
-  console.log(`  Flujo                       : ${fix2(flujoTotalBDC)} GPM`);
-  console.log(`  Tubería seleccionada        : ${tubCM}`);
-  console.log(`  Carga base (Hazen-Williams) : ${fix2(cargaBaseCM)} ft/100ft`);
-  console.log(`  Carga estática              : ${fix2(cargaEstaticaAltura)} ft`);
-  console.log(`  Carga fricción tubería      : ${fix2(cargaFriccionAltura)} ft`);
-  console.log(`  CARGA TOTAL ALTURA          : ${fix2(cargaTotalAltura)} ft`);
+  log(`%c── [${labelModo}] ALTURA VERTICAL BDC ─────────────────────────`, `color:${colorLog};font-weight:bold`);
+  log(`  Altura propia BDC (m)       : ${fix2(alturaVertical)} m`);
+  log(`  Altura máx. sistema (m)     : ${fix2(alturaMaxEfectiva)} m`);
+  log(`  BDC lleva carga estática     : ${bdcLlevaCargaEstatica ? "SÍ (BDC >= altMax, incluye empate)" : "NO (PS es estrictamente más alto)"}`);
+  log(`  Carga estática              : ${fix2(cargaEstaticaAltura)} ft`);
+  log(`  Carga fricción (tubería BDC): ${fix2(cargaFriccionAltura)} ft`);
+  log(`  CARGA TOTAL ALTURA          : ${fix2(cargaTotalAltura)} ft`);
 
   const tablaAltura = {
-    altura_m: fix2(alturaVertical), altura_ft: fix2(alturaVertical_ft),
-    flujo: fix2(flujoTotalBDC), tuberia: tubCM, cargaBase: fix2(cargaBaseCM),
-    cargaEstatica: fix2(cargaEstaticaAltura),
-    cargaFriccion: fix2(cargaFriccionAltura),
-    cargaTotal:    fix2(cargaTotalAltura),
+    alturaBDC_m:          fix2(alturaVertical),
+    alturaMaxSist_m:      fix2(alturaMaxEfectiva),
+    bdcLlevaCargaEstatica,
+    alturaMax_ft:         fix2(alturaMaxEfectiva * 3.28084),
+    flujo:                fix2(flujoTotalBDC),
+    tuberia:              tubCM,
+    cargaBase:            fix2(cargaBaseCM),
+    cargaEstatica:        fix2(cargaEstaticaAltura),
+    cargaFriccion:        fix2(cargaFriccionAltura),
+    cargaTotal:           fix2(cargaTotalAltura),
   };
 
   addDiam(tubCM);
@@ -315,26 +345,24 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
   const cargaTotal    = cargaAcumuladaTramos + cargaTotalCM + cargaTotalAltura + CARGA_FIJA_FT;
   const cargaTotalPSI = cargaTotal * 0.43353;
 
-  console.log(`%c═══ [${labelModo}] RESUMEN FINAL ═══════════════════════════════`, `color:${colorLog};font-weight:bold`);
-  console.log(`  Suma carga tramos BDC      : ${fix2(cargaAcumuladaTramos)} ft`);
-  console.log(`  Carga cuarto máq. (ida)    : ${fix2(cargaTotalIda)} ft`);
-  console.log(`  Carga cuarto máq. (regreso): ${fix2(cargaTotalRegreso)} ft`);
-  console.log(`  Carga altura (estática)    : ${fix2(cargaEstaticaAltura)} ft`);
-  console.log(`  Carga altura (fricción)    : ${fix2(cargaFriccionAltura)} ft`);
-  console.log(`  Carga fija global (7 pies) : ${CARGA_FIJA_FT} ft`);
-  console.log(`  ──────────────────────────────────────────`);
-  console.log(`  CARGA TOTAL                : ${fix2(cargaTotal)} ft  /  ${fix2(cargaTotalPSI)} PSI`);
-  console.log(`  resumenMaterialesTuberia   :`, Object.fromEntries(
+  log(`%c═══ [${labelModo}] RESUMEN FINAL BDC ══════════════════════════`, `color:${colorLog};font-weight:bold`);
+  log(`  Suma carga tramos BDC      : ${fix2(cargaAcumuladaTramos)} ft`);
+  log(`  Carga cuarto máq. (ida)    : ${fix2(cargaTotalIda)} ft`);
+  log(`  Carga cuarto máq. (regreso): ${fix2(cargaTotalRegreso)} ft`);
+  log(`  Carga estática             : ${fix2(cargaEstaticaAltura)} ft`);
+  log(`  Carga fricción tubería BDC : ${fix2(cargaFriccionAltura)} ft`);
+  log(`  Carga fija global (7 pies) : ${CARGA_FIJA_FT} ft`);
+  log(`  ──────────────────────────────────────────`);
+  log(`  CARGA TOTAL                : ${fix2(cargaTotal)} ft  /  ${fix2(cargaTotalPSI)} PSI`);
+  log(`  resumenMaterialesTuberia   :`, Object.fromEntries(
     Object.entries(resumenTuberia).map(([k, v]) => [k, { ...v }])
   ));
 
-  /* ── Resumen de materiales ── */
   const resumenMateriales = Object.entries(resumen).map(([diam, vals]) => ({
     tuberia: diam, tuberia_m: fix2(vals.tuberia_m),
     tees: vals.tees, codos: vals.codos, reducciones: vals.reducciones,
   }));
 
-  // Solo CM + altura: para pérdida de calor en qTuberia (sin tramos entre BDC)
   const resumenMaterialesTuberia = Object.entries(resumenTuberia).map(([diam, vals]) => ({
     tuberia: diam, tuberia_m: fix2(vals.tuberia_m),
     tees: vals.tees, codos: vals.codos, reducciones: vals.reducciones,
@@ -393,10 +421,8 @@ function seleccionarBombas(perdidaTotalBTU) {
 
 /* ================================================================
    FUNCIÓN PRINCIPAL: bombaDeCalor()
-   Selecciona equipos automáticamente del catálogo y calcula
-   la hidráulica con el flujo real de esa selección.
    ================================================================ */
-export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
+export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical, alturaMaxSistema = null) {
 
   const seleccion = seleccionarBombas(perdidaTotalBTU);
   if (!seleccion) {
@@ -411,6 +437,7 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
     cantidad,
     distanciaCM,
     alturaVertical,
+    alturaMaxSistema,
     modo: "auto",
   });
 
@@ -432,19 +459,8 @@ export function bombaDeCalor(perdidaTotalBTU, distanciaCM, alturaVertical) {
 
 /* ================================================================
    FUNCIÓN MANUAL: calcularCargaManual()
-   Recibe el flujo unitario real y la cantidad elegida por el
-   usuario, recalcula toda la hidráulica sin tocar la selección
-   automática de equipos.
-
-   Parámetros:
-     flujoPorBomba  — GPM por equipo según specs del catálogo
-     cantidad       — número de equipos elegidos manualmente
-     distanciaCM    — metros del equipo al cuarto de máquinas
-     alturaVertical — metros de altura sobre el espejo de agua
-
-   Retorna el mismo shape que bombaDeCalor() (sin .seleccion).
    ================================================================ */
-export function calcularCargaManual(flujoPorBomba, cantidad, distanciaCM, alturaVertical) {
+export function calcularCargaManual(flujoPorBomba, cantidad, distanciaCM, alturaVertical, alturaMaxSistema = null) {
   if (!flujoPorBomba || flujoPorBomba <= 0 || !cantidad || cantidad <= 0) {
     return { error: "Flujo o cantidad inválidos para cálculo manual." };
   }
@@ -454,6 +470,7 @@ export function calcularCargaManual(flujoPorBomba, cantidad, distanciaCM, altura
     cantidad,
     distanciaCM,
     alturaVertical,
+    alturaMaxSistema,
     modo: "manual",
   });
 }

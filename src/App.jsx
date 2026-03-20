@@ -418,12 +418,6 @@ export default function App() {
                     {bdcListaParaMostrar ? fmtFt(cargaBDCft) : "—"}
                   </td>
                 </tr>
-                <tr>
-                  <th>Carga bomba de calor (PSI):</th>
-                  <td style={{ color: bdcListaParaMostrar ? "#60a5fa" : undefined }}>
-                    {bdcListaParaMostrar ? fmtPSI(cargaBDCpsi) : "—"}
-                  </td>
-                </tr>
 
                 {/* ── Pendientes ── */}
                 <tr><th>Flujo panel solar:</th><td>—</td></tr>
