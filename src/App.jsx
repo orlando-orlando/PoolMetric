@@ -194,6 +194,55 @@ const fmtPSI = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} psi`
 const fmtGPM = (v) => v != null && !isNaN(v) && parseFloat(v) > 0 ? `${parseFloat(v).toFixed(1)} gpm` : "—";
 
 /* =====================================================
+   HELPER — extrae flujo y carga de cualquier equipo de calentamiento
+   Soporta la misma forma que BDC: modo recomendado / manual,
+   con las claves que guarda Calentamiento.jsx en datosPorSistema.
+
+   Parámetros:
+     calentamiento  — datosPorSistema.calentamiento
+     sistemaKey     — "bombaCalor" | "panelSolar" | "caldera" | "calentadorElectrico"
+     modoKey        — "modoBDC" | "modoPS" | "modoCaldera" | "modoCE"
+     selKey         — "bdcSeleccionada" | "psSeleccionado" | "calderaSeleccionada" | "ceSeleccionado"
+     manualKey      — "bdcManual" | "psManual" | "calderaManual" | "ceManual"
+     flujoPath      — función que extrae flujo del objeto recomendado
+     cargaPath      — función que extrae carga ft del objeto recomendado
+     manualFlujoPath— función que extrae flujo del objeto manual
+     manualCargaPath— función que extrae carga ft del objeto manual
+===================================================== */
+function extraerFlujoCarga(calentamiento, {
+  sistemaKey,
+  modoKey,
+  selKey,
+  manualKey,
+  flujoFn,
+  cargaFn,
+  manualFlujoFn,
+  manualCargaFn,
+}) {
+  if (!calentamiento?.sistemasSeleccionados?.[sistemaKey]) return { flujo: null, carga: null };
+
+  const modo   = calentamiento[modoKey] ?? "recomendado";
+  const sel    = calentamiento[selKey];
+  const manual = calentamiento[manualKey];
+
+  if (modo === "manual" && manual && !manual.error) {
+    return {
+      flujo: parseFloat(manualFlujoFn(manual)) || null,
+      carga: parseFloat(manualCargaFn(manual)) || null,
+    };
+  }
+
+  if (sel && !sel.error) {
+    return {
+      flujo: parseFloat(flujoFn(sel)) || null,
+      carga: parseFloat(cargaFn(sel)) || null,
+    };
+  }
+
+  return { flujo: null, carga: null };
+}
+
+/* =====================================================
    APP
 ===================================================== */
 export default function App() {
@@ -279,64 +328,83 @@ export default function App() {
   const perdidaCanal       = datosPorSistema?.calentamiento?.perdidasBTU?.canal       ?? 0;
   const perdidaTuberia     = datosPorSistema?.calentamiento?.perdidasBTU?.tuberia     ?? 0;
 
-  /* ── Bomba de calor efectiva (recomendada o manual según modo) ── */
-  const calentamiento     = datosPorSistema?.calentamiento;
-  const modoBDC           = calentamiento?.modoBDC ?? "recomendado";
-  const bdcEfectiva       = calentamiento?.bdcEfectiva;
-  const bdcSeleccionada   = calentamiento?.bdcSeleccionada;
-  const bdcManual         = calentamiento?.bdcManual;
+  const calentamiento = datosPorSistema?.calentamiento;
 
-  /* Flujo BDC: viene de bdcEfectiva.seleccion.flujoTotal (recomendado)
-     o de bdcManual.flujoTotal (manual con cantidad × flujo por equipo)    */
-  const flujoBDC = useMemo(() => {
-    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
-    if (modoBDC === "manual" && bdcManual) {
-      return parseFloat(bdcManual.flujoTotal) || null;
-    }
-    if (bdcSeleccionada && !bdcSeleccionada.error) {
-      return parseFloat(bdcSeleccionada.seleccion?.flujoTotal) || null;
-    }
-    return null;
-  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+  /* ── Bomba de calor ── */
+  const { flujo: flujoBDC, carga: cargaBDCft } = useMemo(() =>
+    extraerFlujoCarga(calentamiento, {
+      sistemaKey:     "bombaCalor",
+      modoKey:        "modoBDC",
+      selKey:         "bdcSeleccionada",
+      manualKey:      "bdcManual",
+      flujoFn:        (s) => s.seleccion?.flujoTotal,
+      cargaFn:        (s) => s.cargaTotal,
+      manualFlujoFn:  (m) => m.flujoTotal,
+      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+    }),
+  [calentamiento]);
 
-  /* Carga hidráulica BDC: ft y PSI */
-  const cargaBDCft = useMemo(() => {
-    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
-    if (modoBDC === "manual" && bdcManual?.hidraulica && !bdcManual.hidraulica.error) {
-      return parseFloat(bdcManual.hidraulica.cargaTotal) || null;
-    }
-    if (bdcSeleccionada && !bdcSeleccionada.error) {
-      return parseFloat(bdcSeleccionada.cargaTotal) || null;
-    }
-    return null;
-  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+  /* ── Panel solar ── */
+  const { flujo: flujoPS, carga: cargaPSft } = useMemo(() =>
+    extraerFlujoCarga(calentamiento, {
+      sistemaKey:     "panelSolar",
+      modoKey:        "modoPS",
+      selKey:         "psSeleccionado",
+      manualKey:      "psManual",
+      flujoFn:        (s) => s.seleccion?.flujoTotal,
+      cargaFn:        (s) => s.hidraulica?.cargaTotal,
+      manualFlujoFn:  (m) => m.flujoTotal,
+      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+    }),
+  [calentamiento]);
 
-  const cargaBDCpsi = useMemo(() => {
-    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
-    if (modoBDC === "manual" && bdcManual?.hidraulica && !bdcManual.hidraulica.error) {
-      return parseFloat(bdcManual.hidraulica.cargaTotalPSI) || null;
-    }
-    if (bdcSeleccionada && !bdcSeleccionada.error) {
-      return parseFloat(bdcSeleccionada.cargaTotalPSI) || null;
-    }
-    return null;
-  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+  /* ── Caldera ── */
+  const { flujo: flujoCaldera, carga: cargaCalderaCft } = useMemo(() =>
+    extraerFlujoCarga(calentamiento, {
+      sistemaKey:     "caldera",
+      modoKey:        "modoCaldera",
+      selKey:         "calderaSeleccionada",
+      manualKey:      "calderaManual",
+      flujoFn:        (s) => s.seleccion?.flujoTotal,
+      cargaFn:        (s) => s.cargaTotal,
+      manualFlujoFn:  (m) => m.flujoTotal,
+      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+    }),
+  [calentamiento]);
 
-  /* Modelo BDC activo para mostrar en tabla */
-  const modeloBDC = useMemo(() => {
-    if (!calentamiento?.sistemasSeleccionados?.bombaCalor) return null;
-    if (modoBDC === "manual" && bdcManual) {
-      const cant = bdcManual.cantidad > 1 ? ` ×${bdcManual.cantidad}` : "";
-      return `${bdcManual.bomba.marca} ${bdcManual.bomba.modelo}${cant}`;
-    }
-    if (bdcSeleccionada && !bdcSeleccionada.error) {
-      const cant = bdcSeleccionada.seleccion.cantidad > 1 ? ` ×${bdcSeleccionada.seleccion.cantidad}` : "";
-      return `${bdcSeleccionada.seleccion.marca} ${bdcSeleccionada.seleccion.modelo}${cant}`;
-    }
-    return null;
-  }, [modoBDC, bdcManual, bdcSeleccionada, calentamiento]);
+  /* ── Calentador eléctrico ── */
+  const { flujo: flujoCE, carga: cargaCEft } = useMemo(() =>
+    extraerFlujoCarga(calentamiento, {
+      sistemaKey:     "calentadorElectrico",
+      modoKey:        "modoCE",
+      selKey:         "ceSeleccionado",
+      manualKey:      "ceManual",
+      flujoFn:        (s) => s.seleccion?.flujoTotal,
+      cargaFn:        (s) => s.cargaTotal,
+      manualFlujoFn:  (m) => m.flujoTotal,
+      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+    }),
+  [calentamiento]);
 
-  const bdcListaParaMostrar = sistemaListoCalor && flujoBDC != null;
+  const bdcListoParaMostrar      = sistemaListoCalor && flujoBDC      != null;
+  const psListoParaMostrar       = sistemaListoCalor && flujoPS       != null;
+  const calderaListoParaMostrar  = sistemaListoCalor && flujoCaldera  != null;
+  const ceListoParaMostrar       = sistemaListoCalor && flujoCE       != null;
+
+  /* ── Flujo máximo y carga total de calentamiento ── */
+  const flujoMaxCalentamiento = useMemo(() => {
+    const flujos = [flujoBDC, flujoPS, flujoCaldera, flujoCE].filter(v => v != null);
+    if (!flujos.length) return null;
+    return Math.max(...flujos);
+  }, [flujoBDC, flujoPS, flujoCaldera, flujoCE]);
+
+  const cargaSumaCalentamiento = useMemo(() => {
+    const cargas = [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft].filter(v => v != null);
+    if (!cargas.length) return null;
+    return cargas.reduce((a, b) => a + parseFloat(b), 0);
+  }, [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft]);
+
+  const maxYSumaListos = sistemaListoCalor && flujoMaxCalentamiento != null;
 
   return (
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
@@ -408,31 +476,85 @@ export default function App() {
                 {/* ── Bomba de calor ── */}
                 <tr>
                   <th>Flujo bomba de calor:</th>
-                  <td style={{ color: bdcListaParaMostrar ? "#34d399" : undefined }}>
-                    {bdcListaParaMostrar ? fmtGPM(flujoBDC) : "—"}
+                  <td style={{ color: bdcListoParaMostrar ? "#34d399" : undefined }}>
+                    {bdcListoParaMostrar ? fmtGPM(flujoBDC) : "—"}
                   </td>
                 </tr>
                 <tr>
                   <th>Carga bomba de calor:</th>
-                  <td style={{ color: bdcListaParaMostrar ? "#60a5fa" : undefined }}>
-                    {bdcListaParaMostrar ? fmtFt(cargaBDCft) : "—"}
+                  <td style={{ color: bdcListoParaMostrar ? "#60a5fa" : undefined }}>
+                    {bdcListoParaMostrar ? fmtFt(cargaBDCft) : "—"}
+                  </td>
+                </tr>
+
+                {/* ── Panel solar ── */}
+                <tr>
+                  <th>Flujo panel solar:</th>
+                  <td style={{ color: psListoParaMostrar ? "#34d399" : undefined }}>
+                    {psListoParaMostrar ? fmtGPM(flujoPS) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga panel solar:</th>
+                  <td style={{ color: psListoParaMostrar ? "#60a5fa" : undefined }}>
+                    {psListoParaMostrar ? fmtFt(cargaPSft) : "—"}
+                  </td>
+                </tr>
+
+                {/* ── Caldera ── */}
+                <tr>
+                  <th>Flujo caldera de gas:</th>
+                  <td style={{ color: calderaListoParaMostrar ? "#34d399" : undefined }}>
+                    {calderaListoParaMostrar ? fmtGPM(flujoCaldera) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga caldera de gas:</th>
+                  <td style={{ color: calderaListoParaMostrar ? "#60a5fa" : undefined }}>
+                    {calderaListoParaMostrar ? fmtFt(cargaCalderaCft) : "—"}
+                  </td>
+                </tr>
+
+                {/* ── Calentador eléctrico ── */}
+                <tr>
+                  <th>Flujo calentador eléctrico:</th>
+                  <td style={{ color: ceListoParaMostrar ? "#34d399" : undefined }}>
+                    {ceListoParaMostrar ? fmtGPM(flujoCE) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga calentador eléctrico:</th>
+                  <td style={{ color: ceListoParaMostrar ? "#60a5fa" : undefined }}>
+                    {ceListoParaMostrar ? fmtFt(cargaCEft) : "—"}
                   </td>
                 </tr>
 
                 {/* ── Pendientes ── */}
-                <tr><th>Flujo panel solar:</th><td>—</td></tr>
-                <tr><th>Flujo caldera de gas:</th><td>—</td></tr>
                 <tr><th>Flujo sanitizador:</th><td>—</td></tr>
-                <tr><th>Flujo máximo:</th><td>—</td></tr>
-                <tr><th>Pérdida calor:</th><td>—</td></tr>
+                <tr>
+                  <th>Flujo máximo calentamiento:</th>
+                  <td style={{ color: maxYSumaListos ? "#34d399" : undefined }}>
+                    {maxYSumaListos ? fmtGPM(flujoMaxCalentamiento) : "—"}
+                  </td>
+                </tr>
                 <tr><th>Energía necesaria 1°C:</th><td>—</td></tr>
                 <tr><th>Temp. deseada:</th><td>—</td></tr>
                 <tr><th>Tubería succión:</th><td>—</td></tr>
                 <tr><th>Tubería descarga:</th><td>—</td></tr>
                 <tr><th>Cloro necesario:</th><td>—</td></tr>
                 <tr><th>Ozono necesario:</th><td>—</td></tr>
-                <tr><th>Carga total (ftHd):</th><td>—</td></tr>
-                <tr><th>Carga total (psi):</th><td>—</td></tr>
+                <tr>
+                  <th>Carga total calentamiento:</th>
+                  <td style={{ color: maxYSumaListos ? "#60a5fa" : undefined }}>
+                    {maxYSumaListos ? fmtFt(cargaSumaCalentamiento) : "—"}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Carga total calentamiento (psi):</th>
+                  <td style={{ color: maxYSumaListos ? "#60a5fa" : undefined }}>
+                    {maxYSumaListos ? fmtPSI(cargaSumaCalentamiento * 0.43353) : "—"}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>

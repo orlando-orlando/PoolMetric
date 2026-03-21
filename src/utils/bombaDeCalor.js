@@ -307,7 +307,9 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
 
   /* ── Carga estática + fricción ── */
   const alturaMaxEfectiva     = alturaMaxSistema !== null ? alturaMaxSistema : alturaVertical;
-  const bdcLlevaCargaEstatica = alturaVertical >= alturaMaxEfectiva - 0.001;
+  // BDC lleva carga estática si SU altura es la máxima del sistema (o empata con otro equipo — prioridad BDC).
+  const bdcEsLaMasAlta        = Math.abs(alturaVertical - alturaMaxEfectiva) < 0.001;
+  const bdcLlevaCargaEstatica = bdcEsLaMasAlta;
   const alturaVertical_ft     = alturaVertical * 3.28084;
   const cargaEstaticaAltura   = bdcLlevaCargaEstatica ? (alturaMaxEfectiva * 3.28084) : 0;
   const cargaFriccionAltura   = (alturaVertical_ft * cargaBaseCM) / 100;
@@ -316,7 +318,7 @@ function calcularHidraulica({ flujoPorBomba, cantidad, distanciaCM, alturaVertic
   log(`%c── [${labelModo}] ALTURA VERTICAL BDC ─────────────────────────`, `color:${colorLog};font-weight:bold`);
   log(`  Altura propia BDC (m)       : ${fix2(alturaVertical)} m`);
   log(`  Altura máx. sistema (m)     : ${fix2(alturaMaxEfectiva)} m`);
-  log(`  BDC lleva carga estática     : ${bdcLlevaCargaEstatica ? "SÍ (BDC >= altMax, incluye empate)" : "NO (PS es estrictamente más alto)"}`);
+  log(`  BDC lleva carga estática     : ${bdcLlevaCargaEstatica ? "SÍ (BDC es la más alta o empata)" : "NO (otro equipo supera la altura de BDC)"}`);
   log(`  Carga estática              : ${fix2(cargaEstaticaAltura)} ft`);
   log(`  Carga fricción (tubería BDC): ${fix2(cargaFriccionAltura)} ft`);
   log(`  CARGA TOTAL ALTURA          : ${fix2(cargaTotalAltura)} ft`);

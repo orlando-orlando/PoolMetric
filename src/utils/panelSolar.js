@@ -331,7 +331,12 @@ function calcularHidraulicaPS({
 
   /* ── Carga estática + fricción ── */
   const alturaMaxEfectiva    = alturaMaxSistema !== null ? alturaMaxSistema : alturaPS;
-  const psLlevaCargaEstatica = alturaPS > alturaMaxEfectiva + 0.001;
+  // PS lleva carga estática si SU altura es la máxima del sistema.
+  // Si BDC o caldera empatan con PS en alturaMaxSistema, ellos tienen
+  // mayor prioridad y lo declaran por su parte — aquí PS solo verifica
+  // si él es el equipo con la altura máxima.
+  const psEsElMasAlto        = Math.abs(alturaPS - alturaMaxEfectiva) < 0.001;
+  const psLlevaCargaEstatica = psEsElMasAlto;
   const alturaPS_ft          = alturaPS * 3.28084;
   const cargaEstaticaTotal   = psLlevaCargaEstatica ? (alturaMaxEfectiva * 3.28084) : 0;
   const cargaFriccionAltura  = (alturaPS_ft * cargaBaseCM) / 100;
@@ -340,7 +345,7 @@ function calcularHidraulicaPS({
   log(`%c── [${labelModo}] ALTURA VERTICAL PANELES SOLARES ─────────────`, `color:${colorLog};font-weight:bold`);
   log(`  Altura propia PS (m)        : ${fix2(alturaPS)} m = ${fix2(alturaPS_ft)} ft`);
   log(`  Altura máx. sistema (m)     : ${fix2(alturaMaxEfectiva)} m`);
-  log(`  PS lleva carga estática      : ${psLlevaCargaEstatica ? "SÍ (PS > altMax estrictamente)" : "NO (BDC es >= al PS, ella la lleva)"}`);
+  log(`  PS lleva carga estática      : ${psLlevaCargaEstatica ? "SÍ (PS es el más alto del sistema)" : "NO (BDC o caldera tiene igual o mayor altura)"}`);
   log(`  Carga estática PS           : ${fix2(cargaEstaticaTotal)} ft`);
   log(`  Carga fricción (tubería PS) : ${fix2(cargaFriccionAltura)} ft`);
   log(`  CARGA TOTAL ALTURA          : ${fix2(cargaTotalAltura)} ft`);
@@ -376,7 +381,7 @@ function calcularHidraulicaPS({
   log(`  Flujo total                 : ${fix2(flujoTotalPS)} GPM`);
   log(`  Suma carga tándems          : ${fix2(cargaAcumuladaTramos)} ft`);
   log(`  Carga CM (ida + regreso)    : ${fix2(cargaTotalCM)} ft`);
-  log(`  Carga estática PS           : ${fix2(cargaEstaticaTotal)} ft  (${psLlevaCargaEstatica ? "PS es más alto" : "BDC lleva esta carga — PS = 0"})`);
+  log(`  Carga estática PS           : ${fix2(cargaEstaticaTotal)} ft  (${psLlevaCargaEstatica ? "PS es el más alto" : "Otro equipo tiene mayor o igual altura — PS = 0"})`);
   log(`  Carga fricción tubería PS   : ${fix2(cargaFriccionAltura)} ft`);
   log(`  Carga fija por equipo PS    : ${CARGA_FIJA_FT} ft`);
   log(`  ──────────────────────────────────────────`);

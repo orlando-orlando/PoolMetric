@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, memo } from "react";
 import "../estilos.css";
 import { getClimaMensual } from "../data/clima";
 import { Pie } from "react-chartjs-2";
@@ -20,8 +20,17 @@ import { bombaDeCalor, calcularCargaManual } from "../utils/bombaDeCalor";
 import { bombasCalor }     from "../data/bombasDeCalor";
 import { panelSolar, calcularPanelSolarManual } from "../utils/panelSolar";
 import { panelesSolares }  from "../data/panelesSolares";
+import { caldera as calcularCaldera, calcularCalderaManual, calcularBTUporGrado } from "../utils/caldera";
+import { calderasGas }           from "../data/calderasDeGas";
+import { calentadorElectrico as calcularCE, calcularCEManual } from "../utils/calentadorElectrico";
+import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
+
+/* ── GraficaPie memoizada — no se re-renderiza si pieData y pieOptions no cambian ── */
+const GraficaPie = memo(({ data, options }) => (
+  <Pie data={data} options={options} />
+));
 
 /* ─── SVG Icons ─── */
 const IconoBombaCalor = () => (
@@ -149,6 +158,15 @@ function calcularFlujoMaximo(sistemaActivo) {
   return flujoMaximo(flujoVol, flujoInf);
 }
 
+const PIE_OPTIONS = {
+  responsive: true, maintainAspectRatio: false,
+  layout: { padding: { top: 18, bottom: 18, left: 18, right: 18 } },
+  plugins: {
+    legend: { position: "right", labels: { color: "#e5e7eb", font: { size: 13, weight: "500" }, padding: 14, boxWidth: 14 } },
+    tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(0)} BTU/h` } }
+  }
+};
+
 export default function Calentamiento({
   setSeccion, tipoSistema, datosPorSistema, setDatosPorSistema,
   areaTotal, volumenTotal, profundidadPromedio, tipoRetornoExterno,
@@ -193,6 +211,19 @@ export default function Calentamiento({
   const [selManualPSPct,   setSelManualPSPct]   = useState(datosPrevios.selManualPSPct   ?? 100);
   const [selManualPSCant,  setSelManualPSCant]  = useState(datosPrevios.selManualPSCant  ?? null);
 
+  /* ── Caldera ── */
+  const [modoCaldera,          setModoCaldera]          = useState(datosPrevios.modoCaldera          ?? "recomendado");
+  const [filtroCalderaMarca,   setFiltroCalderaMarca]   = useState("todas");
+  const [filtroCalderaTipoGas, setFiltroCalderaTipoGas] = useState("todos");
+  const [selManualCalderaId,   setSelManualCalderaId]   = useState(datosPrevios.selManualCalderaId   ?? null);
+  const [selManualCalderaCant, setSelManualCalderaCant] = useState(datosPrevios.selManualCalderaCant ?? 1);
+
+  /* ── Calentador Eléctrico ── */
+  const [modoCE,          setModoCE]          = useState(datosPrevios.modoCE          ?? "recomendado");
+  const [filtroCEMarca,   setFiltroCEMarca]   = useState("todas");
+  const [selManualCEId,   setSelManualCEId]   = useState(datosPrevios.selManualCEId   ?? null);
+  const [selManualCECant, setSelManualCECant] = useState(datosPrevios.selManualCECant ?? 1);
+
   const toggleSistema = (key) => {
     setSistemasSeleccionados(prev => {
       if (prev[key]) { const next = { ...prev }; delete next[key]; return next; }
@@ -215,7 +246,7 @@ export default function Calentamiento({
     return keys.every(k => {
       const s = sistemasSeleccionados[k];
       const base = s.distancia !== "" && s.alturaVertical !== "";
-      if (k === "caldera") return base && s.tasaElevacion !== null;
+      if (k === "caldera" || k === "calentadorElectrico") return base && s.tasaElevacion !== null;
       return base;
     });
   }, [sistemasSeleccionados]);
@@ -318,18 +349,14 @@ export default function Calentamiento({
       distCuarto: parseFloat(sistemaActivo.distCuarto) || 0,
     };
     try {
-      const resultado = retorno(flujoMax, tipoRetorno, datosParaRetorno);
-      return {
-        ...resultado,
-        resumenTramosR:   JSON.parse(JSON.stringify(resultado.resumenTramosR ?? {})),
-        resumenDisparosR: JSON.parse(JSON.stringify(resultado.resumenDisparosR ?? {})),
-      };
+      return retorno(flujoMax, tipoRetorno, datosParaRetorno);
     } catch (e) { console.error("Error en retorno():", e); return null; }
   }, [sistemaActivo, areaTotal, profMaxSistema, tipoRetorno, tempDeseada, mesMasFrio]);
 
   const perdidaTuberiaBase = useMemo(() => {
     if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
-    const { resumenTramosR, resumenDisparosR } = resultadoRetorno;
+    const resumenTramosR   = resultadoRetorno.resumenTramosR   ?? {};
+    const resumenDisparosR = resultadoRetorno.resumenDisparosR ?? {};
     const resultado = qTuberia(resumenTramosR, resumenDisparosR, {}, { tempDeseada }, mesMasFrio);
     return resultado.total_BTU_h ?? 0;
   }, [resultadoRetorno, mesMasFrio, tempDeseada]);
@@ -349,16 +376,60 @@ export default function Calentamiento({
     return parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
   }, [sistemasSeleccionados]);
 
+  const alturaCalderaEfectiva = useMemo(() => {
+    if (!sistemasSeleccionados.caldera) return 0;
+    return parseFloat(sistemasSeleccionados.caldera.alturaVertical) || 0;
+  }, [sistemasSeleccionados]);
+
+  const alturaCEEfectiva = useMemo(() => {
+    if (!sistemasSeleccionados.calentadorElectrico) return 0;
+    return parseFloat(sistemasSeleccionados.calentadorElectrico.alturaVertical) || 0;
+  }, [sistemasSeleccionados]);
+
   const alturaMaxSistema = useMemo(() => {
-    return Math.max(alturaBDCEfectiva, alturaPSEfectiva);
-  }, [alturaBDCEfectiva, alturaPSEfectiva]);
+    return Math.max(alturaBDCEfectiva, alturaPSEfectiva, alturaCalderaEfectiva, alturaCEEfectiva);
+  }, [alturaBDCEfectiva, alturaPSEfectiva, alturaCalderaEfectiva, alturaCEEfectiva]);
+
+  /* ── Prioridad de carga estática: BDC > caldera > PS en caso de empate.
+     A cada función se le pasa su alturaMaxSistema "efectivo":
+       - Si el equipo ES el ganador → alturaMaxSistema real (su condición abs<0.001 será true)
+       - Si el equipo NO es el ganador → alturaMaxSistema + 1000 (su condición será false)
+     De este modo solo un equipo lleva la carga estática, incluso en empate. ── */
+  const alturaMaxParaBDC = useMemo(() => {
+    const bdcEsMax = Math.abs(alturaBDCEfectiva - alturaMaxSistema) < 0.001;
+    return bdcEsMax ? alturaMaxSistema : alturaMaxSistema + 1000;
+  }, [alturaBDCEfectiva, alturaMaxSistema]);
+
+  const alturaMaxParaCaldera = useMemo(() => {
+    const bdcEsMax     = Math.abs(alturaBDCEfectiva    - alturaMaxSistema) < 0.001;
+    const calderaEsMax = Math.abs(alturaCalderaEfectiva - alturaMaxSistema) < 0.001;
+    // Caldera gana solo si es la más alta Y BDC no empata
+    return (calderaEsMax && !bdcEsMax) ? alturaMaxSistema : alturaMaxSistema + 1000;
+  }, [alturaBDCEfectiva, alturaCalderaEfectiva, alturaMaxSistema]);
+
+  const alturaMaxParaPS = useMemo(() => {
+    const bdcEsMax     = Math.abs(alturaBDCEfectiva    - alturaMaxSistema) < 0.001;
+    const calderaEsMax = Math.abs(alturaCalderaEfectiva - alturaMaxSistema) < 0.001;
+    const ceEsMax      = Math.abs(alturaCEEfectiva      - alturaMaxSistema) < 0.001;
+    const psEsMax      = Math.abs(alturaPSEfectiva      - alturaMaxSistema) < 0.001;
+    // PS gana solo si es la más alta Y BDC, caldera y CE no empatan
+    return (psEsMax && !bdcEsMax && !calderaEsMax && !ceEsMax) ? alturaMaxSistema : alturaMaxSistema + 1000;
+  }, [alturaBDCEfectiva, alturaCalderaEfectiva, alturaCEEfectiva, alturaPSEfectiva, alturaMaxSistema]);
+
+  const alturaMaxParaCE = useMemo(() => {
+    const bdcEsMax     = Math.abs(alturaBDCEfectiva    - alturaMaxSistema) < 0.001;
+    const calderaEsMax = Math.abs(alturaCalderaEfectiva - alturaMaxSistema) < 0.001;
+    const ceEsMax      = Math.abs(alturaCEEfectiva      - alturaMaxSistema) < 0.001;
+    // CE gana solo si es la más alta Y BDC y caldera no empatan
+    return (ceEsMax && !bdcEsMax && !calderaEsMax) ? alturaMaxSistema : alturaMaxSistema + 1000;
+  }, [alturaBDCEfectiva, alturaCalderaEfectiva, alturaCEEfectiva, alturaMaxSistema]);
 
   const bdcPaso1 = useMemo(() => {
     if (!sistemasSeleccionados.bombaCalor) return null;
     if (perdidaTotalPaso1 <= 0) return null;
     const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
     const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
-    try { return bombaDeCalor(perdidaTotalPaso1, distancia, alturaVertical, alturaMaxSistema); }
+    try { return bombaDeCalor(perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaBDC); }
     catch (e) { console.error("Error en bombaDeCalor() paso 1:", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema]);
 
@@ -379,7 +450,7 @@ export default function Calentamiento({
         const distancia      = parseFloat(sistemasSeleccionados.bombaCalor?.distancia)      || 0;
         const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor?.alturaVertical) || 0;
         try {
-          const hid = calcularCargaManual(bombaElegida.specs.flujo, selManualCantidad, distancia, alturaVertical, alturaMaxSistema);
+          const hid = calcularCargaManual(bombaElegida.specs.flujo, selManualCantidad, distancia, alturaVertical, alturaMaxParaBDC);
           if (!hid?.error && hid.resumenMaterialesTuberia) {
             return Object.fromEntries(
               hid.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
@@ -412,9 +483,37 @@ export default function Calentamiento({
     if (perdidaTotalPaso1 <= 0) return null;
     const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
     const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
-    try { return panelSolar(perdidaTotalPaso1, distancia, alturaPS, alturaMaxSistema); }
+    try { return panelSolar(perdidaTotalPaso1, distancia, alturaPS, alturaMaxParaPS); }
     catch (e) { console.error("Error en psPaso1():", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema]);
+
+  /* ── Caldera PASO 1: selección preliminar para obtener tubería ── */
+  const calderaPaso1 = useMemo(() => {
+    if (!sistemasSeleccionados.caldera) return null;
+    if (perdidaTotalPaso1 <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.caldera.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.caldera.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.caldera.alturaVertical) || 0;
+    try {
+      return calcularCaldera(volumenTotal, tasaElevacion, perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaCaldera);
+    } catch (e) { console.error("Error en calderaPaso1():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema, volumenTotal]);
+
+  /* ── Calentador Eléctrico PASO 1 ── */
+  const cePaso1 = useMemo(() => {
+    if (!sistemasSeleccionados.calentadorElectrico) return null;
+    if (perdidaTotalPaso1 <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico.alturaVertical) || 0;
+    try {
+      return calcularCE(volumenTotal, tasaElevacion, perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaCE);
+    } catch (e) { console.error("Error en cePaso1():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxParaCE, volumenTotal]);
 
   const resumenPSRFinal = useMemo(() => {
     if (!psPaso1?.hidraulica?.resumenMaterialesTuberia) return {};
@@ -426,26 +525,52 @@ export default function Calentamiento({
     );
   }, [psPaso1]);
 
+  /* ── Resumen tubería caldera paso 1 ── */
+  const resumenCalderaRFinal = useMemo(() => {
+    if (!calderaPaso1?.resumenMaterialesTuberia) return {};
+    return Object.fromEntries(
+      calderaPaso1.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
+        tuberia,
+        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
+      ])
+    );
+  }, [calderaPaso1]);
+
+  /* ── Resumen tubería CE paso 1 ── */
+  const resumenCERFinal = useMemo(() => {
+    if (!cePaso1?.resumenMaterialesTuberia) return {};
+    return Object.fromEntries(
+      cePaso1.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
+        tuberia,
+        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
+      ])
+    );
+  }, [cePaso1]);
+
   const resumenCalentadoresR = useMemo(() => {
     const combinado = { ...resumenBDCRFinal };
-    for (const [diam, vals] of Object.entries(resumenPSRFinal)) {
-      if (!combinado[diam]) {
-        combinado[diam] = { ...vals };
-      } else {
-        combinado[diam] = {
-          tuberia_m:   (combinado[diam].tuberia_m   || 0) + (vals.tuberia_m   || 0),
-          tees:        (combinado[diam].tees        || 0) + (vals.tees        || 0),
-          codos:       (combinado[diam].codos       || 0) + (vals.codos       || 0),
-          reducciones: (combinado[diam].reducciones || 0) + (vals.reducciones || 0),
-        };
+    const fuentes = [resumenPSRFinal, resumenCalderaRFinal, resumenCERFinal];
+    for (const fuente of fuentes) {
+      for (const [diam, vals] of Object.entries(fuente)) {
+        if (!combinado[diam]) {
+          combinado[diam] = { ...vals };
+        } else {
+          combinado[diam] = {
+            tuberia_m:   (combinado[diam].tuberia_m   || 0) + (vals.tuberia_m   || 0),
+            tees:        (combinado[diam].tees        || 0) + (vals.tees        || 0),
+            codos:       (combinado[diam].codos       || 0) + (vals.codos       || 0),
+            reducciones: (combinado[diam].reducciones || 0) + (vals.reducciones || 0),
+          };
+        }
       }
     }
     return combinado;
-  }, [resumenBDCRFinal, resumenPSRFinal]);
+  }, [resumenBDCRFinal, resumenPSRFinal, resumenCalderaRFinal, resumenCERFinal]);
 
   const perdidaTuberia = useMemo(() => {
     if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
-    const { resumenTramosR, resumenDisparosR } = resultadoRetorno;
+    const resumenTramosR   = resultadoRetorno.resumenTramosR   ?? {};
+    const resumenDisparosR = resultadoRetorno.resumenDisparosR ?? {};
     const resultado = qTuberia(resumenTramosR, resumenDisparosR, resumenCalentadoresR, { tempDeseada }, mesMasFrio);
     return resultado.total_BTU_h ?? 0;
   }, [resultadoRetorno, resumenCalentadoresR, mesMasFrio, tempDeseada]);
@@ -464,7 +589,7 @@ export default function Calentamiento({
     if (perdidaTotalBTU <= 0) return null;
     const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
     const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
-    try { return panelSolar(perdidaTotalBTU, distancia, alturaPS, alturaMaxSistema); }
+    try { return panelSolar(perdidaTotalBTU, distancia, alturaPS, alturaMaxParaPS); }
     catch (e) { console.error("Error en psSeleccionado():", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
 
@@ -476,7 +601,7 @@ export default function Calentamiento({
     if (modoPS === "recomendado") return null;
     if (selManualPSCant && selManualPSCant > 0) {
       try {
-        const res = calcularPanelSolarManual(selManualPSCant, distancia, alturaPS, alturaMaxSistema, perdidaTotalBTU);
+        const res = calcularPanelSolarManual(selManualPSCant, distancia, alturaPS, alturaMaxParaPS, perdidaTotalBTU);
         return res?.error ? null : res;
       } catch { return null; }
     }
@@ -509,12 +634,63 @@ export default function Calentamiento({
     return psSeleccionado?.hidraulica ?? null;
   }, [modoPS, psManual, psSeleccionado, sistemasSeleccionados]);
 
+  /* ── Caldera recomendada: paso 2 con demanda real ── */
+  const calderaSeleccionada = useMemo(() => {
+    if (!sistemasSeleccionados.caldera) return null;
+    if (perdidaTotalBTU <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.caldera.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.caldera.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.caldera.alturaVertical) || 0;
+    try { return calcularCaldera(volumenTotal, tasaElevacion, perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaCaldera); }
+    catch (e) { console.error("Error en calderaSeleccionada():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema, volumenTotal]);
+
+  /* ── Catálogo caldera filtrado ── */
+  const marcasCalderaDisponibles = useMemo(() =>
+    ["todas", ...new Set(calderasGas.filter(c => c.metadata.activo).map(c => c.marca))],
+  []);
+
+  const catalogoCalderaFiltrado = useMemo(() =>
+    calderasGas.filter(c => {
+      if (!c.metadata.activo) return false;
+      if (filtroCalderaMarca   !== "todas" && c.marca     !== filtroCalderaMarca)   return false;
+      if (filtroCalderaTipoGas !== "todos" && c.tipoGas   !== filtroCalderaTipoGas) return false;
+      return true;
+    }),
+  [filtroCalderaMarca, filtroCalderaTipoGas]);
+
+  /* ── Caldera manual ── */
+  const calderaManual = useMemo(() => {
+    if (!selManualCalderaId || perdidaTotalBTU <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.caldera?.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.caldera?.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.caldera?.alturaVertical) || 0;
+    try {
+      return calcularCalderaManual(
+        selManualCalderaId, selManualCalderaCant,
+        volumenTotal, tasaElevacion, perdidaTotalBTU,
+        distancia, alturaVertical, alturaMaxParaCaldera
+      );
+    } catch { return null; }
+  }, [selManualCalderaId, selManualCalderaCant, perdidaTotalBTU, sistemasSeleccionados, volumenTotal, alturaMaxSistema]);
+
+  /* ── Caldera efectiva ── */
+  const calderaEfectiva = useMemo(() => {
+    if (!sistemasSeleccionados.caldera) return null;
+    if (modoCaldera === "manual" && calderaManual) return calderaManual.hidraulica;
+    return calderaSeleccionada;
+  }, [modoCaldera, calderaManual, calderaSeleccionada, sistemasSeleccionados]);
+
   const bdcSeleccionada = useMemo(() => {
     if (!sistemasSeleccionados.bombaCalor) return null;
     if (perdidaTotalBTU <= 0) return null;
     const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
     const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
-    try { return bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical, alturaMaxSistema); }
+    try { return bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaBDC); }
     catch (e) { console.error("Error en bombaDeCalor() paso 2:", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
 
@@ -530,7 +706,7 @@ export default function Calentamiento({
     const flujoPorBomba = bombaElegida.specs.flujo;
     const flujoTotal    = flujoPorBomba * selManualCantidad;
     try {
-      const hidraulica = calcularCargaManual(flujoPorBomba, selManualCantidad, distancia, alturaVertical, alturaMaxSistema);
+      const hidraulica = calcularCargaManual(flujoPorBomba, selManualCantidad, distancia, alturaVertical, alturaMaxParaBDC);
       if (hidraulica?.error) return null;
       return { bomba: bombaElegida, cantidad: selManualCantidad, capTotal, exceso, cubre, flujoTotal, hidraulica };
     } catch { return null; }
@@ -542,6 +718,53 @@ export default function Calentamiento({
     return bdcSeleccionada;
   }, [modoBDC, bdcManual, bdcSeleccionada, sistemasSeleccionados]);
 
+  /* ── CE paso 2 con demanda real ── */
+  const ceSeleccionado = useMemo(() => {
+    if (!sistemasSeleccionados.calentadorElectrico) return null;
+    if (perdidaTotalBTU <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico.alturaVertical) || 0;
+    try { return calcularCE(volumenTotal, tasaElevacion, perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaCE); }
+    catch (e) { console.error("Error en ceSeleccionado():", e); return null; }
+  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxParaCE, volumenTotal]);
+
+  const marcasCEDisponibles = useMemo(() =>
+    ["todas", ...new Set(calentadoresElectricos.filter(c => c.metadata.activo).map(c => c.marca))],
+  []);
+
+  const catalogoCEFiltrado = useMemo(() =>
+    calentadoresElectricos.filter(c => {
+      if (!c.metadata.activo) return false;
+      if (filtroCEMarca !== "todas" && c.marca !== filtroCEMarca) return false;
+      return true;
+    }),
+  [filtroCEMarca]);
+
+  const ceManual = useMemo(() => {
+    if (!selManualCEId || perdidaTotalBTU <= 0) return null;
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico?.tasaElevacion;
+    if (!tasaElevacion) return null;
+    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico?.distancia)      || 0;
+    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico?.alturaVertical) || 0;
+    try {
+      return calcularCEManual(
+        selManualCEId, selManualCECant,
+        volumenTotal, tasaElevacion, perdidaTotalBTU,
+        distancia, alturaVertical, alturaMaxParaCE
+      );
+    } catch { return null; }
+  }, [selManualCEId, selManualCECant, perdidaTotalBTU, sistemasSeleccionados, volumenTotal, alturaMaxParaCE]);
+
+  const ceEfectivo = useMemo(() => {
+    if (!sistemasSeleccionados.calentadorElectrico) return null;
+    if (modoCE === "manual" && ceManual) return ceManual.hidraulica;
+    return ceSeleccionado;
+  }, [modoCE, ceManual, ceSeleccionado, sistemasSeleccionados]);
+
   useEffect(() => {
     if (selManualBDCId && !catalogoFiltrado.find(b => b.id === selManualBDCId)) {
       setSelManualBDCId(null); setSelManualCantidad(1);
@@ -549,33 +772,92 @@ export default function Calentamiento({
   }, [catalogoFiltrado, selManualBDCId]);
 
   useEffect(() => {
+    if (selManualCalderaId && !catalogoCalderaFiltrado.find(c => c.id === selManualCalderaId)) {
+      setSelManualCalderaId(null); setSelManualCalderaCant(1);
+    }
+  }, [catalogoCalderaFiltrado, selManualCalderaId]);
+
+  useEffect(() => {
+    if (selManualCEId && !catalogoCEFiltrado.find(c => c.id === selManualCEId)) {
+      setSelManualCEId(null); setSelManualCECant(1);
+    }
+  }, [catalogoCEFiltrado, selManualCEId]);
+
+  /* ── Save a datosPorSistema ──────────────────────────────────────────────
+     Usamos un ref para siempre tener los valores frescos, pero el useEffect
+     solo se dispara cuando cambia algo de cálculo real (no UI como hoveredField).
+     Esto evita que interacciones de UI (hover, foco) disparen todo el árbol. ── */
+  const saveRef = useRef({});
+  saveRef.current = {
+    decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
+    mesesCalentar, perdidasBTU, perdidaTotalBTU, sistemasSeleccionados,
+    modoBDC, selManualBDCId, selManualCantidad,
+    modoPS, selManualPSPct, selManualPSCant,
+    modoCaldera, selManualCalderaId, selManualCalderaCant,
+    modoCE, selManualCEId, selManualCECant,
+    resultadoRetorno, bdcSeleccionada, bdcManual, bdcEfectiva,
+    psSeleccionado, psManual, psEfectivo,
+    calderaSeleccionada, calderaManual, calderaEfectiva,
+    ceSeleccionado, ceManual, ceEfectivo,
+  };
+
+  useEffect(() => {
+    const s = saveRef.current;
     setDatosPorSistema(prev => ({
       ...prev,
       calentamiento: {
-        decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
-        mesesCalentar, perdidasBTU, perdidaTotalBTU, sistemasSeleccionados,
-        modoBDC,
-        selManualBDCId,
-        selManualCantidad,
-        resumenTramosR:   resultadoRetorno?.resumenTramosR   ?? {},
-        resumenDisparosR: resultadoRetorno?.resumenDisparosR ?? {},
-        bdcSeleccionada,
-        bdcManual: bdcManual ?? null,
-        bdcEfectiva,
-        modoPS,
-        selManualPSPct,
-        selManualPSCant,
-        psSeleccionado: psSeleccionado ?? null,
-        psManual:       psManual       ?? null,
-        psEfectivo:     psEfectivo     ?? null,
+        decision:              s.decision,
+        usarBombaCalentamiento: s.usarBombaCalentamiento,
+        ciudad:                s.ciudad,
+        tempDeseada:           s.tempDeseada,
+        cubierta:              s.cubierta,
+        techada:               s.techada,
+        mesesCalentar:         s.mesesCalentar,
+        perdidasBTU:           s.perdidasBTU,
+        perdidaTotalBTU:       s.perdidaTotalBTU,
+        sistemasSeleccionados: s.sistemasSeleccionados,
+        modoBDC:               s.modoBDC,
+        selManualBDCId:        s.selManualBDCId,
+        selManualCantidad:     s.selManualCantidad,
+        resumenTramosR:        s.resultadoRetorno?.resumenTramosR   ?? {},
+        resumenDisparosR:      s.resultadoRetorno?.resumenDisparosR ?? {},
+        bdcSeleccionada:       s.bdcSeleccionada,
+        bdcManual:             s.bdcManual   ?? null,
+        bdcEfectiva:           s.bdcEfectiva,
+        modoPS:                s.modoPS,
+        selManualPSPct:        s.selManualPSPct,
+        selManualPSCant:       s.selManualPSCant,
+        psSeleccionado:        s.psSeleccionado ?? null,
+        psManual:              s.psManual       ?? null,
+        psEfectivo:            s.psEfectivo     ?? null,
+        modoCaldera:           s.modoCaldera,
+        selManualCalderaId:    s.selManualCalderaId,
+        selManualCalderaCant:  s.selManualCalderaCant,
+        calderaSeleccionada:   s.calderaSeleccionada ?? null,
+        calderaManual:         s.calderaManual       ?? null,
+        calderaEfectiva:       s.calderaEfectiva     ?? null,
+        modoCE:                s.modoCE,
+        selManualCEId:         s.selManualCEId,
+        selManualCECant:       s.selManualCECant,
+        ceSeleccionado:        s.ceSeleccionado ?? null,
+        ceManual:              s.ceManual       ?? null,
+        ceEfectivo:            s.ceEfectivo     ?? null,
       }
     }));
-  }, [decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
-      mesesCalentar, perdidasBTU, perdidaTotalBTU, sistemasSeleccionados,
-      modoBDC, selManualBDCId, selManualCantidad,
-      modoPS, selManualPSPct, selManualPSCant,
-      resultadoRetorno, bdcSeleccionada, bdcManual, bdcEfectiva,
-      psSeleccionado, psManual, psEfectivo, setDatosPorSistema]);
+  }, [
+    /* Solo valores de cálculo — NO estados UI como hoveredField */
+    decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
+    perdidaTotalBTU, sistemasSeleccionados,
+    modoBDC, selManualBDCId, selManualCantidad,
+    modoPS, selManualPSPct, selManualPSCant,
+    modoCaldera, selManualCalderaId, selManualCalderaCant,
+    modoCE, selManualCEId, selManualCECant,
+    bdcSeleccionada, bdcManual, bdcEfectiva,
+    psSeleccionado, psManual, psEfectivo,
+    calderaSeleccionada, calderaManual, calderaEfectiva,
+    ceSeleccionado, ceManual, ceEfectivo,
+    setDatosPorSistema,
+  ]);
 
   useEffect(() => {
     if (clima.length && Object.keys(mesesCalentar).length === 0) {
@@ -596,6 +878,8 @@ export default function Calentamiento({
     sistemasCalentamiento: "Tipo(s) de fuente de calor. Selecciona uno o varios; cada uno requiere distancia y altura respecto al espejo de agua",
     modoBDC: "Elige si usas la bomba de calor recomendada automáticamente o seleccionas manualmente del catálogo",
     modoPS:  "Elige si usas la cantidad de paneles recomendada o defines manualmente cuántos instalar",
+    modoCaldera: "Elige si usas la caldera recomendada automáticamente o seleccionas manualmente del catálogo",
+    modoCE:      "Elige si usas el calentador eléctrico recomendado automáticamente o seleccionas manualmente del catálogo",
     default: "Configuración térmica del sistema"
   };
 
@@ -608,19 +892,14 @@ export default function Calentamiento({
     }]
   }), [perdidasBTU]);
 
-  const pieOptions = {
-    responsive: true, maintainAspectRatio: false,
-    layout: { padding: { top: 18, bottom: 18, left: 18, right: 18 } },
-    plugins: {
-      legend: { position: "right", labels: { color: "#e5e7eb", font: { size: 13, weight: "500" }, padding: 14, boxWidth: 14 } },
-      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(0)} BTU/h` } }
-    }
-  };
+  /* pieOptions es constante — definida fuera del componente (ver debajo de ChartJS.register) */
 
   const fmtBTU = (v) => Math.round(v).toLocaleString("es-MX");
   const formularioBloqueado = decision === null;
   const mostrarSelectorBDC = sistemasSeleccionados.bombaCalor && perdidaTotalBTU > 0;
-  const mostrarSelectorPS  = sistemasSeleccionados.panelSolar  && perdidaTotalBTU > 0;
+  const mostrarSelectorPS      = sistemasSeleccionados.panelSolar  && perdidaTotalBTU > 0;
+  const mostrarSelectorCaldera  = sistemasSeleccionados.caldera && perdidaTotalBTU > 0 && volumenTotal > 0 && !!sistemasSeleccionados.caldera.tasaElevacion;
+  const mostrarSelectorCE       = sistemasSeleccionados.calentadorElectrico && perdidaTotalBTU > 0 && volumenTotal > 0 && !!sistemasSeleccionados.calentadorElectrico.tasaElevacion;
 
   const bdcActivaParaMostrar = useMemo(() => {
     if (modoBDC === "manual" && bdcManual) return bdcManual.hidraulica;
@@ -750,7 +1029,7 @@ export default function Calentamiento({
                   const datos = sistemasSeleccionados[key];
                   const camposIncompletos = mostrarErrores && (
                     datos.distancia === "" || datos.alturaVertical === "" ||
-                    (key === "caldera" && datos.tasaElevacion === null)
+                    ((key === "caldera" || key === "calentadorElectrico") && datos.tasaElevacion === null)
                   );
                   return (
                     <div key={key} className={`sistema-detalle-card ${camposIncompletos ? "detalle-error" : ""}`}>
@@ -777,7 +1056,7 @@ export default function Calentamiento({
                             placeholder="ej. 2"
                           />
                         </div>
-                        {key === "caldera" && (
+                        {(key === "caldera" || key === "calentadorElectrico") && (
                           <div className="campo campo-tasa-elevacion">
                             <label>Tasa de elevación (°C/h)</label>
                             <div className={`tasa-elevacion-grid ${camposIncompletos && datos.tasaElevacion === null ? "tasa-error" : ""}`}>
@@ -844,7 +1123,7 @@ export default function Calentamiento({
                 onMouseEnter={() => !formularioBloqueado && setHoveredField("grafica")}
                 onMouseLeave={() => setHoveredField(null)}>
                 <div className="grafica-mini">
-                  <Pie data={pieData} options={pieOptions} />
+                  <GraficaPie data={pieData} options={PIE_OPTIONS} />
                 </div>
               </div>
 
@@ -1539,6 +1818,764 @@ export default function Calentamiento({
                     )}
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── CALDERA ── */}
+          {sistemasSeleccionados.caldera && (
+            <div
+              className="selector-grupo"
+              onMouseEnter={() => !formularioBloqueado && setHoveredField("modoCaldera")}
+              onMouseLeave={() => setHoveredField(null)}
+            >
+              <div className="selector-subtitulo">
+                Caldera de gas
+                <span className="selector-subtitulo-hint">Selección y cálculo hidráulico</span>
+              </div>
+
+              {/* Aviso si falta la tasa de elevación */}
+              {!sistemasSeleccionados.caldera.tasaElevacion && (
+                <div style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#f97316" }}>
+                  Selecciona una tasa de elevación (°C/h) en la configuración de la caldera para ver la selección
+                </div>
+              )}
+
+              {sistemasSeleccionados.caldera.tasaElevacion && (
+                <>
+                  {/* Toggle Recomendado / Manual */}
+                  <div className="bdc-modo-toggle-wrapper" style={{ marginBottom: "0.75rem" }}>
+                    <div className="bdc-modo-toggle">
+                      <button type="button"
+                        className={`bdc-modo-btn ${modoCaldera === "recomendado" ? "bdc-modo-activo" : ""}`}
+                        onClick={() => setModoCaldera("recomendado")}
+                      >
+                        {modoCaldera === "recomendado" && <IconoCheck />}
+                        <span>Recomendado</span>
+                      </button>
+                      <button type="button"
+                        className={`bdc-modo-btn ${modoCaldera === "manual" ? "bdc-modo-activo" : ""}`}
+                        onClick={() => setModoCaldera("manual")}
+                      >
+                        {modoCaldera === "manual" && <IconoCheck />}
+                        <span>Selección manual</span>
+                      </button>
+                    </div>
+                    {modoCaldera === "manual" && calderaManual && !calderaManual.cubre && (
+                      <div className="bdc-modo-aviso-deficit">
+                        ⚠ La selección manual no cubre la demanda. Los cálculos usarán esta configuración.
+                      </div>
+                    )}
+                  </div>
+
+                  {!mostrarSelectorCaldera && (
+                    <div style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#475569" }}>
+                      Completa los datos térmicos para ver la selección de caldera
+                    </div>
+                  )}
+
+                  {mostrarSelectorCaldera && (
+                    <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+
+                      {/* ── Tarjeta resumen caldera ── */}
+                      <div className="layout-clima-bdc-celda celda-bdc-rec">
+                        {(() => {
+                          const esManualActivo = modoCaldera === "manual" && calderaManual;
+                          const src = esManualActivo ? calderaManual : calderaSeleccionada;
+                          if (!src || src.error) return (
+                            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+                              <div className="bdc-rec-header">
+                                <IconoCaldera />
+                                <div className="bdc-rec-titulo">
+                                  <span className="bdc-rec-label">Caldera</span>
+                                  <span className="bdc-rec-modelo bdc-pendiente-txt">
+                                    {src?.error ?? "Completa los datos térmicos"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+
+                          const sel = esManualActivo ? {
+                            marca:            src.caldera.marca,
+                            modelo:           src.caldera.modelo,
+                            tipoGas:          src.caldera.tipoGas,
+                            cantidad:         src.cantidad,
+                            capOutputUnitario: src.caldera.specs.capacidadCalentamiento,
+                            flujoTotal:       src.flujoTotal,
+                            capTotal:         src.capTotal,
+                            exceso:           src.exceso,
+                            cubre:            src.cubre,
+                          } : {
+                            marca:            src.seleccion.marca,
+                            modelo:           src.seleccion.modelo,
+                            tipoGas:          src.seleccion.tipoGas,
+                            cantidad:         src.seleccion.cantidad,
+                            capOutputUnitario: src.seleccion.capOutputUnitario,
+                            flujoTotal:       src.seleccion.flujoTotal,
+                            capTotal:         src.seleccion.capTotal,
+                            exceso:           src.seleccion.exceso,
+                            cubre:            true,
+                          };
+
+                          const demanda = parseFloat(esManualActivo ? src.demandaTotalBTU : src.demandaTotalBTU);
+                          const btuElev = parseFloat(src.btuPorGrado);
+
+                          return (
+                            <div className={`bdc-recomendada-card bdc-inset ${modoCaldera === "manual" ? "bdc-card-manual-activa" : ""}`}>
+                              <div className="bdc-rec-header">
+                                <IconoCaldera />
+                                <div className="bdc-rec-titulo">
+                                  <span className="bdc-rec-label">{modoCaldera === "manual" ? "Selección manual" : "Recomendado"}</span>
+                                  <span className="bdc-rec-modelo">{sel.marca} · {sel.modelo}</span>
+                                </div>
+                                <span className={`bdc-modo-badge ${modoCaldera === "manual" ? "badge-manual" : "badge-auto"}`}>
+                                  {modoCaldera === "manual" ? "Manual" : "Auto"}
+                                </span>
+                              </div>
+                              <div className="bdc-rec-stats">
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{sel.cantidad}</span>
+                                  <span className="bdc-stat-label">equipos</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{fmtBTU(sel.capOutputUnitario)}</span>
+                                  <span className="bdc-stat-label">BTU/h c/u</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{fmtBTU(sel.capTotal)}</span>
+                                  <span className="bdc-stat-label">BTU/h total</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{parseFloat(sel.flujoTotal).toFixed(1)}</span>
+                                  <span className="bdc-stat-label">GPM total</span>
+                                </div>
+                              </div>
+                              <div className="bdc-rec-demanda">
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">BTU elevación temp.</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Pérdidas sistema</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(perdidaTotalBTU)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Demanda total</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(demanda)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Capacidad instalada</span>
+                                  <span className={`bdc-demanda-valor ${sel.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                    {fmtBTU(sel.capTotal)} BTU/h
+                                  </span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">{sel.cubre ? "Exceso" : "Déficit"}</span>
+                                  <span className={`bdc-demanda-valor ${sel.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                    {sel.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(sel.exceso)))} BTU/h
+                                  </span>
+                                </div>
+                              </div>
+                              {src.cargaTotal != null && (
+                                <div className="bdc-rec-hidraulica">
+                                  <span className="bdc-hid-label">Carga hidráulica</span>
+                                  <span className="bdc-hid-valor">{src.cargaTotal} ft · {src.cargaTotalPSI} PSI</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* ── Panel derecho caldera ── */}
+                      <div className="layout-clima-bdc-celda celda-bdc-manual">
+
+                        {/* MODO RECOMENDADO */}
+                        {modoCaldera === "recomendado" && calderaSeleccionada && !calderaSeleccionada.error && (
+                          <div className="bdc-info-automatica bdc-inset">
+                            <div className="bdc-manual-header">
+                              <span className="bdc-manual-titulo">Detalle de selección automática</span>
+                            </div>
+                            <div className="bdc-auto-detalle">
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Marca</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.marca}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Modelo</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.modelo}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Tipo de gas</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.tipoGas}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Cantidad</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.cantidad} equipo{calderaSeleccionada.seleccion.cantidad > 1 ? "s" : ""}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Consumo unitario</span>
+                                <span className="bdc-auto-val">{fmtBTU(calderaSeleccionada.seleccion.consumoUnitario)} BTU/h</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Eficiencia</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.eficiencia}%</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Output unitario</span>
+                                <span className="bdc-auto-val">{fmtBTU(calderaSeleccionada.seleccion.capOutputUnitario)} BTU/h</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Flujo por equipo</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.flujoPorCaldera} GPM</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Flujo total</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.seleccion.flujoTotal} GPM</span>
+                              </div>
+                              <div className="bdc-auto-sep" />
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga tramos caldera</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaTramos} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                                <span className="bdc-auto-val">
+                                  {(parseFloat(calderaSeleccionada.cargaDistanciaIda) + parseFloat(calderaSeleccionada.cargaDistanciaReg)).toFixed(2)} ft
+                                </span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga estática</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaEstatica} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga fricción alt.</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFriccionAltura} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga fija global</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFija_ft} ft</span>
+                              </div>
+                              <div className="bdc-auto-sep" />
+                              <div className="bdc-auto-fila bdc-auto-total">
+                                <span className="bdc-auto-label">Carga total</span>
+                                <span className="bdc-auto-val bdc-hid-val-highlight">{calderaSeleccionada.cargaTotal} ft · {calderaSeleccionada.cargaTotalPSI} PSI</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {modoCaldera === "recomendado" && (!mostrarSelectorCaldera || !calderaSeleccionada || calderaSeleccionada?.error) && (
+                          <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                            Completa los datos térmicos para ver el detalle automático
+                          </div>
+                        )}
+
+                        {/* MODO MANUAL */}
+                        {modoCaldera === "manual" && (
+                          <>
+                            {mostrarSelectorCaldera ? (
+                              <div className="bdc-selector-manual bdc-inset">
+                                <div className="bdc-manual-header">
+                                  <span className="bdc-manual-titulo">Catálogo de calderas</span>
+                                </div>
+                                <div className="bdc-manual-filtros">
+                                  <div className="campo">
+                                    <label>Marca</label>
+                                    <select value={filtroCalderaMarca} onChange={e => setFiltroCalderaMarca(e.target.value)}>
+                                      {marcasCalderaDisponibles.map(m => (
+                                        <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="campo">
+                                    <label>Tipo de gas</label>
+                                    <select value={filtroCalderaTipoGas} onChange={e => setFiltroCalderaTipoGas(e.target.value)}>
+                                      <option value="todos">Natural y propano</option>
+                                      <option value="natural">Gas natural</option>
+                                      <option value="propano">Propano</option>
+                                      <option value="natural / propano">Natural / propano</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="bdc-manual-lista">
+                                  {catalogoCalderaFiltrado.map(c => {
+                                    const esRecomendado = calderaSeleccionada && c.marca === calderaSeleccionada.seleccion?.marca && c.modelo === calderaSeleccionada.seleccion?.modelo;
+                                    const seleccionado  = selManualCalderaId === c.id;
+                                    return (
+                                      <div key={c.id}
+                                        className={`bdc-manual-fila ${seleccionado ? "bdc-manual-fila-activa" : ""}`}
+                                        onClick={() => { setSelManualCalderaId(seleccionado ? null : c.id); setSelManualCalderaCant(1); }}
+                                      >
+                                        <div className="bdc-manual-fila-info">
+                                          <span className="bdc-manual-marca">{c.marca}</span>
+                                          <span className="bdc-manual-modelo">{c.modelo}</span>
+                                          <span className="bdc-manual-vel vel-1v">{c.tipoGas}</span>
+                                          {esRecomendado && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                                        </div>
+                                        <div className="bdc-manual-fila-cap">{fmtBTU(c.specs.capacidadCalentamiento)} BTU/h</div>
+                                      </div>
+                                    );
+                                  })}
+                                  {catalogoCalderaFiltrado.length === 0 && (
+                                    <div className="bdc-manual-vacio">Sin modelos para estos filtros</div>
+                                  )}
+                                </div>
+                                {selManualCalderaId && (
+                                  <div className="bdc-manual-resultado">
+                                    <div className="bdc-manual-cant-row">
+                                      <span className="bdc-manual-cant-label">Cantidad de equipos</span>
+                                      <div className="bdc-manual-cant-ctrl">
+                                        <button onClick={() => setSelManualCalderaCant(c => Math.max(1, c - 1))}>−</button>
+                                        <span>{selManualCalderaCant}</span>
+                                        <button onClick={() => setSelManualCalderaCant(c => c + 1)}>+</button>
+                                      </div>
+                                    </div>
+                                    {calderaManual && (
+                                      <>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">Capacidad instalada</span>
+                                          <span className={`bdc-demanda-valor ${calderaManual.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                            {fmtBTU(calderaManual.capTotal)} BTU/h
+                                          </span>
+                                        </div>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">{calderaManual.cubre ? "Exceso" : "Déficit"}</span>
+                                          <span className={`bdc-demanda-valor ${calderaManual.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                            {calderaManual.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(calderaManual.exceso)))} BTU/h
+                                          </span>
+                                        </div>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">Flujo total</span>
+                                          <span className="bdc-demanda-valor">{parseFloat(calderaManual.flujoTotal).toFixed(1)} GPM</span>
+                                        </div>
+                                        {calderaManual.hidraulica && !calderaManual.hidraulica.error && (
+                                          <div className="bdc-manual-hidraulica-detalle">
+                                            <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                            <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga tramos caldera</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaTramos} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                                              <span className="bdc-auto-val">
+                                                {(parseFloat(calderaManual.hidraulica.cargaDistanciaIda) + parseFloat(calderaManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                              </span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga estática</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaEstatica} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga fricción alt.</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFriccionAltura} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga fija global</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFija_ft} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                            <div className="bdc-auto-fila bdc-auto-total">
+                                              <span className="bdc-auto-label">Carga total</span>
+                                              <span className="bdc-auto-val bdc-hid-val-highlight">
+                                                {calderaManual.hidraulica.cargaTotal} ft · {calderaManual.hidraulica.cargaTotalPSI} PSI
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {!calderaManual.cubre && (
+                                          <div className="bdc-manual-aviso">⚠ Capacidad insuficiente — los cálculos usarán esta configuración</div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                                {!selManualCalderaId && (
+                                  <div className="bdc-manual-hint">
+                                    Selecciona una caldera del catálogo para calcular carga y flujo
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                                Completa los datos térmicos para habilitar la selección manual
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── CALENTADOR ELÉCTRICO ── */}
+          {sistemasSeleccionados.calentadorElectrico && (
+            <div
+              className="selector-grupo"
+              onMouseEnter={() => !formularioBloqueado && setHoveredField("modoCE")}
+              onMouseLeave={() => setHoveredField(null)}
+            >
+              <div className="selector-subtitulo">
+                Calentador eléctrico
+                <span className="selector-subtitulo-hint">Selección y cálculo hidráulico</span>
+              </div>
+
+              {!sistemasSeleccionados.calentadorElectrico.tasaElevacion && (
+                <div style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#f97316" }}>
+                  Selecciona una tasa de elevación (°C/h) en la configuración del calentador para ver la selección
+                </div>
+              )}
+
+              {sistemasSeleccionados.calentadorElectrico.tasaElevacion && (
+                <>
+                  <div className="bdc-modo-toggle-wrapper" style={{ marginBottom: "0.75rem" }}>
+                    <div className="bdc-modo-toggle">
+                      <button type="button"
+                        className={`bdc-modo-btn ${modoCE === "recomendado" ? "bdc-modo-activo" : ""}`}
+                        onClick={() => setModoCE("recomendado")}
+                      >
+                        {modoCE === "recomendado" && <IconoCheck />}
+                        <span>Recomendado</span>
+                      </button>
+                      <button type="button"
+                        className={`bdc-modo-btn ${modoCE === "manual" ? "bdc-modo-activo" : ""}`}
+                        onClick={() => setModoCE("manual")}
+                      >
+                        {modoCE === "manual" && <IconoCheck />}
+                        <span>Selección manual</span>
+                      </button>
+                    </div>
+                    {modoCE === "manual" && ceManual && !ceManual.cubre && (
+                      <div className="bdc-modo-aviso-deficit">
+                        ⚠ La selección manual no cubre la demanda. Los cálculos usarán esta configuración.
+                      </div>
+                    )}
+                  </div>
+
+                  {!mostrarSelectorCE && (
+                    <div style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#475569" }}>
+                      Completa los datos térmicos para ver la selección
+                    </div>
+                  )}
+
+                  {mostrarSelectorCE && (
+                    <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+
+                      {/* ── Tarjeta resumen CE ── */}
+                      <div className="layout-clima-bdc-celda celda-bdc-rec">
+                        {(() => {
+                          const esManualActivo = modoCE === "manual" && ceManual;
+                          const src = esManualActivo ? ceManual : ceSeleccionado;
+                          if (!src || src.error) return (
+                            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+                              <div className="bdc-rec-header">
+                                <IconoCalentadorElectrico />
+                                <div className="bdc-rec-titulo">
+                                  <span className="bdc-rec-label">Calentador eléctrico</span>
+                                  <span className="bdc-rec-modelo bdc-pendiente-txt">
+                                    {src?.error ?? "Completa los datos térmicos"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+
+                          const sel = esManualActivo ? {
+                            marca:       src.equipo.marca,
+                            modelo:      src.equipo.modelo,
+                            cantidad:    src.cantidad,
+                            capUnitaria: src.equipo.specs.capacidadCalentamiento,
+                            flujoTotal:  src.flujoTotal,
+                            capTotal:    src.capTotal,
+                            exceso:      src.exceso,
+                            cubre:       src.cubre,
+                          } : {
+                            marca:       src.seleccion.marca,
+                            modelo:      src.seleccion.modelo,
+                            cantidad:    src.seleccion.cantidad,
+                            capUnitaria: src.seleccion.capUnitaria,
+                            flujoTotal:  src.seleccion.flujoTotal,
+                            capTotal:    src.seleccion.capTotal,
+                            exceso:      src.seleccion.exceso,
+                            cubre:       true,
+                          };
+
+                          const demanda = parseFloat(src.demandaTotalBTU);
+                          const btuElev = parseFloat(src.btuPorGrado);
+
+                          return (
+                            <div className={`bdc-recomendada-card bdc-inset ${modoCE === "manual" ? "bdc-card-manual-activa" : ""}`}>
+                              <div className="bdc-rec-header">
+                                <IconoCalentadorElectrico />
+                                <div className="bdc-rec-titulo">
+                                  <span className="bdc-rec-label">{modoCE === "manual" ? "Selección manual" : "Recomendado"}</span>
+                                  <span className="bdc-rec-modelo">{sel.marca} · {sel.modelo}</span>
+                                </div>
+                                <span className={`bdc-modo-badge ${modoCE === "manual" ? "badge-manual" : "badge-auto"}`}>
+                                  {modoCE === "manual" ? "Manual" : "Auto"}
+                                </span>
+                              </div>
+                              <div className="bdc-rec-stats">
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{sel.cantidad}</span>
+                                  <span className="bdc-stat-label">equipos</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{fmtBTU(sel.capUnitaria)}</span>
+                                  <span className="bdc-stat-label">BTU/h c/u</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{fmtBTU(sel.capTotal)}</span>
+                                  <span className="bdc-stat-label">BTU/h total</span>
+                                </div>
+                                <div className="bdc-stat-sep" />
+                                <div className="bdc-stat">
+                                  <span className="bdc-stat-valor">{parseFloat(sel.flujoTotal).toFixed(1)}</span>
+                                  <span className="bdc-stat-label">GPM total</span>
+                                </div>
+                              </div>
+                              <div className="bdc-rec-demanda">
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">BTU elevación temp.</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Pérdidas sistema</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(perdidaTotalBTU)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Demanda total</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(demanda)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">Capacidad instalada</span>
+                                  <span className={`bdc-demanda-valor ${sel.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                    {fmtBTU(sel.capTotal)} BTU/h
+                                  </span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">{sel.cubre ? "Exceso" : "Déficit"}</span>
+                                  <span className={`bdc-demanda-valor ${sel.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                    {sel.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(sel.exceso)))} BTU/h
+                                  </span>
+                                </div>
+                              </div>
+                              {src.cargaTotal != null && (
+                                <div className="bdc-rec-hidraulica">
+                                  <span className="bdc-hid-label">Carga hidráulica</span>
+                                  <span className="bdc-hid-valor">{src.cargaTotal} ft · {src.cargaTotalPSI} PSI</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* ── Panel derecho CE ── */}
+                      <div className="layout-clima-bdc-celda celda-bdc-manual">
+
+                        {/* MODO RECOMENDADO */}
+                        {modoCE === "recomendado" && ceSeleccionado && !ceSeleccionado.error && (
+                          <div className="bdc-info-automatica bdc-inset">
+                            <div className="bdc-manual-header">
+                              <span className="bdc-manual-titulo">Detalle de selección automática</span>
+                            </div>
+                            <div className="bdc-auto-detalle">
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Marca</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.seleccion.marca}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Modelo</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.seleccion.modelo}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Cantidad</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.seleccion.cantidad} equipo{ceSeleccionado.seleccion.cantidad > 1 ? "s" : ""}</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Flujo por equipo</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.seleccion.flujoPorEquipo} GPM</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Flujo total</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.seleccion.flujoTotal} GPM</span>
+                              </div>
+                              <div className="bdc-auto-sep" />
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga tramos CE</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaTramos} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                                <span className="bdc-auto-val">
+                                  {(parseFloat(ceSeleccionado.cargaDistanciaIda) + parseFloat(ceSeleccionado.cargaDistanciaReg)).toFixed(2)} ft
+                                </span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga estática</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaEstatica} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga fricción alt.</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaFriccionAltura} ft</span>
+                              </div>
+                              <div className="bdc-auto-fila">
+                                <span className="bdc-auto-label">Carga fija global</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaFija_ft} ft</span>
+                              </div>
+                              <div className="bdc-auto-sep" />
+                              <div className="bdc-auto-fila bdc-auto-total">
+                                <span className="bdc-auto-label">Carga total</span>
+                                <span className="bdc-auto-val bdc-hid-val-highlight">{ceSeleccionado.cargaTotal} ft · {ceSeleccionado.cargaTotalPSI} PSI</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {modoCE === "recomendado" && (!mostrarSelectorCE || !ceSeleccionado || ceSeleccionado?.error) && (
+                          <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                            Completa los datos térmicos para ver el detalle automático
+                          </div>
+                        )}
+
+                        {/* MODO MANUAL */}
+                        {modoCE === "manual" && (
+                          <>
+                            {mostrarSelectorCE ? (
+                              <div className="bdc-selector-manual bdc-inset">
+                                <div className="bdc-manual-header">
+                                  <span className="bdc-manual-titulo">Catálogo de calentadores eléctricos</span>
+                                </div>
+                                <div className="bdc-manual-filtros">
+                                  <div className="campo">
+                                    <label>Marca</label>
+                                    <select value={filtroCEMarca} onChange={e => setFiltroCEMarca(e.target.value)}>
+                                      {marcasCEDisponibles.map(m => (
+                                        <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="bdc-manual-lista">
+                                  {catalogoCEFiltrado.map(eq => {
+                                    const esRecomendado = ceSeleccionado && eq.marca === ceSeleccionado.seleccion?.marca && eq.modelo === ceSeleccionado.seleccion?.modelo;
+                                    const seleccionado  = selManualCEId === eq.id;
+                                    return (
+                                      <div key={eq.id}
+                                        className={`bdc-manual-fila ${seleccionado ? "bdc-manual-fila-activa" : ""}`}
+                                        onClick={() => { setSelManualCEId(seleccionado ? null : eq.id); setSelManualCECant(1); }}
+                                      >
+                                        <div className="bdc-manual-fila-info">
+                                          <span className="bdc-manual-marca">{eq.marca}</span>
+                                          <span className="bdc-manual-modelo">{eq.modelo}</span>
+                                          {esRecomendado && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                                        </div>
+                                        <div className="bdc-manual-fila-cap">{fmtBTU(eq.specs.capacidadCalentamiento)} BTU/h</div>
+                                      </div>
+                                    );
+                                  })}
+                                  {catalogoCEFiltrado.length === 0 && (
+                                    <div className="bdc-manual-vacio">Sin modelos para estos filtros</div>
+                                  )}
+                                </div>
+                                {selManualCEId && (
+                                  <div className="bdc-manual-resultado">
+                                    <div className="bdc-manual-cant-row">
+                                      <span className="bdc-manual-cant-label">Cantidad de equipos</span>
+                                      <div className="bdc-manual-cant-ctrl">
+                                        <button onClick={() => setSelManualCECant(c => Math.max(1, c - 1))}>−</button>
+                                        <span>{selManualCECant}</span>
+                                        <button onClick={() => setSelManualCECant(c => c + 1)}>+</button>
+                                      </div>
+                                    </div>
+                                    {ceManual && (
+                                      <>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">Capacidad instalada</span>
+                                          <span className={`bdc-demanda-valor ${ceManual.cubre ? "bdc-ok" : "bdc-insuf"}`}>
+                                            {fmtBTU(ceManual.capTotal)} BTU/h
+                                          </span>
+                                        </div>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">{ceManual.cubre ? "Exceso" : "Déficit"}</span>
+                                          <span className={`bdc-demanda-valor ${ceManual.cubre ? "bdc-exceso" : "bdc-insuf"}`}>
+                                            {ceManual.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(ceManual.exceso)))} BTU/h
+                                          </span>
+                                        </div>
+                                        <div className="bdc-demanda-fila">
+                                          <span className="bdc-demanda-label">Flujo total</span>
+                                          <span className="bdc-demanda-valor">{parseFloat(ceManual.flujoTotal).toFixed(1)} GPM</span>
+                                        </div>
+                                        {ceManual.hidraulica && !ceManual.hidraulica.error && (
+                                          <div className="bdc-manual-hidraulica-detalle">
+                                            <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                            <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga tramos CE</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaTramos} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga CM ida+reg.</span>
+                                              <span className="bdc-auto-val">
+                                                {(parseFloat(ceManual.hidraulica.cargaDistanciaIda) + parseFloat(ceManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                              </span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga estática</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaEstatica} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga fricción alt.</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFriccionAltura} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-fila">
+                                              <span className="bdc-auto-label">Carga fija global</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFija_ft} ft</span>
+                                            </div>
+                                            <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                                            <div className="bdc-auto-fila bdc-auto-total">
+                                              <span className="bdc-auto-label">Carga total</span>
+                                              <span className="bdc-auto-val bdc-hid-val-highlight">
+                                                {ceManual.hidraulica.cargaTotal} ft · {ceManual.hidraulica.cargaTotalPSI} PSI
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {!ceManual.cubre && (
+                                          <div className="bdc-manual-aviso">⚠ Capacidad insuficiente — los cálculos usarán esta configuración</div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                                {!selManualCEId && (
+                                  <div className="bdc-manual-hint">
+                                    Selecciona un equipo del catálogo para calcular carga y flujo
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ padding: "1rem", fontSize: "0.75rem", color: "#475569" }}>
+                                Completa los datos térmicos para habilitar la selección manual
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
