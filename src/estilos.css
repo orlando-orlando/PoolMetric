@@ -2,7 +2,7 @@
    🧱 estilos.css — versión consolidada y limpia
    ========================================================== */
 
-/* === Variables globales === */
+/*=== Variables globales ===*/
 :root {
   --color-primario: #1e81ce;
   --color-acento: #4ea8de;
@@ -15,6 +15,7 @@
   --toggle-bg-hover: #265b93;
   --toggle-bg-active: #3182ce;
   --toggle-border: #d1d9e6;
+  
 }
 
 /* === Reset === */
