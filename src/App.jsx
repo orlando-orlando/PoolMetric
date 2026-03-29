@@ -14,7 +14,7 @@ import { formatBTU, formatM2, formatM3, formatMetro, formatGPM } from "./utils/f
 
 /* =====================================================
    ÁREA TOTAL
-===================================================== */
+===================================================== */ 
 function areaTotal(datosSistema) {
   if (!datosSistema || !Array.isArray(datosSistema.cuerpos)) return 0;
   const total = datosSistema.cuerpos.reduce((acc, cuerpo) => {
@@ -547,12 +547,6 @@ export default function App() {
                   <th>Carga total calentamiento:</th>
                   <td style={{ color: maxYSumaListos ? "#60a5fa" : undefined }}>
                     {maxYSumaListos ? fmtFt(cargaSumaCalentamiento) : "—"}
-                  </td>
-                </tr>
-                <tr>
-                  <th>Carga total calentamiento (psi):</th>
-                  <td style={{ color: maxYSumaListos ? "#60a5fa" : undefined }}>
-                    {maxYSumaListos ? fmtPSI(cargaSumaCalentamiento * 0.43353) : "—"}
                   </td>
                 </tr>
               </tbody>

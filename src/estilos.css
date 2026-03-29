@@ -201,9 +201,9 @@ body.tema-claro  { background-color: #ecedf0 !important; }
    🧩 Tabla resultados
    ========================================================== */
 
-.tabla-resultados { width: 100%; table-layout: auto; border-collapse: separate; border-spacing: 0 2px; font-size: 0.7rem; }
-.tabla-resultados th { text-align: left; color: #94a3b8; font-weight: 500; white-space: nowrap; padding: 4px 4px 4px 8px; }
-.tabla-resultados td { text-align: right; color: #e5e7eb; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; padding: 4px 8px 4px 4px; }
+.tabla-resultados { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 2px; font-size: 0.7rem; }
+.tabla-resultados th { text-align: left; color: #94a3b8; font-weight: 500; white-space: normal; word-break: break-word; padding: 4px 4px 4px 8px; width: 65%; }
+.tabla-resultados td { text-align: right; color: #e5e7eb; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; padding: 4px 8px 4px 4px; width: 35%; }
 .tabla-resultados tr { background: rgba(255,255,255,0.02); transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; }
 .tabla-resultados tr:hover { background: rgba(96,165,250,0.1); transform: translateX(2px); box-shadow: inset 3px 0 0 rgba(96,165,250,0.6); }
 .panel-izquierdo .tabla-resultados { font-size: 0.72rem; line-height: 1.2; }
@@ -977,7 +977,7 @@ select option:hover { background-color: #d1d5db; }
 .bdc-hid-val-highlight {
   color: #38bdf8 !important;
   font-weight: 600 !important;
-}
+} 
 
 /* ==========================================================
    🔧 DETALLE HIDRÁULICO EN MODO MANUAL
