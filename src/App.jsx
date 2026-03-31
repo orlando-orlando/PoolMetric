@@ -1,6 +1,6 @@
 import "./estilos.css";
 import { useState, useRef, useMemo, useEffect } from "react";
-import { Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette, HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2 } from "lucide-react";
+import { Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette, HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown } from "lucide-react";
 
 import Dimensiones from "./pages/Dimensiones.jsx";
 import Calentamiento from "./pages/Calentamiento.jsx";
@@ -9,12 +9,13 @@ import Equipamiento from "./pages/Equipamiento.jsx";
 import { volumen } from "./utils/volumen";
 import { flujoFinal } from "./utils/flujoFinal";
 import { flujoInfinity } from "./utils/flujoInfinity";
+import { generadorDeCloro } from "./utils/generadorDeCloro";
 
 import { formatBTU, formatM2, formatM3, formatMetro, formatGPM } from "./utils/format";
 
 /* =====================================================
    ÁREA TOTAL
-===================================================== */ 
+===================================================== */
 function areaTotal(datosSistema) {
   if (!datosSistema || !Array.isArray(datosSistema.cuerpos)) return 0;
   const total = datosSistema.cuerpos.reduce((acc, cuerpo) => {
@@ -42,10 +43,7 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
   if (!abierto) return null;
 
   return (
-    <div
-      ref={menuRef}
-      className={`menu-usuario-popup ${panelColapsado ? "menu-usuario-colapsado" : ""}`}
-    >
+    <div ref={menuRef} className={`menu-usuario-popup ${panelColapsado ? "menu-usuario-colapsado" : ""}`}>
       <div className="menu-usuario-cuenta">
         <div className="menu-usuario-avatar">OS</div>
         <div className="menu-usuario-info">
@@ -53,50 +51,24 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
           <span className="menu-usuario-plan">Gratis</span>
         </div>
       </div>
-
       <div className="menu-usuario-divider" />
-
-      <button className="menu-usuario-item">
-        <Plus size={15} /><span>Añadir una cuenta</span>
-      </button>
-
+      <button className="menu-usuario-item"><Plus size={15} /><span>Añadir una cuenta</span></button>
       <div className="menu-usuario-divider" />
-
-      <button className="menu-usuario-item">
-        <CreditCard size={15} /><span>Cambiar plan</span>
-      </button>
-      <button className="menu-usuario-item">
-        <Palette size={15} /><span>Personalización</span>
-      </button>
-      <button className="menu-usuario-item">
-        <Settings size={15} /><span>Configuración</span>
-      </button>
-
-      <button
-        className="menu-usuario-item menu-usuario-item-tema"
-        onClick={() => { setTemaOscuro(!temaOscuro); onCerrar(); }}
-      >
+      <button className="menu-usuario-item"><CreditCard size={15} /><span>Cambiar plan</span></button>
+      <button className="menu-usuario-item"><Palette size={15} /><span>Personalización</span></button>
+      <button className="menu-usuario-item"><Settings size={15} /><span>Configuración</span></button>
+      <button className="menu-usuario-item menu-usuario-item-tema" onClick={() => { setTemaOscuro(!temaOscuro); onCerrar(); }}>
         {temaOscuro ? <Sun size={15} /> : <Moon size={15} />}
         <span>{temaOscuro ? "Modo claro" : "Modo oscuro"}</span>
         <span className="menu-usuario-tema-badge">{temaOscuro ? "☀️" : "🌙"}</span>
       </button>
-
       <div className="menu-usuario-divider" />
-
-      <button className="menu-usuario-item menu-usuario-item-arrow">
-        <HelpCircle size={15} /><span>Ayuda</span>
-        <ChevronRight size={13} className="menu-usuario-arrow" />
-      </button>
-      <button className="menu-usuario-item menu-usuario-item-danger">
-        <LogOut size={15} /><span>Cerrar sesión</span>
-      </button>
-
+      <button className="menu-usuario-item menu-usuario-item-arrow"><HelpCircle size={15} /><span>Ayuda</span><ChevronRight size={13} className="menu-usuario-arrow" /></button>
+      <button className="menu-usuario-item menu-usuario-item-danger"><LogOut size={15} /><span>Cerrar sesión</span></button>
       <div className="menu-usuario-divider" />
-
       <div className="menu-usuario-footer">
         <span>Política de privacidad</span><span>·</span><span>Condiciones del servicio</span>
       </div>
-
       <div className="menu-usuario-upgrade">
         <div className="menu-usuario-avatar menu-usuario-avatar-sm">OS</div>
         <div className="menu-usuario-upgrade-info">
@@ -192,34 +164,57 @@ function LogoIcono() {
 const fmtFt  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} ft` : "—";
 const fmtPSI = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} psi` : "—";
 const fmtGPM = (v) => v != null && !isNaN(v) && parseFloat(v) > 0 ? `${parseFloat(v).toFixed(1)} gpm` : "—";
+const fmtKg  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(3)} kg/día` : "—";
+const fmtTub = (v) => v ? v.replace("tuberia ", "") + '"' : "—";
+
+/* =====================================================
+   TOGGLE ROW — fila colapsable en la tabla
+===================================================== */
+function ToggleSeccion({ label, abierto, onToggle, children }) {
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        style={{ cursor: "pointer", userSelect: "none" }}
+      >
+        <th
+          colSpan={2}
+          style={{
+            background: "rgba(30,64,175,0.18)",
+            color: "#93c5fd",
+            fontSize: "0.68rem",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            padding: "0.3rem 0.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>{label}</span>
+          <ChevronDown
+            size={11}
+            style={{
+              transform: abierto ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s",
+              color: "#60a5fa",
+            }}
+          />
+        </th>
+      </tr>
+      {abierto && children}
+    </>
+  );
+}
 
 /* =====================================================
    HELPER — extrae flujo y carga de cualquier equipo de calentamiento
-   Soporta la misma forma que BDC: modo recomendado / manual,
-   con las claves que guarda Calentamiento.jsx en datosPorSistema.
-
-   Parámetros:
-     calentamiento  — datosPorSistema.calentamiento
-     sistemaKey     — "bombaCalor" | "panelSolar" | "caldera" | "calentadorElectrico"
-     modoKey        — "modoBDC" | "modoPS" | "modoCaldera" | "modoCE"
-     selKey         — "bdcSeleccionada" | "psSeleccionado" | "calderaSeleccionada" | "ceSeleccionado"
-     manualKey      — "bdcManual" | "psManual" | "calderaManual" | "ceManual"
-     flujoPath      — función que extrae flujo del objeto recomendado
-     cargaPath      — función que extrae carga ft del objeto recomendado
-     manualFlujoPath— función que extrae flujo del objeto manual
-     manualCargaPath— función que extrae carga ft del objeto manual
 ===================================================== */
 function extraerFlujoCarga(calentamiento, {
-  sistemaKey,
-  modoKey,
-  selKey,
-  manualKey,
-  flujoFn,
-  cargaFn,
-  manualFlujoFn,
-  manualCargaFn,
+  sistemaKey, modoKey, selKey, manualKey,
+  flujoFn, cargaFn, manualFlujoFn, manualCargaFn,
 }) {
-  if (!calentamiento?.sistemasSeleccionados?.[sistemaKey]) return { flujo: null, carga: null };
+  if (!calentamiento?.sistemasSeleccionados?.[sistemaKey]) return { flujo: null, carga: null, tuberia: null };
 
   const modo   = calentamiento[modoKey] ?? "recomendado";
   const sel    = calentamiento[selKey];
@@ -227,33 +222,39 @@ function extraerFlujoCarga(calentamiento, {
 
   if (modo === "manual" && manual && !manual.error) {
     return {
-      flujo: parseFloat(manualFlujoFn(manual)) || null,
-      carga: parseFloat(manualCargaFn(manual)) || null,
+      flujo:   parseFloat(manualFlujoFn(manual)) || null,
+      carga:   parseFloat(manualCargaFn(manual)) || null,
+      tuberia: manual?.hidraulica?.tablaTramos?.[0]?.tuberia ?? null,
     };
   }
 
   if (sel && !sel.error) {
     return {
-      flujo: parseFloat(flujoFn(sel)) || null,
-      carga: parseFloat(cargaFn(sel)) || null,
+      flujo:   parseFloat(flujoFn(sel)) || null,
+      carga:   parseFloat(cargaFn(sel)) || null,
+      tuberia: sel?.tablaTramos?.[0]?.tuberia ?? null,
     };
   }
 
-  return { flujo: null, carga: null };
+  return { flujo: null, carga: null, tuberia: null };
 }
 
 /* =====================================================
    APP
 ===================================================== */
 export default function App() {
-  const [seccion, setSeccion] = useState("dimensiones");
-  const [panelColapsado, setPanelColapsado] = useState(false);
+  const [seccion, setSeccion]                     = useState("dimensiones");
+  const [panelColapsado, setPanelColapsado]       = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
-  const [temaOscuro, setTemaOscuro] = useState(true);
+  const [temaOscuro, setTemaOscuro]               = useState(true);
+  const [datosPorSistema, setDatosPorSistema]     = useState({});
+  const [sistemaActivo, setSistemaActivo]         = useState(null);
+  const dimensionesRef                            = useRef(null);
 
-  const [datosPorSistema, setDatosPorSistema] = useState({});
-  const [sistemaActivo, setSistemaActivo] = useState(null);
-  const dimensionesRef = useRef(null);
+  /* ── toggles de la tabla ── */
+  const [toggleFiltrado,     setToggleFiltrado]     = useState(false);
+  const [toggleCalentamiento, setToggleCalentamiento] = useState(false);
+  const [toggleSanitizacion, setToggleSanitizacion] = useState(false);
 
   const handleHome = () => {
     setSeccion("dimensiones");
@@ -267,14 +268,14 @@ export default function App() {
 
   useEffect(() => {
     const titulos = {
-      dimensiones: "PoolMetric · Dimensiones",
+      dimensiones:   "PoolMetric · Dimensiones",
       calentamiento: "PoolMetric · Calentamiento",
-      equipamiento: "PoolMetric · Equipamiento",
+      equipamiento:  "PoolMetric · Equipamiento",
     };
     document.title = titulos[seccion] ?? "PoolMetric";
   }, [seccion]);
 
-  const datosDim = datosPorSistema?.[sistemaActivo];
+  const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaCalculada = areaTotal(datosDim);
 
   const volumenTotal = useMemo(() => {
@@ -305,10 +306,18 @@ export default function App() {
 
   const sistemaListoCalor = areaCalculada > 0 && volumenTotal > 0 && profundidadPromedio > 0;
 
+  /* ── Tubería inicial filtrado — de retorno() ── */
+  const tuberiaInicialFiltrado = useMemo(() => {
+    const r = datosPorSistema?.calentamiento?.resultadoRetorno;
+    return r?.resultadoR?.[0]?.tuberia ?? null;
+  }, [datosPorSistema?.calentamiento]);
+
+  const tuberiaInicialInfinity = tuberiaInicialFiltrado; // misma tubería principal
+
   const configBombas = {
-    filtrado: true,
+    filtrado:      true,
     calentamiento: datosPorSistema?.calentamiento?.usarBombaCalentamiento === "si",
-    infinity: datosDim?.usarBombaInfinity === "si" && (datosDim?.desborde === "infinity" || datosDim?.desborde === "ambos")
+    infinity:      datosDim?.usarBombaInfinity === "si" && (datosDim?.desborde === "infinity" || datosDim?.desborde === "ambos")
   };
 
   const textoBombaInfinity = useMemo(() => {
@@ -331,67 +340,67 @@ export default function App() {
   const calentamiento = datosPorSistema?.calentamiento;
 
   /* ── Bomba de calor ── */
-  const { flujo: flujoBDC, carga: cargaBDCft } = useMemo(() =>
+  const { flujo: flujoBDC, carga: cargaBDCft, tuberia: tuberiaBDC } = useMemo(() =>
     extraerFlujoCarga(calentamiento, {
-      sistemaKey:     "bombaCalor",
-      modoKey:        "modoBDC",
-      selKey:         "bdcSeleccionada",
-      manualKey:      "bdcManual",
-      flujoFn:        (s) => s.seleccion?.flujoTotal,
-      cargaFn:        (s) => s.cargaTotal,
-      manualFlujoFn:  (m) => m.flujoTotal,
-      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+      sistemaKey:    "bombaCalor",
+      modoKey:       "modoBDC",
+      selKey:        "bdcSeleccionada",
+      manualKey:     "bdcManual",
+      flujoFn:       (s) => s.seleccion?.flujoTotal,
+      cargaFn:       (s) => s.cargaTotal,
+      manualFlujoFn: (m) => m.flujoTotal,
+      manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }),
   [calentamiento]);
 
   /* ── Panel solar ── */
-  const { flujo: flujoPS, carga: cargaPSft } = useMemo(() =>
+  const { flujo: flujoPS, carga: cargaPSft, tuberia: tuberiaPS } = useMemo(() =>
     extraerFlujoCarga(calentamiento, {
-      sistemaKey:     "panelSolar",
-      modoKey:        "modoPS",
-      selKey:         "psSeleccionado",
-      manualKey:      "psManual",
-      flujoFn:        (s) => s.seleccion?.flujoTotal,
-      cargaFn:        (s) => s.hidraulica?.cargaTotal,
-      manualFlujoFn:  (m) => m.flujoTotal,
-      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+      sistemaKey:    "panelSolar",
+      modoKey:       "modoPS",
+      selKey:        "psSeleccionado",
+      manualKey:     "psManual",
+      flujoFn:       (s) => s.seleccion?.flujoTotal,
+      cargaFn:       (s) => s.hidraulica?.cargaTotal,
+      manualFlujoFn: (m) => m.flujoTotal,
+      manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }),
   [calentamiento]);
 
   /* ── Caldera ── */
-  const { flujo: flujoCaldera, carga: cargaCalderaCft } = useMemo(() =>
+  const { flujo: flujoCaldera, carga: cargaCalderaCft, tuberia: tuberiaCaldera } = useMemo(() =>
     extraerFlujoCarga(calentamiento, {
-      sistemaKey:     "caldera",
-      modoKey:        "modoCaldera",
-      selKey:         "calderaSeleccionada",
-      manualKey:      "calderaManual",
-      flujoFn:        (s) => s.seleccion?.flujoTotal,
-      cargaFn:        (s) => s.cargaTotal,
-      manualFlujoFn:  (m) => m.flujoTotal,
-      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+      sistemaKey:    "caldera",
+      modoKey:       "modoCaldera",
+      selKey:        "calderaSeleccionada",
+      manualKey:     "calderaManual",
+      flujoFn:       (s) => s.seleccion?.flujoTotal,
+      cargaFn:       (s) => s.cargaTotal,
+      manualFlujoFn: (m) => m.flujoTotal,
+      manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }),
   [calentamiento]);
 
   /* ── Calentador eléctrico ── */
-  const { flujo: flujoCE, carga: cargaCEft } = useMemo(() =>
+  const { flujo: flujoCE, carga: cargaCEft, tuberia: tuberiaCE } = useMemo(() =>
     extraerFlujoCarga(calentamiento, {
-      sistemaKey:     "calentadorElectrico",
-      modoKey:        "modoCE",
-      selKey:         "ceSeleccionado",
-      manualKey:      "ceManual",
-      flujoFn:        (s) => s.seleccion?.flujoTotal,
-      cargaFn:        (s) => s.cargaTotal,
-      manualFlujoFn:  (m) => m.flujoTotal,
-      manualCargaFn:  (m) => m.hidraulica?.cargaTotal,
+      sistemaKey:    "calentadorElectrico",
+      modoKey:       "modoCE",
+      selKey:        "ceSeleccionado",
+      manualKey:     "ceManual",
+      flujoFn:       (s) => s.seleccion?.flujoTotal,
+      cargaFn:       (s) => s.cargaTotal,
+      manualFlujoFn: (m) => m.flujoTotal,
+      manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }),
   [calentamiento]);
 
-  const bdcListoParaMostrar      = sistemaListoCalor && flujoBDC      != null;
-  const psListoParaMostrar       = sistemaListoCalor && flujoPS       != null;
-  const calderaListoParaMostrar  = sistemaListoCalor && flujoCaldera  != null;
-  const ceListoParaMostrar       = sistemaListoCalor && flujoCE       != null;
+  const bdcListoParaMostrar     = sistemaListoCalor && flujoBDC     != null;
+  const psListoParaMostrar      = sistemaListoCalor && flujoPS      != null;
+  const calderaListoParaMostrar = sistemaListoCalor && flujoCaldera != null;
+  const ceListoParaMostrar      = sistemaListoCalor && flujoCE      != null;
 
-  /* ── Flujo máximo y carga total de calentamiento ── */
+  /* ── Flujo máximo calentamiento ── */
   const flujoMaxCalentamiento = useMemo(() => {
     const flujos = [flujoBDC, flujoPS, flujoCaldera, flujoCE].filter(v => v != null);
     if (!flujos.length) return null;
@@ -405,6 +414,80 @@ export default function App() {
   }, [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft]);
 
   const maxYSumaListos = sistemaListoCalor && flujoMaxCalentamiento != null;
+
+  /* ── Generador de cloro ── */
+  const usoGeneralSistema = useMemo(() => datosDim?.usoGeneral ?? "residencial", [datosDim]);
+
+  const tempAgua = useMemo(() => {
+    const decision = datosPorSistema?.calentamiento?.decision;
+    if (!decision || decision === "omitir") return 30;
+    return datosPorSistema?.calentamiento?.tempDeseada ?? 30;
+  }, [datosPorSistema?.calentamiento]);
+
+  const resultadoClorador = useMemo(() => {
+    if (!volumenTotal || volumenTotal <= 0) return null;
+    if (!areaCalculada || areaCalculada <= 0) return null;
+    try {
+      return generadorDeCloro(
+        volumenTotal * 1000,
+        usoGeneralSistema,
+        areaCalculada,
+        volumenTotal,
+        tempAgua
+      );
+    } catch { return null; }
+  }, [volumenTotal, areaCalculada, usoGeneralSistema, tempAgua]);
+
+  const kgDiaCloroNecesario = useMemo(() => {
+    if (!resultadoClorador || resultadoClorador.error) return null;
+    return resultadoClorador.kgDiaNecesario ?? null;
+  }, [resultadoClorador]);
+
+  const kgDiaCloroInstalado = useMemo(() => {
+    if (!resultadoClorador || resultadoClorador.error) return null;
+    return resultadoClorador.kgDiaInstalado ?? null;
+  }, [resultadoClorador]);
+
+  const flujoClorador = useMemo(() => {
+    if (!resultadoClorador || resultadoClorador.error) return null;
+    return parseFloat(resultadoClorador.seleccion?.flujoTotal) || null;
+  }, [resultadoClorador]);
+
+  const cargaClorador = useMemo(() => {
+    if (!resultadoClorador || resultadoClorador.error) return null;
+    return parseFloat(resultadoClorador.cargaTotal) || null;
+  }, [resultadoClorador]);
+
+  const tuberiaClorador = useMemo(() => {
+    if (!resultadoClorador || resultadoClorador.error) return null;
+    return resultadoClorador.tablaTramos?.[0]?.tuberia ?? null;
+  }, [resultadoClorador]);
+
+  const cloradorListo = volumenTotal > 0 && areaCalculada > 0 && flujoClorador != null;
+
+  /* ── Carga suma sanitización ── */
+  const cargaSumaSanitizacion = useMemo(() => {
+    if (!cargaClorador) return null;
+    return parseFloat(cargaClorador);
+  }, [cargaClorador]);
+
+  /* ── Flujo máximo global (filtrado + calentamiento + sanitización) ── */
+  const flujoMaxGlobal = useMemo(() => {
+    const flujos = [
+      flujoFiltrado > 0 ? flujoFiltrado : null,
+      flujoMaxCalentamiento,
+      flujoClorador,
+    ].filter(v => v != null);
+    if (!flujos.length) return null;
+    return Math.max(...flujos);
+  }, [flujoFiltrado, flujoMaxCalentamiento, flujoClorador]);
+
+  /* ── Carga total global (calentamiento + sanitización) ── */
+  const cargaTotalGlobal = useMemo(() => {
+    const partes = [cargaSumaCalentamiento, cargaSumaSanitizacion].filter(v => v != null);
+    if (!partes.length) return null;
+    return partes.reduce((a, b) => a + parseFloat(b), 0);
+  }, [cargaSumaCalentamiento, cargaSumaSanitizacion]);
 
   return (
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
@@ -455,113 +538,202 @@ export default function App() {
           <div className="seccion-resultados">
             <table className="tabla-resultados">
               <tbody>
-                {/* ── Dimensiones ── */}
+
+                {/* ── Dimensiones — siempre visibles ── */}
                 <tr><th>Área total:</th><td>{formatM2(areaCalculada)}</td></tr>
                 <tr><th>Volumen total:</th><td>{formatM3(volumenTotal)}</td></tr>
                 <tr><th>Profundidad promedio:</th><td>{formatMetro(profundidadPromedio)}</td></tr>
-                <tr><th>Flujo filtrado:</th><td>{formatGPM(flujoFiltrado)}</td></tr>
-                <tr><th>Flujo infinity:</th><td>{formatGPM(flujoInfinitySistema)}</td></tr>
-                <tr><th>Motobomba para infinity:</th><td>{textoBombaInfinity}</td></tr>
 
-                {/* ── Pérdidas de calor ── */}
-                <tr><th>Pérdida por evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
-                <tr><th>Pérdida por convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion) : "—"}</td></tr>
-                <tr><th>Pérdida por radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion) : "—"}</td></tr>
-                <tr><th>Pérdida por transmisión:</th><td>{sistemaListoCalor ? formatBTU(perdidaTransmision) : "—"}</td></tr>
-                <tr><th>Pérdida por tubería:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia) : "—"}</td></tr>
-                <tr><th>Pérdida por infinity:</th><td>{sistemaListoCalor ? formatBTU(perdidaInfinity) : "—"}</td></tr>
-                <tr><th>Pérdida por canal perimetral:</th><td>{sistemaListoCalor ? formatBTU(perdidaCanal) : "—"}</td></tr>
-                <tr><th>Pérdida total de calor:</th><td>{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
+                {/* ══════════════════════════════
+                    TOGGLE FILTRADO
+                ══════════════════════════════ */}
+                <ToggleSeccion
+                  label="💧 Filtrado"
+                  abierto={toggleFiltrado}
+                  onToggle={() => setToggleFiltrado(v => !v)}
+                >
+                  <tr>
+                    <th>Flujo filtrado:</th>
+                    <td>{formatGPM(flujoFiltrado)}</td>
+                  </tr>
+                  <tr>
+                    <th>Tubería filtrado:</th>
+                    <td>{fmtTub(tuberiaInicialFiltrado)}</td>
+                  </tr>
+                  <tr>
+                    <th>Flujo infinity:</th>
+                    <td>{formatGPM(flujoInfinitySistema)}</td>
+                  </tr>
+                  {flujoInfinitySistema > 0 && (
+                    <tr>
+                      <th>Tubería infinity:</th>
+                      <td>{fmtTub(tuberiaInicialInfinity)}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <th>Motobomba infinity:</th>
+                    <td>{textoBombaInfinity}</td>
+                  </tr>
+                </ToggleSeccion>
 
-                {/* ── Bomba de calor ── */}
+                {/* ══════════════════════════════
+                    TOGGLE CALENTAMIENTO
+                ══════════════════════════════ */}
+                <ToggleSeccion
+                  label="🔥 Calentamiento"
+                  abierto={toggleCalentamiento}
+                  onToggle={() => setToggleCalentamiento(v => !v)}
+                >
+                  <tr><th>Pérd. evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
+                  <tr><th>Pérd. convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion) : "—"}</td></tr>
+                  <tr><th>Pérd. radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion) : "—"}</td></tr>
+                  <tr><th>Pérd. transmisión:</th><td>{sistemaListoCalor ? formatBTU(perdidaTransmision) : "—"}</td></tr>
+                  <tr><th>Pérd. tubería:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia) : "—"}</td></tr>
+                  <tr><th>Pérd. infinity:</th><td>{sistemaListoCalor ? formatBTU(perdidaInfinity) : "—"}</td></tr>
+                  <tr><th>Pérd. canal perimetral:</th><td>{sistemaListoCalor ? formatBTU(perdidaCanal) : "—"}</td></tr>
+                  <tr><th>Pérd. total calor:</th><td>{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
+
+                  {/* BDC */}
+                  <tr><th style={{ paddingTop: "0.4rem", color: "#7dd3fc" }}>— Bomba de calor —</th><td /></tr>
+                  <tr>
+                    <th>Flujo BDC:</th>
+                    <td style={{ color: bdcListoParaMostrar ? "#34d399" : undefined }}>
+                      {bdcListoParaMostrar ? fmtGPM(flujoBDC) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tubería BDC:</th>
+                    <td>{bdcListoParaMostrar ? fmtTub(tuberiaBDC) : "—"}</td>
+                  </tr>
+                  <tr>
+                    <th>Carga BDC:</th>
+                    <td style={{ color: bdcListoParaMostrar ? "#60a5fa" : undefined }}>
+                      {bdcListoParaMostrar ? fmtFt(cargaBDCft) : "—"}
+                    </td>
+                  </tr>
+
+                  {/* Panel solar */}
+                  <tr><th style={{ paddingTop: "0.4rem", color: "#7dd3fc" }}>— Panel solar —</th><td /></tr>
+                  <tr>
+                    <th>Flujo PS:</th>
+                    <td style={{ color: psListoParaMostrar ? "#34d399" : undefined }}>
+                      {psListoParaMostrar ? fmtGPM(flujoPS) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tubería PS:</th>
+                    <td>{psListoParaMostrar ? fmtTub(tuberiaPS) : "—"}</td>
+                  </tr>
+                  <tr>
+                    <th>Carga PS:</th>
+                    <td style={{ color: psListoParaMostrar ? "#60a5fa" : undefined }}>
+                      {psListoParaMostrar ? fmtFt(cargaPSft) : "—"}
+                    </td>
+                  </tr>
+
+                  {/* Caldera */}
+                  <tr><th style={{ paddingTop: "0.4rem", color: "#7dd3fc" }}>— Caldera de gas —</th><td /></tr>
+                  <tr>
+                    <th>Flujo caldera:</th>
+                    <td style={{ color: calderaListoParaMostrar ? "#34d399" : undefined }}>
+                      {calderaListoParaMostrar ? fmtGPM(flujoCaldera) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tubería caldera:</th>
+                    <td>{calderaListoParaMostrar ? fmtTub(tuberiaCaldera) : "—"}</td>
+                  </tr>
+                  <tr>
+                    <th>Carga caldera:</th>
+                    <td style={{ color: calderaListoParaMostrar ? "#60a5fa" : undefined }}>
+                      {calderaListoParaMostrar ? fmtFt(cargaCalderaCft) : "—"}
+                    </td>
+                  </tr>
+
+                  {/* Calentador eléctrico */}
+                  <tr><th style={{ paddingTop: "0.4rem", color: "#7dd3fc" }}>— Calentador eléctrico —</th><td /></tr>
+                  <tr>
+                    <th>Flujo CE:</th>
+                    <td style={{ color: ceListoParaMostrar ? "#34d399" : undefined }}>
+                      {ceListoParaMostrar ? fmtGPM(flujoCE) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tubería CE:</th>
+                    <td>{ceListoParaMostrar ? fmtTub(tuberiaCE) : "—"}</td>
+                  </tr>
+                  <tr>
+                    <th>Carga CE:</th>
+                    <td style={{ color: ceListoParaMostrar ? "#60a5fa" : undefined }}>
+                      {ceListoParaMostrar ? fmtFt(cargaCEft) : "—"}
+                    </td>
+                  </tr>
+                </ToggleSeccion>
+
+                {/* ══════════════════════════════
+                    TOGGLE SANITIZACIÓN
+                ══════════════════════════════ */}
+                <ToggleSeccion
+                  label="🧪 Sanitización"
+                  abierto={toggleSanitizacion}
+                  onToggle={() => setToggleSanitizacion(v => !v)}
+                >
+                  <tr>
+                    <th>Flujo clorador:</th>
+                    <td style={{ color: cloradorListo ? "#34d399" : undefined }}>
+                      {cloradorListo ? fmtGPM(flujoClorador) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tubería clorador:</th>
+                    <td>{cloradorListo ? fmtTub(tuberiaClorador) : "—"}</td>
+                  </tr>
+                  <tr>
+                    <th>Carga clorador:</th>
+                    <td style={{ color: cloradorListo ? "#60a5fa" : undefined }}>
+                      {cloradorListo ? fmtFt(cargaClorador) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Cloro necesario:</th>
+                    <td style={{ color: kgDiaCloroNecesario != null ? "#34d399" : undefined }}>
+                      {kgDiaCloroNecesario != null ? fmtKg(kgDiaCloroNecesario) : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Cloro instalado:</th>
+                    <td style={{ color: kgDiaCloroInstalado != null ? "#60a5fa" : undefined }}>
+                      {kgDiaCloroInstalado != null ? fmtKg(kgDiaCloroInstalado) : "—"}
+                    </td>
+                  </tr>
+                </ToggleSeccion>
+
+                {/* ══════════════════════════════
+                    TOTALES — siempre visibles
+                ══════════════════════════════ */}
                 <tr>
-                  <th>Flujo bomba de calor:</th>
-                  <td style={{ color: bdcListoParaMostrar ? "#34d399" : undefined }}>
-                    {bdcListoParaMostrar ? fmtGPM(flujoBDC) : "—"}
+                  <th>Flujo máximo global:</th>
+                  <td style={{ color: flujoMaxGlobal != null ? "#34d399" : undefined }}>
+                    {flujoMaxGlobal != null ? fmtGPM(flujoMaxGlobal) : "—"}
                   </td>
                 </tr>
                 <tr>
-                  <th>Carga bomba de calor:</th>
-                  <td style={{ color: bdcListoParaMostrar ? "#60a5fa" : undefined }}>
-                    {bdcListoParaMostrar ? fmtFt(cargaBDCft) : "—"}
+                  <th>Carga total sistema:</th>
+                  <td style={{ color: cargaTotalGlobal != null ? "#60a5fa" : undefined }}>
+                    {cargaTotalGlobal != null ? fmtFt(cargaTotalGlobal) : "—"}
                   </td>
                 </tr>
 
-                {/* ── Panel solar ── */}
-                <tr>
-                  <th>Flujo panel solar:</th>
-                  <td style={{ color: psListoParaMostrar ? "#34d399" : undefined }}>
-                    {psListoParaMostrar ? fmtGPM(flujoPS) : "—"}
-                  </td>
-                </tr>
-                <tr>
-                  <th>Carga panel solar:</th>
-                  <td style={{ color: psListoParaMostrar ? "#60a5fa" : undefined }}>
-                    {psListoParaMostrar ? fmtFt(cargaPSft) : "—"}
-                  </td>
-                </tr>
-
-                {/* ── Caldera ── */}
-                <tr>
-                  <th>Flujo caldera de gas:</th>
-                  <td style={{ color: calderaListoParaMostrar ? "#34d399" : undefined }}>
-                    {calderaListoParaMostrar ? fmtGPM(flujoCaldera) : "—"}
-                  </td>
-                </tr>
-                <tr>
-                  <th>Carga caldera de gas:</th>
-                  <td style={{ color: calderaListoParaMostrar ? "#60a5fa" : undefined }}>
-                    {calderaListoParaMostrar ? fmtFt(cargaCalderaCft) : "—"}
-                  </td>
-                </tr>
-
-                {/* ── Calentador eléctrico ── */}
-                <tr>
-                  <th>Flujo calentador eléctrico:</th>
-                  <td style={{ color: ceListoParaMostrar ? "#34d399" : undefined }}>
-                    {ceListoParaMostrar ? fmtGPM(flujoCE) : "—"}
-                  </td>
-                </tr>
-                <tr>
-                  <th>Carga calentador eléctrico:</th>
-                  <td style={{ color: ceListoParaMostrar ? "#60a5fa" : undefined }}>
-                    {ceListoParaMostrar ? fmtFt(cargaCEft) : "—"}
-                  </td>
-                </tr>
-
-                {/* ── Pendientes ── */}
-                <tr><th>Flujo sanitizador:</th><td>—</td></tr>
-                <tr>
-                  <th>Flujo máximo calentamiento:</th>
-                  <td style={{ color: maxYSumaListos ? "#34d399" : undefined }}>
-                    {maxYSumaListos ? fmtGPM(flujoMaxCalentamiento) : "—"}
-                  </td>
-                </tr>
-                <tr><th>Energía necesaria 1°C:</th><td>—</td></tr>
-                <tr><th>Temp. deseada:</th><td>—</td></tr>
-                <tr><th>Tubería succión:</th><td>—</td></tr>
-                <tr><th>Tubería descarga:</th><td>—</td></tr>
-                <tr><th>Cloro necesario:</th><td>—</td></tr>
-                <tr><th>Ozono necesario:</th><td>—</td></tr>
-                <tr>
-                  <th>Carga total calentamiento:</th>
-                  <td style={{ color: maxYSumaListos ? "#60a5fa" : undefined }}>
-                    {maxYSumaListos ? fmtFt(cargaSumaCalentamiento) : "—"}
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* PANEL BOTTOM — Logo + engrane */}
+        {/* PANEL BOTTOM */}
         <div className="panel-bottom">
           <div className="panel-bottom-logo-row">
             {panelColapsado ? <LogoIcono /> : <LogoCompleto />}
-
             <div className="panel-bottom-sep" />
-
-            {/* Botón engrane con menú */}
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button
                 className={`panel-bottom-icon-btn ${menuUsuarioAbierto ? "panel-bottom-icon-btn-activo" : ""}`}
@@ -612,7 +784,9 @@ export default function App() {
               setSeccion={setSeccion}
               sistemaActivo={sistemaActivo}
               datosPorSistema={datosPorSistema}
+              setDatosPorSistema={setDatosPorSistema}
               configBombas={configBombas}
+              resultadoClorador={resultadoClorador}
             />
           )}
         </div>
