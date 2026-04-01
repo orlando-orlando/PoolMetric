@@ -1,4 +1,4 @@
-import { generadoresDeCloro } from "../data/generadoresDeCloro";
+import { generadoresUV } from "../data/generadoresUV";
 
 /* ================================================================
    TABLAS HAZEN-WILLIAMS
@@ -64,27 +64,15 @@ const REDUCCION = {
 };
 
 /* ================================================================
-   TABLA Ft — factor de temperatura para cálculo comercial
-   ================================================================ */
-function getFt(tempC) {
-  if (tempC <= 26)                return 1.0;
-  if (tempC >= 27 && tempC <= 29) return 1.1;
-  if (tempC >= 30 && tempC <= 32) return 1.25;
-  if (tempC >= 33 && tempC <= 35) return 1.4;
-  return 1.6; // > 35°C (spa)
-}
-
-/* ================================================================
    DEDUPLICACIÓN DE LOGS
    ================================================================ */
-const _loggedCL = new Set();
-export function resetCLLog() { _loggedCL.clear(); }
+const _loggedUV = new Set();
+export function resetUVLog() { _loggedUV.clear(); }
 
 /* ================================================================
    HELPERS
    ================================================================ */
 const fix2 = (v) => (parseFloat(v) || 0).toFixed(2);
-const fix3 = (v) => (parseFloat(v) || 0).toFixed(3);
 
 function seleccionarDiametro(flujoGPM) {
   let mejorTub    = null;
@@ -114,21 +102,20 @@ function cargaTramo(longMetros, cargaBase) {
 }
 
 /* ================================================================
-   LÓGICA HIDRÁULICA — GENERADORES DE CLORO SALINO
-   Igual que BDC: tubería decreciente tramo a tramo.
-   Diferencias vs BDC:
-     • Longitud de cada tramo: 0.5 m (no 1 m)
+   LÓGICA HIDRÁULICA — GENERADORES UV
+   Igual que generadorDeCloro:
+     • Longitud de cada tramo: 0.5 m
      • Sin tramo de cuarto de máquinas
      • Sin carga estática ni fricción por altura
-     • Carga fija: 5 ft (no 7 ft)
+     • Carga fija: 3 ft (diferencia vs cloradores)
    ================================================================ */
-function calcularHidraulicaClorador({ flujoPorEquipo, cantidad, modo = "auto" }) {
+function calcularHidraulicaUV({ flujoPorEquipo, cantidad, modo = "auto" }) {
 
-  const logKey = `cl|${modo}|${flujoPorEquipo}|${cantidad}`;
-  const debeLoguear = !_loggedCL.has(logKey);
-  if (debeLoguear) _loggedCL.add(logKey);
+  const logKey = `uv|${modo}|${flujoPorEquipo}|${cantidad}`;
+  const debeLoguear = !_loggedUV.has(logKey);
+  if (debeLoguear) _loggedUV.add(logKey);
 
-  const colorLog  = modo === "manual" ? "#fb923c" : "#34d399";
+  const colorLog  = modo === "manual" ? "#fb923c" : "#a78bfa";
   const labelModo = modo === "manual" ? "MANUAL" : "AUTO";
 
   const log = debeLoguear
@@ -155,7 +142,7 @@ function calcularHidraulicaClorador({ flujoPorEquipo, cantidad, modo = "auto" })
 
     cargaAcumuladaTramos += cargaFilaTotal;
 
-    log(`%c══ [${labelModo}] CLORADOR SALINO ══════════════════════════════`, `color:${colorLog};font-weight:bold`);
+    log(`%c══ [${labelModo}] GENERADOR UV ════════════════════════════════`, `color:${colorLog};font-weight:bold`);
     log(`%c── Tramo 1 (equipo único) ───────────────────────────────────────`, `color:${colorLog};font-weight:bold`);
     log(`  Flujo por equipo           : ${fix2(flujoPorEquipo)} GPM`);
     log(`  Tubería seleccionada       : ${tuberia}`);
@@ -184,7 +171,7 @@ function calcularHidraulicaClorador({ flujoPorEquipo, cantidad, modo = "auto" })
     tubAnterior = tuberia;
 
   } else {
-    log(`%c══ [${labelModo}] CLORADOR SALINO ══════════════════════════════`, `color:${colorLog};font-weight:bold`);
+    log(`%c══ [${labelModo}] GENERADOR UV ════════════════════════════════`, `color:${colorLog};font-weight:bold`);
     for (let i = 0; i < cantidad; i++) {
       const flujoActual = (cantidad - i) * flujoPorEquipo;
       const esUltimo    = i === cantidad - 1;
@@ -248,16 +235,16 @@ function calcularHidraulicaClorador({ flujoPorEquipo, cantidad, modo = "auto" })
   }
 
   /* ── Carga fija + total ── */
-  const CARGA_FIJA_FT = 5;
+  const CARGA_FIJA_FT = 3; // UV: 3 ft (vs 5 ft de cloradores)
   const cargaTotal    = cargaAcumuladaTramos + CARGA_FIJA_FT;
   const cargaTotalPSI = cargaTotal * 0.43353;
 
-  log(`%c═══ [${labelModo}] RESUMEN FINAL CLORADOR SALINO ════════════════`, `color:${colorLog};font-weight:bold`);
+  log(`%c═══ [${labelModo}] RESUMEN FINAL GENERADOR UV ══════════════════`, `color:${colorLog};font-weight:bold`);
   log(`  Equipos                    : ${cantidad}`);
   log(`  Flujo por equipo           : ${fix2(flujoPorEquipo)} GPM`);
   log(`  Flujo total                : ${fix2(flujoPorEquipo * cantidad)} GPM`);
   log(`  Suma carga tramos          : ${fix2(cargaAcumuladaTramos)} ft`);
-  log(`  Carga fija global (5 ft)   : ${CARGA_FIJA_FT} ft`);
+  log(`  Carga fija global (3 ft)   : ${CARGA_FIJA_FT} ft`);
   log(`  ──────────────────────────────────────────`);
   log(`  CARGA TOTAL                : ${fix2(cargaTotal)} ft  /  ${fix2(cargaTotalPSI)} PSI`);
 
@@ -280,40 +267,40 @@ function calcularHidraulicaClorador({ flujoPorEquipo, cantidad, modo = "auto" })
 }
 
 /* ================================================================
-   SELECCIÓN ÓPTIMA DE GENERADORES DE CLORO
-   Residencial : demanda en litros  → capacidadResidencial
-   Comercial   : demanda en kg/día  → capacidadComercial
+   SELECCIÓN ÓPTIMA DE GENERADORES UV
+
+   Criterio: flujo máximo del sistema (filtrado + calentamiento +
+   sanitización). Se busca la menor cantidad de equipos cuyo flujo
+   total ≥ flujoMaxSistema.
+
+   Preferencia en empate de cantidad:
+     1. Menor exceso de flujo
+     2. Menor flujo unitario (equipo más pequeño)
    ================================================================ */
-function seleccionarCloradores(demanda, modoCloro) {
-  const catalogo = generadoresDeCloro.filter((g) => g.metadata.activo);
+function seleccionarGeneradorUV(flujoMaxSistema) {
+  const catalogo = generadoresUV.filter(g => g.metadata.activo);
   let mejorOpcion = null;
 
   for (const equipo of catalogo) {
-    const capUnitaria = modoCloro === "comercial"
-      ? equipo.specs.capacidadComercial
-      : equipo.specs.capacidadResidencial;
+    const flujoUnitario = equipo.specs.flujo;
+    if (flujoUnitario <= 0) continue;
 
-    if (!capUnitaria || capUnitaria <= 0) continue;
-
-    const cantidad = Math.ceil(demanda / capUnitaria);
-    const capTotal = cantidad * capUnitaria;
-    const exceso   = capTotal - demanda;
+    const cantidad   = Math.ceil(flujoMaxSistema / flujoUnitario);
+    const flujoTotal = cantidad * flujoUnitario;
+    const exceso     = flujoTotal - flujoMaxSistema;
 
     if (!mejorOpcion) {
-      mejorOpcion = { equipo, cantidad, capTotal, exceso };
+      mejorOpcion = { equipo, cantidad, flujoTotal, exceso };
       continue;
     }
 
     if (cantidad < mejorOpcion.cantidad) {
-      mejorOpcion = { equipo, cantidad, capTotal, exceso };
+      mejorOpcion = { equipo, cantidad, flujoTotal, exceso };
     } else if (cantidad === mejorOpcion.cantidad) {
       if (exceso < mejorOpcion.exceso) {
-        mejorOpcion = { equipo, cantidad, capTotal, exceso };
-      } else if (
-        exceso === mejorOpcion.exceso &&
-        equipo.specs.flujo < mejorOpcion.equipo.specs.flujo
-      ) {
-        mejorOpcion = { equipo, cantidad, capTotal, exceso };
+        mejorOpcion = { equipo, cantidad, flujoTotal, exceso };
+      } else if (exceso === mejorOpcion.exceso && flujoUnitario < mejorOpcion.equipo.specs.flujo) {
+        mejorOpcion = { equipo, cantidad, flujoTotal, exceso };
       }
     }
   }
@@ -322,76 +309,39 @@ function seleccionarCloradores(demanda, modoCloro) {
 }
 
 /* ================================================================
-   FUNCIÓN PRINCIPAL: generadorDeCloro()
+   FUNCIÓN PRINCIPAL: generadorUV()
 
    Parámetros:
-     volumenLitros  — volumen total de la alberca en litros
-     usoGeneral     — "residencial" | "publica" | "competencia" | "parque"
-     areaM2         — área superficial total en m² (requerida en comercial)
-     volumenM3      — volumen total en m³           (requerido en comercial)
-     tempC          — temperatura deseada en °C     (null → usa 30°C)
-
-   Retorno kg/día:
-     Residencial → kgDiaNecesario: null  /  kgDiaInstalado: null
-     Comercial   → kgDiaNecesario: fórmula con Fs y Ft
-                   kgDiaInstalado: cantidad × capacidadComercial
+     flujoMaxSistema — flujo máximo global del sistema en GPM
+                       (filtrado + calentamiento + sanitización)
    ================================================================ */
-export function generadorDeCloro(volumenLitros, usoGeneral, areaM2 = 0, volumenM3 = 0, tempC = null) {
+export function generadorUV(flujoMaxSistema) {
 
-  const modoCloro    = usoGeneral === "residencial" ? "residencial" : "comercial";
-  const FS           = 1.3;
-  const tempEfectiva = (tempC !== null && tempC > 0) ? tempC : 30;
-  const ft           = modoCloro === "comercial" ? getFt(tempEfectiva) : null;
+  if (!flujoMaxSistema || flujoMaxSistema <= 0) {
+    return { error: "Flujo máximo del sistema inválido o no disponible." };
+  }
 
-  /* ── kg/día necesario — solo comercial ── */
-  const kgDiaNecesario = modoCloro === "comercial"
-    ? parseFloat(fix3((((areaM2 / 5.6) * 15) + (volumenM3 * 5)) / 1000 * FS * ft))
-    : null;
-
-  /* ── Demanda para selección ── */
-  const demanda   = modoCloro === "residencial" ? volumenLitros : kgDiaNecesario;
-  const seleccion = seleccionarCloradores(demanda, modoCloro);
+  const seleccion = seleccionarGeneradorUV(flujoMaxSistema);
 
   if (!seleccion) {
-    return { error: "Catálogo de generadores de cloro vacío o sin equipos activos." };
+    return { error: "Catálogo de generadores UV vacío o sin equipos activos." };
   }
 
   const { equipo, cantidad } = seleccion;
   const flujoPorEquipo = equipo.specs.flujo;
 
-  /* ── kg/día instalado — solo comercial ── */
-  const kgDiaInstalado = modoCloro === "comercial"
-    ? parseFloat(fix3(cantidad * equipo.specs.capacidadComercial))
-    : null;
-
   /* ── Log de selección ── */
-  const colorLog = "#34d399";
-  console.log(`%c══ SELECCIÓN GENERADOR DE CLORO SALINO ═══════════════════`, `color:${colorLog};font-weight:bold`);
-  console.log(`  Modo cálculo               : ${modoCloro}`);
-  if (modoCloro === "comercial") {
-    console.log(`  Área (m²)                  : ${fix2(areaM2)}`);
-    console.log(`  Volumen (m³)               : ${fix2(volumenM3)}`);
-    console.log(`  Temperatura efectiva       : ${tempEfectiva} °C`);
-    console.log(`  Factor Ft                  : ${ft}`);
-    console.log(`  Factor Fs                  : ${FS}`);
-    console.log(`  kg/día necesario           : ${kgDiaNecesario}`);
-  } else {
-    console.log(`  Volumen alberca (litros)   : ${fix2(volumenLitros)}`);
-  }
+  const colorLog = "#a78bfa";
+  console.log(`%c══ SELECCIÓN GENERADOR UV ═══════════════════════════════`, `color:${colorLog};font-weight:bold`);
+  console.log(`  Flujo máx. sistema         : ${fix2(flujoMaxSistema)} GPM`);
   console.log(`  Equipo seleccionado        : ${equipo.marca} ${equipo.modelo}`);
-  console.log(`  Cantidad                   : ${cantidad} equipo${cantidad > 1 ? "s" : ""}`);
   console.log(`  Flujo por equipo           : ${fix2(flujoPorEquipo)} GPM`);
-  console.log(`  Flujo total                : ${fix2(flujoPorEquipo * cantidad)} GPM`);
-  if (modoCloro === "comercial") {
-    console.log(`  kg/día instalado           : ${kgDiaInstalado}`);
-    console.log(`  Exceso                     : ${fix3(seleccion.exceso)} kg/día`);
-  } else {
-    console.log(`  Capacidad instalada        : ${seleccion.capTotal.toLocaleString()} litros`);
-    console.log(`  Exceso                     : ${seleccion.exceso.toLocaleString()} litros`);
-  }
+  console.log(`  Cantidad                   : ${cantidad} equipo${cantidad > 1 ? "s" : ""}`);
+  console.log(`  Flujo total instalado      : ${fix2(flujoPorEquipo * cantidad)} GPM`);
+  console.log(`  Exceso de flujo            : ${fix2(seleccion.exceso)} GPM`);
 
   /* ── Hidráulica ── */
-  const hidraulica = calcularHidraulicaClorador({
+  const hidraulica = calcularHidraulicaUV({
     flujoPorEquipo,
     cantidad,
     modo: "auto",
@@ -404,31 +354,22 @@ export function generadorDeCloro(volumenLitros, usoGeneral, areaM2 = 0, volumenM
       cantidad,
       flujoPorEquipo:  fix2(flujoPorEquipo),
       flujoTotal:      fix2(cantidad * flujoPorEquipo),
-      capUnitaria:     seleccion.capTotal / cantidad,
-      capTotal:        seleccion.capTotal,
+      flujoMaxSistema: fix2(flujoMaxSistema),
       exceso:          fix2(seleccion.exceso),
-      modoCloro,
-      unidadCapacidad: modoCloro === "comercial" ? "kg/día" : "litros",
     },
-    modoCloro,
-    kgDiaNecesario,   // null en residencial
-    kgDiaInstalado,   // null en residencial
-    ft,               // null en residencial
-    fs:   modoCloro === "comercial" ? FS           : null,
-    temp: modoCloro === "comercial" ? tempEfectiva : null,
     ...hidraulica,
   };
 }
 
 /* ================================================================
-   FUNCIÓN MANUAL: calcularCargaCloradorManual()
+   FUNCIÓN MANUAL: calcularCargaUVManual()
    ================================================================ */
-export function calcularCargaCloradorManual(flujoPorEquipo, cantidad) {
+export function calcularCargaUVManual(flujoPorEquipo, cantidad) {
   if (!flujoPorEquipo || flujoPorEquipo <= 0 || !cantidad || cantidad <= 0) {
     return { error: "Flujo o cantidad inválidos para cálculo manual." };
   }
 
-  return calcularHidraulicaClorador({
+  return calcularHidraulicaUV({
     flujoPorEquipo,
     cantidad,
     modo: "manual",

@@ -1005,3 +1005,255 @@ select option:hover { background-color: #d1d5db; }
   text-align: center;
   font-style: italic;
 }
+
+/* ==========================================================
+   🧩 Toggles de resultados — filtrado / calentamiento / sanitización
+   ========================================================== */
+
+.resultado-toggle-bloque {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.resultado-toggle-bloque--filtrado {
+  border: 1px solid rgba(56,189,248,0.2);
+}
+.resultado-toggle-bloque--calentamiento {
+  border: 1px solid rgba(251,146,60,0.2);
+}
+.resultado-toggle-bloque--sanitizacion {
+  border: 1px solid rgba(52,211,153,0.2);
+}
+
+/* ── Botón cabecera del toggle ── */
+.resultado-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+.resultado-toggle-btn--filtrado {
+  background: rgba(56,189,248,0.05);
+  color: #38bdf8;
+}
+.resultado-toggle-btn--filtrado:hover,
+.resultado-toggle-btn--filtrado.abierto {
+  background: rgba(56,189,248,0.12);
+}
+
+.resultado-toggle-btn--calentamiento {
+  background: rgba(251,146,60,0.05);
+  color: #fb923c;
+}
+.resultado-toggle-btn--calentamiento:hover,
+.resultado-toggle-btn--calentamiento.abierto {
+  background: rgba(251,146,60,0.12);
+}
+
+.resultado-toggle-btn--sanitizacion {
+  background: rgba(52,211,153,0.04);
+  color: #34d399;
+}
+.resultado-toggle-btn--sanitizacion:hover,
+.resultado-toggle-btn--sanitizacion.abierto {
+  background: rgba(52,211,153,0.1);
+}
+
+.resultado-toggle-btn-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.resultado-toggle-chevron {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.resultado-toggle-chevron.abierto {
+  transform: rotate(180deg);
+}
+
+/* ── Cuerpo expandible ── */
+.resultado-toggle-cuerpo {
+  padding: 0.25rem 0;
+}
+
+.resultado-toggle-cuerpo--filtrado {
+  background: rgba(56,189,248,0.03);
+  border-top: 1px solid rgba(56,189,248,0.12);
+}
+.resultado-toggle-cuerpo--calentamiento {
+  background: rgba(251,146,60,0.03);
+  border-top: 1px solid rgba(251,146,60,0.1);
+}
+.resultado-toggle-cuerpo--sanitizacion {
+  background: rgba(52,211,153,0.03);
+  border-top: 1px solid rgba(52,211,153,0.1);
+}
+
+/* ── Sub-encabezados dentro de calentamiento ── */
+.resultado-subheader {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.75rem 0.1rem;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 0.25rem;
+}
+.resultado-subheader:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+.resultado-subheader--perdidas  { color: #94a3b8; }
+.resultado-subheader--equipo    { color: #7dd3fc; }
+.resultado-subheader--cloro     { color: #34d399; }
+
+/* ── Celdas con indentación dentro de los toggles ── */
+.tabla-resultados .th-indent    { padding-left: 0.75rem; }
+.tabla-resultados .th-total     { font-weight: 700; }
+.tabla-resultados .td-flujo     { color: #34d399; }
+.tabla-resultados .td-cdt       { color: #60a5fa; }
+.tabla-resultados .td-perdida   { color: #fb923c; font-weight: 700; }
+.tabla-resultados .td-cloro-nec { color: #34d399; }
+.tabla-resultados .td-cloro-ins { color: #60a5fa; }
+.tabla-resultados .th-seccion   { color: #fb923c; font-weight: 700; }
+
+/* ── Placeholder vacío ── */
+.resultado-toggle-vacio {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  color: #475569;
+}
+
+/* ── Totales finales ── */
+.tabla-resultados-totales {
+  margin-top: 0.25rem;
+}
+.tabla-resultados-totales .th-flujo-max {
+  color: #f8fafc;
+  font-weight: 700;
+  border-left: 3px solid #34d399;
+  padding-left: 0.5rem;
+}
+.tabla-resultados-totales .td-flujo-max {
+  color: #34d399;
+  font-weight: 700;
+}
+.tabla-resultados-totales .th-cdt-total {
+  color: #f8fafc;
+  font-weight: 700;
+  border-left: 3px solid #60a5fa;
+  padding-left: 0.5rem;
+}
+.tabla-resultados-totales .td-cdt-total {
+  color: #60a5fa;
+  font-weight: 700;
+}
+.tabla-resultados-totales .td-vacio {
+  color: #475569;
+  font-weight: 700;
+}
+
+/* ── Logo completo ── */
+.logo-completo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-completo-texto {
+  line-height: 1;
+}
+.logo-nombre {
+  font-family: 'Rajdhani','Barlow',sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: .02em;
+  color: #c8e0f8;
+}
+.logo-nombre-acento {
+  color: #29aaef;
+}
+.logo-subtitulo {
+  display: block;
+  font-family: 'Share Tech Mono',monospace;
+  font-size: .48rem;
+  letter-spacing: .18em;
+  color: #7fb9e8;
+  margin-top: 1px;
+}
+
+/* ── Wrapper posición relativa del menú usuario ── */
+.panel-bottom-menu-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Tabla dimensiones con margen inferior ── */
+.tabla-resultados--dim {
+  margin-bottom: 0.5rem;
+}
+
+/* ── Clase de color para th filtrado ── */
+.th-seccion--filtrado {
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+/* =====================================================
+   Sanitización — equipamiento
+===================================================== */
+.sanitizacion-bloque-equipo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.sanitizacion-pendiente {
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.tarjeta-readonly-footer {
+  padding: 0.4rem 0.75rem 0.5rem;
+  font-size: 0.68rem;
+  color: #475569;
+  border-top: 1px solid rgba(71,85,105,0.3);
+  margin-top: 0.25rem;
+}
+
+.tarjeta-readonly-link {
+  color: #60a5fa;
+}
+
+/* Sistema cal card colores para sanitización */
+.sistema-cal-card:has(.sistema-cal-label) {
+  border-color: rgba(52,211,153,0.18);
+}
+.sistema-cal-card.activo {
+  border-color: rgba(52,211,153,0.85);
+  background: rgba(16,185,129,0.18);
+  box-shadow: 0 0 0 2px rgba(52,211,153,0.2), 0 4px 16px rgba(16,185,129,0.15);
+}
+
+.sanitizacion-tipo-instalacion {
+  padding: 0.5rem 0;
+}
+.sanitizacion-tipo-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.4rem;
+}

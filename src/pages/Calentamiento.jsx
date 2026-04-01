@@ -821,6 +821,7 @@ export default function Calentamiento({
         selManualCantidad:     s.selManualCantidad,
         resumenTramosR:        s.resultadoRetorno?.resumenTramosR   ?? {},
         resumenDisparosR:      s.resultadoRetorno?.resumenDisparosR ?? {},
+        resultadoRetorno: s.resultadoRetorno ?? null, 
         bdcSeleccionada:       s.bdcSeleccionada,
         bdcManual:             s.bdcManual   ?? null,
         bdcEfectiva:           s.bdcEfectiva,
