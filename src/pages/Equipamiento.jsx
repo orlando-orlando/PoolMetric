@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import "../estilos.css";
-import { generadoresDeCloro }       from "../data/generadoresDeCloro";
-import { cloradoresAutomaticos }    from "../data/cloradoresAutomaticos";
-import { calcularCargaCloradorManual }            from "../utils/generadorDeCloro";
+import { generadoresDeCloro }    from "../data/generadoresDeCloro";
+import { cloradoresAutomaticos } from "../data/cloradoresAutomaticos";
+import { generadoresUV }         from "../data/generadoresUV";
+import { calcularCargaCloradorManual }                           from "../utils/generadorDeCloro";
 import { cloradorAutomatico, calcularCargaCloradorAutomaticoManual } from "../utils/cloradorAutomatico";
+import { generadorUV, calcularCargaUVManual }                   from "../utils/generadorUV";
 import { volumen } from "../utils/volumen";
 
 /* =====================================================
@@ -22,7 +24,9 @@ function areaTotal(datosSistema) {
 function volumenTotal(datosSistema) {
   if (!datosSistema || !Array.isArray(datosSistema.cuerpos)) return 0;
   return parseFloat(
-    datosSistema.cuerpos.reduce((acc, c) => acc + volumen(c, c.volumenCalculado ?? null), 0).toFixed(1)
+    datosSistema.cuerpos.reduce(
+      (acc, c) => acc + volumen(c, c.volumenCalculado ?? null), 0
+    ).toFixed(1)
   );
 }
 
@@ -146,25 +150,13 @@ function TarjetaCalentamientoReadonly({ icono, label, modo, marca, modelo, canti
         </span>
       </div>
       <div className="bdc-rec-stats">
-        <div className="bdc-stat">
-          <span className="bdc-stat-valor">{cantidad}</span>
-          <span className="bdc-stat-label">equipos</span>
-        </div>
+        <div className="bdc-stat"><span className="bdc-stat-valor">{cantidad}</span><span className="bdc-stat-label">equipos</span></div>
         <div className="bdc-stat-sep" />
-        <div className="bdc-stat">
-          <span className="bdc-stat-valor">{parseFloat(flujoTotal).toFixed(1)}</span>
-          <span className="bdc-stat-label">GPM total</span>
-        </div>
+        <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(flujoTotal).toFixed(1)}</span><span className="bdc-stat-label">GPM total</span></div>
         <div className="bdc-stat-sep" />
-        <div className="bdc-stat">
-          <span className="bdc-stat-valor">{cargaTotal}</span>
-          <span className="bdc-stat-label">ft CDT</span>
-        </div>
+        <div className="bdc-stat"><span className="bdc-stat-valor">{cargaTotal}</span><span className="bdc-stat-label">ft CDT</span></div>
         <div className="bdc-stat-sep" />
-        <div className="bdc-stat">
-          <span className="bdc-stat-valor">{cargaTotalPSI}</span>
-          <span className="bdc-stat-label">PSI</span>
-        </div>
+        <div className="bdc-stat"><span className="bdc-stat-valor">{cargaTotalPSI}</span><span className="bdc-stat-label">PSI</span></div>
       </div>
       <div className="tarjeta-readonly-footer">
         Configurable en <span className="tarjeta-readonly-link">Calentamiento →</span>
@@ -270,38 +262,31 @@ function BloqueCloradorSalino({ resultadoClorador }) {
   const infoActiva = useMemo(() => {
     if (modoCL === "manual" && cloradorManual) {
       return {
-        marca:         cloradorManual.equipo.marca,
-        modelo:        cloradorManual.equipo.modelo,
-        cantidad:      cloradorManual.cantidad,
-        flujoTotal:    cloradorManual.flujoTotal,
-        cargaTotal:    cloradorManual.hidraulica?.cargaTotal,
+        marca: cloradorManual.equipo.marca, modelo: cloradorManual.equipo.modelo,
+        cantidad: cloradorManual.cantidad, flujoTotal: cloradorManual.flujoTotal,
+        cargaTotal: cloradorManual.hidraulica?.cargaTotal,
         cargaTotalPSI: cloradorManual.hidraulica?.cargaTotalPSI,
-        capInstalada:  parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3)),
+        capInstalada: parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3)),
         unidad: "kg/día",
       };
     }
     if (rec) {
       return {
-        marca:         rec.seleccion.marca,
-        modelo:        rec.seleccion.modelo,
-        cantidad:      rec.seleccion.cantidad,
-        flujoTotal:    rec.seleccion.flujoTotal,
-        cargaTotal:    rec.cargaTotal,
-        cargaTotalPSI: rec.cargaTotalPSI,
-        capInstalada:  rec.kgDiaInstalado,
-        unidad:        rec.modoCloro === "comercial" ? "kg/día" : "litros",
+        marca: rec.seleccion.marca, modelo: rec.seleccion.modelo,
+        cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal,
+        cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI,
+        capInstalada: rec.kgDiaInstalado,
+        unidad: rec.modoCloro === "comercial" ? "kg/día" : "litros",
       };
     }
     return null;
   }, [modoCL, cloradorManual, rec]);
 
-  if (!rec) {
-    return (
-      <div className="sanitizacion-pendiente">
-        Completa las dimensiones para ver la selección de generadores de cloro
-      </div>
-    );
-  }
+  if (!rec) return (
+    <div className="sanitizacion-pendiente">
+      Completa las dimensiones para ver la selección de generadores de cloro
+    </div>
+  );
 
   return (
     <div className="sanitizacion-bloque-equipo">
@@ -403,7 +388,6 @@ function BloqueCloradorSalino({ resultadoClorador }) {
               </div>
             </div>
           )}
-
           {modoCL === "manual" && (
             <div className="bdc-selector-manual bdc-inset">
               <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo de generadores</span></div>
@@ -476,25 +460,21 @@ function BloqueCloradorSalino({ resultadoClorador }) {
    BLOQUE CLORADOR AUTOMÁTICO
 ===================================================== */
 function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC }) {
-
   const [modoCL,          setModoCL]          = useState("recomendado");
-  const [instalacion,     setInstalacion]     = useState(null); // "enLinea" | "fueraLinea"
+  const [instalacion,     setInstalacion]     = useState(null);
   const [selManualCLId,   setSelManualCLId]   = useState(null);
   const [selManualCLCant, setSelManualCLCant] = useState(1);
   const [filtroMarca,     setFiltroMarca]     = useState("todas");
   const [filtroInst,      setFiltroInst]      = useState("todos");
 
-  /* ── Resultado recomendado — se recalcula cuando cambia el tipo de instalación ── */
   const rec = useMemo(() => {
-    if (!instalacion) return null;
-    if (!volumenLitros || volumenLitros <= 0) return null;
+    if (!instalacion || !volumenLitros || volumenLitros <= 0) return null;
     try {
       const r = cloradorAutomatico(volumenLitros, usoGeneral, areaM2, volumenM3, tempC, instalacion);
       return r?.error ? null : r;
     } catch { return null; }
   }, [instalacion, volumenLitros, usoGeneral, areaM2, volumenM3, tempC]);
 
-  /* ── Catálogo filtrado para modo manual ── */
   const marcasDisponibles = useMemo(() =>
     ["todas", ...new Set(
       cloradoresAutomaticos
@@ -513,7 +493,6 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     }),
   [instalacion, filtroMarca, filtroInst]);
 
-  /* ── Cálculo manual ── */
   const cloradorManual = useMemo(() => {
     if (!selManualCLId || selManualCLCant <= 0) return null;
     const equipo = cloradoresAutomaticos.find(c => c.id === selManualCLId);
@@ -525,32 +504,26 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     } catch { return null; }
   }, [selManualCLId, selManualCLCant]);
 
-  /* ── Info activa para tarjeta resumen ── */
   const infoActiva = useMemo(() => {
     if (modoCL === "manual" && cloradorManual) {
       return {
-        marca:         cloradorManual.equipo.marca,
-        modelo:        cloradorManual.equipo.modelo,
-        instalacion:   cloradorManual.equipo.instalacion,
-        cantidad:      cloradorManual.cantidad,
-        flujoTotal:    cloradorManual.flujoTotal,
-        cargaTotal:    cloradorManual.hidraulica?.cargaTotal,
+        marca: cloradorManual.equipo.marca, modelo: cloradorManual.equipo.modelo,
+        instalacion: cloradorManual.equipo.instalacion,
+        cantidad: cloradorManual.cantidad, flujoTotal: cloradorManual.flujoTotal,
+        cargaTotal: cloradorManual.hidraulica?.cargaTotal,
         cargaTotalPSI: cloradorManual.hidraulica?.cargaTotalPSI,
-        capInstalada:  parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3)),
+        capInstalada: parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3)),
         unidad: "kg/día",
       };
     }
     if (rec) {
       return {
-        marca:         rec.seleccion.marca,
-        modelo:        rec.seleccion.modelo,
-        instalacion:   rec.seleccion.instalacion,
-        cantidad:      rec.seleccion.cantidad,
-        flujoTotal:    rec.seleccion.flujoTotal,
-        cargaTotal:    rec.cargaTotal,
-        cargaTotalPSI: rec.cargaTotalPSI,
-        capInstalada:  rec.kgDiaInstalado,
-        unidad:        rec.modoCloro === "comercial" ? "kg/día" : "litros",
+        marca: rec.seleccion.marca, modelo: rec.seleccion.modelo,
+        instalacion: rec.seleccion.instalacion,
+        cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal,
+        cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI,
+        capInstalada: rec.kgDiaInstalado,
+        unidad: rec.modoCloro === "comercial" ? "kg/día" : "litros",
       };
     }
     return null;
@@ -559,7 +532,6 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
   const labelInstalacion = (inst) =>
     inst === "enLinea" ? "En línea" : inst === "fueraLinea" ? "Fuera de línea" : inst;
 
-  /* ── Si no hay instalación elegida, mostrar selector ── */
   if (!instalacion) {
     return (
       <div className="sanitizacion-bloque-equipo">
@@ -582,33 +554,22 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
 
   return (
     <div className="sanitizacion-bloque-equipo">
-
-      {/* Selector de tipo con opción de cambiar */}
       <div className="bdc-modo-toggle-wrapper" style={{ marginBottom: "0.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: "100%" }}>
           <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Tipo:</span>
           <div className="bdc-modo-toggle">
-            <button
-              type="button"
-              className={`bdc-modo-btn ${instalacion === "enLinea" ? "bdc-modo-activo" : ""}`}
-              onClick={() => { setInstalacion("enLinea"); setSelManualCLId(null); setSelManualCLCant(1); }}
-            >
-              {instalacion === "enLinea" && <IconoCheck />}
-              <span>En línea</span>
+            <button type="button" className={`bdc-modo-btn ${instalacion === "enLinea" ? "bdc-modo-activo" : ""}`}
+              onClick={() => { setInstalacion("enLinea"); setSelManualCLId(null); setSelManualCLCant(1); }}>
+              {instalacion === "enLinea" && <IconoCheck />}<span>En línea</span>
             </button>
-            <button
-              type="button"
-              className={`bdc-modo-btn ${instalacion === "fueraLinea" ? "bdc-modo-activo" : ""}`}
-              onClick={() => { setInstalacion("fueraLinea"); setSelManualCLId(null); setSelManualCLCant(1); }}
-            >
-              {instalacion === "fueraLinea" && <IconoCheck />}
-              <span>Fuera de línea</span>
+            <button type="button" className={`bdc-modo-btn ${instalacion === "fueraLinea" ? "bdc-modo-activo" : ""}`}
+              onClick={() => { setInstalacion("fueraLinea"); setSelManualCLId(null); setSelManualCLCant(1); }}>
+              {instalacion === "fueraLinea" && <IconoCheck />}<span>Fuera de línea</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Toggle recomendado / manual */}
       <div className="bdc-modo-toggle-wrapper">
         <div className="bdc-modo-toggle">
           <button type="button" className={`bdc-modo-btn ${modoCL === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModoCL("recomendado")}>
@@ -621,8 +582,6 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
       </div>
 
       <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
-
-        {/* Tarjeta resumen */}
         <div className="layout-clima-bdc-celda celda-bdc-rec">
           {infoActiva ? (
             <div className={`bdc-recomendada-card bdc-inset ${modoCL === "manual" ? "bdc-card-manual-activa" : ""}`}>
@@ -685,9 +644,7 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
           )}
         </div>
 
-        {/* Panel derecho */}
         <div className="layout-clima-bdc-celda celda-bdc-manual">
-
           {modoCL === "recomendado" && rec && (
             <div className="bdc-info-automatica bdc-inset">
               <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
@@ -716,7 +673,6 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
               </div>
             </div>
           )}
-
           {modoCL === "manual" && (
             <div className="bdc-selector-manual bdc-inset">
               <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo — {labelInstalacion(instalacion)}</span></div>
@@ -786,18 +742,230 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
 }
 
 /* =====================================================
-   BLOQUE LÁMPARA UV — placeholder
+   BLOQUE LÁMPARA UV
 ===================================================== */
-function BloqueLamparaUV() {
+function BloqueLamparaUV({ flujoMaxSistema }) {
+  const [modoUV,          setModoUV]          = useState("recomendado");
+  const [selManualUVId,   setSelManualUVId]   = useState(null);
+  const [selManualUVCant, setSelManualUVCant] = useState(1);
+
+  /* ── Recomendado ── */
+  const rec = useMemo(() => {
+    if (!flujoMaxSistema || flujoMaxSistema <= 0) return null;
+    try {
+      const r = generadorUV(flujoMaxSistema);
+      return r?.error ? null : r;
+    } catch { return null; }
+  }, [flujoMaxSistema]);
+
+  /* ── Manual ── */
+  const uvManual = useMemo(() => {
+    if (!selManualUVId || selManualUVCant <= 0) return null;
+    const equipo = generadoresUV.find(g => g.id === selManualUVId);
+    if (!equipo) return null;
+    try {
+      const hidraulica = calcularCargaUVManual(equipo.specs.flujo, selManualUVCant);
+      if (hidraulica?.error) return null;
+      return { equipo, cantidad: selManualUVCant, flujoTotal: equipo.specs.flujo * selManualUVCant, hidraulica };
+    } catch { return null; }
+  }, [selManualUVId, selManualUVCant]);
+
+  /* ── Info activa ── */
+  const infoActiva = useMemo(() => {
+    if (modoUV === "manual" && uvManual) {
+      return {
+        marca: uvManual.equipo.marca, modelo: uvManual.equipo.modelo,
+        cantidad: uvManual.cantidad, flujoTotal: uvManual.flujoTotal,
+        cargaTotal: uvManual.hidraulica?.cargaTotal,
+        cargaTotalPSI: uvManual.hidraulica?.cargaTotalPSI,
+      };
+    }
+    if (rec) {
+      return {
+        marca: rec.seleccion.marca, modelo: rec.seleccion.modelo,
+        cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal,
+        cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI,
+      };
+    }
+    return null;
+  }, [modoUV, uvManual, rec]);
+
+  if (!flujoMaxSistema || flujoMaxSistema <= 0) {
+    return (
+      <div className="sanitizacion-pendiente">
+        Completa las dimensiones para calcular el flujo máximo del sistema
+      </div>
+    );
+  }
+
   return (
     <div className="sanitizacion-bloque-equipo">
-      <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
-        <div className="bdc-rec-header">
-          <IconoLamparaUV />
-          <div className="bdc-rec-titulo">
-            <span className="bdc-rec-label">Lámpara UV</span>
-            <span className="bdc-rec-modelo bdc-pendiente-txt">Catálogo en desarrollo — próximamente disponible</span>
-          </div>
+      <div className="bdc-modo-toggle-wrapper">
+        <div className="bdc-modo-toggle">
+          <button type="button" className={`bdc-modo-btn ${modoUV === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModoUV("recomendado")}>
+            {modoUV === "recomendado" && <IconoCheck />}<span>Recomendado</span>
+          </button>
+          <button type="button" className={`bdc-modo-btn ${modoUV === "manual" ? "bdc-modo-activo" : ""}`} onClick={() => setModoUV("manual")}>
+            {modoUV === "manual" && <IconoCheck />}<span>Selección manual</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Flujo de referencia */}
+      <div style={{ fontSize: "0.7rem", color: "#94a3b8", padding: "0.25rem 0.5rem 0.5rem" }}>
+        Flujo máximo del sistema: <span style={{ color: "#34d399", fontWeight: 600 }}>{parseFloat(flujoMaxSistema).toFixed(1)} GPM</span>
+      </div>
+
+      <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+        <div className="layout-clima-bdc-celda celda-bdc-rec">
+          {infoActiva ? (
+            <div className={`bdc-recomendada-card bdc-inset ${modoUV === "manual" ? "bdc-card-manual-activa" : ""}`}>
+              <div className="bdc-rec-header">
+                <IconoLamparaUV />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">{modoUV === "recomendado" ? "Recomendado" : "Manual"}</span>
+                  <span className="bdc-rec-modelo">{infoActiva.marca} · {infoActiva.modelo}</span>
+                </div>
+                <span className={`bdc-modo-badge ${modoUV === "manual" ? "badge-manual" : "badge-auto"}`}>
+                  {modoUV === "manual" ? "Manual" : "Auto"}
+                </span>
+              </div>
+              <div className="bdc-rec-stats">
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cantidad}</span><span className="bdc-stat-label">equipos</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(infoActiva.flujoTotal).toFixed(1)}</span><span className="bdc-stat-label">GPM total</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotal}</span><span className="bdc-stat-label">ft CDT</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotalPSI}</span><span className="bdc-stat-label">PSI</span></div>
+              </div>
+              {rec && (
+                <div className="bdc-rec-demanda">
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Flujo sistema</span>
+                    <span className="bdc-demanda-valor">{parseFloat(flujoMaxSistema).toFixed(1)} GPM</span>
+                  </div>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Flujo instalado</span>
+                    <span className="bdc-demanda-valor bdc-ok">{infoActiva.flujoTotal} GPM</span>
+                  </div>
+                  {rec.seleccion?.exceso != null && modoUV === "recomendado" && (
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Exceso</span>
+                      <span className="bdc-demanda-valor bdc-exceso">+{parseFloat(rec.seleccion.exceso).toFixed(1)} GPM</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {infoActiva.cargaTotal != null && (
+                <div className="bdc-rec-hidraulica">
+                  <span className="bdc-hid-label">Carga hidráulica</span>
+                  <span className="bdc-hid-valor">{infoActiva.cargaTotal} ft · {infoActiva.cargaTotalPSI} PSI</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+              <div className="bdc-rec-header">
+                <IconoLamparaUV />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">Lámpara UV</span>
+                  <span className="bdc-rec-modelo bdc-pendiente-txt">
+                    {modoUV === "recomendado" ? "Calculando..." : "Selecciona un equipo"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="layout-clima-bdc-celda celda-bdc-manual">
+          {modoUV === "recomendado" && rec && (
+            <div className="bdc-info-automatica bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
+              <div className="bdc-auto-detalle">
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Marca</span><span className="bdc-auto-val">{rec.seleccion.marca}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Modelo</span><span className="bdc-auto-val">{rec.seleccion.modelo}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Cantidad</span><span className="bdc-auto-val">{rec.seleccion.cantidad} equipo{rec.seleccion.cantidad > 1 ? "s" : ""}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo por equipo</span><span className="bdc-auto-val">{rec.seleccion.flujoPorEquipo} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo total</span><span className="bdc-auto-val">{rec.seleccion.flujoTotal} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo sistema</span><span className="bdc-auto-val">{rec.seleccion.flujoMaxSistema} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Exceso flujo</span><span className="bdc-auto-val">{rec.seleccion.exceso} GPM</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{rec.cargaTramos} ft</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{rec.cargaFija_ft} ft</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila bdc-auto-total">
+                  <span className="bdc-auto-label">Carga total</span>
+                  <span className="bdc-auto-val bdc-hid-val-highlight">{rec.cargaTotal} ft · {rec.cargaTotalPSI} PSI</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modoUV === "manual" && (
+            <div className="bdc-selector-manual bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo de lámparas UV</span></div>
+              <div className="bdc-manual-lista">
+                {generadoresUV.filter(g => g.metadata.activo).map(g => {
+                  const esRec = rec && g.marca === rec.seleccion.marca && g.modelo === rec.seleccion.modelo;
+                  const sel   = selManualUVId === g.id;
+                  return (
+                    <div key={g.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`}
+                      onClick={() => { setSelManualUVId(sel ? null : g.id); setSelManualUVCant(1); }}>
+                      <div className="bdc-manual-fila-info">
+                        <span className="bdc-manual-marca">{g.marca}</span>
+                        <span className="bdc-manual-modelo">{g.modelo}</span>
+                        {esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                      </div>
+                      <div className="bdc-manual-fila-cap">{g.specs.flujo} GPM</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {selManualUVId && (
+                <div className="bdc-manual-resultado">
+                  <div className="bdc-manual-cant-row">
+                    <span className="bdc-manual-cant-label">Cantidad de equipos</span>
+                    <div className="bdc-manual-cant-ctrl">
+                      <button onClick={() => setSelManualUVCant(c => Math.max(1, c - 1))}>−</button>
+                      <span>{selManualUVCant}</span>
+                      <button onClick={() => setSelManualUVCant(c => c + 1)}>+</button>
+                    </div>
+                  </div>
+                  {uvManual && (<>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Flujo total instalado</span>
+                      <span className={`bdc-demanda-valor ${uvManual.flujoTotal >= flujoMaxSistema ? "bdc-ok" : "bdc-insuf"}`}>
+                        {parseFloat(uvManual.flujoTotal).toFixed(1)} GPM
+                      </span>
+                    </div>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Flujo sistema</span>
+                      <span className="bdc-demanda-valor">{parseFloat(flujoMaxSistema).toFixed(1)} GPM</span>
+                    </div>
+                    {uvManual.flujoTotal < flujoMaxSistema && (
+                      <div className="bdc-manual-aviso">⚠ Flujo insuficiente — agrega más equipos</div>
+                    )}
+                    {uvManual.hidraulica && (
+                      <div className="bdc-manual-hidraulica-detalle">
+                        <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                        <div className="bdc-hid-detalle-titulo">Carga hidráulica</div>
+                        <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{uvManual.hidraulica.cargaTramos} ft</span></div>
+                        <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{uvManual.hidraulica.cargaFija_ft} ft</span></div>
+                        <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                        <div className="bdc-auto-fila bdc-auto-total">
+                          <span className="bdc-auto-label">Carga total</span>
+                          <span className="bdc-auto-val bdc-hid-val-highlight">{uvManual.hidraulica.cargaTotal} ft · {uvManual.hidraulica.cargaTotalPSI} PSI</span>
+                        </div>
+                      </div>
+                    )}
+                  </>)}
+                </div>
+              )}
+              {!selManualUVId && <div className="bdc-manual-hint">Selecciona un equipo del catálogo</div>}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -809,7 +977,8 @@ function BloqueLamparaUV() {
 ===================================================== */
 export default function Equipamiento({
   setSeccion, sistemaActivo, datosPorSistema,
-  setDatosPorSistema, configBombas, resultadoClorador
+  setDatosPorSistema, configBombas, resultadoClorador,
+  flujoMaxGlobal,
 }) {
   const [hoveredField, setHoveredField] = useState(null);
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState({});
@@ -821,16 +990,11 @@ export default function Equipamiento({
     });
   };
 
-  /* ── Extrae datos del sistema activo para pasarlos al clorador automático ── */
-  const datosDim = datosPorSistema?.[sistemaActivo];
-
-  const areaM2 = useMemo(() => areaTotal(datosDim), [datosDim]);
-
-  const volM3 = useMemo(() => volumenTotal(datosDim), [datosDim]);
-
-  const volumenLitros = useMemo(() => volM3 * 1000, [volM3]);
-
-  const usoGeneral = useMemo(() => datosDim?.usoGeneral ?? "residencial", [datosDim]);
+  const datosDim      = datosPorSistema?.[sistemaActivo];
+  const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
+  const volM3         = useMemo(() => volumenTotal(datosDim), [datosDim]);
+  const volumenLitros = useMemo(() => volM3 * 1000,           [volM3]);
+  const usoGeneral    = useMemo(() => datosDim?.usoGeneral ?? "residencial", [datosDim]);
 
   const tempC = useMemo(() => {
     const decision = datosPorSistema?.calentamiento?.decision;
@@ -838,7 +1002,6 @@ export default function Equipamiento({
     return datosPorSistema?.calentamiento?.tempDeseada ?? 30;
   }, [datosPorSistema?.calentamiento]);
 
-  /* ── Equipos de calentamiento ── */
   const equiposCalentamiento = useMemo(() =>
     extraerInfoCalentamiento(datosPorSistema?.calentamiento),
   [datosPorSistema?.calentamiento]);
@@ -954,7 +1117,7 @@ export default function Equipamiento({
                       <span className="sistema-detalle-icon-svg"><IconoLamparaUV /></span>
                       <span className="sistema-detalle-titulo">Lámpara UV</span>
                     </div>
-                    <BloqueLamparaUV />
+                    <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal} />
                   </div>
                 )}
 

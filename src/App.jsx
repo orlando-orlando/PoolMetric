@@ -789,7 +789,7 @@ export default function App() {
               setDatosPorSistema={setDatosPorSistema}
               configBombas={configBombas}
               resultadoClorador={resultadoClorador}
-              flujoMaxGlobal={flujoMaxGlobal}  
+              flujoMaxGlobal={flujoMaxGlobal}
             />
           )}
         </div>
