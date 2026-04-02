@@ -2,7 +2,28 @@ export function fix2(v) {
   return (parseFloat(v) || 0).toFixed(2);
 }
 
-export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
+// Normaliza el tipo para que siempre coincida con lo que espera la función
+// Acepta: 1.5, 2, 2.0, 7.5, 8, 8.0, "9x9", 9.0, "12x12", 12.0, "18x18", 18.0
+function normalizarTipo(tipo) {
+  const mapa = {
+    "1.5": "1.5",
+    "2":   "2.0",
+    "2.0": "2.0",
+    "7.5": "7.5",
+    "8":   "8.0",
+    "8.0": "8.0",
+    "9x9": "9.0",
+    "9.0": "9.0",
+    "12x12": "12.0",
+    "12.0":  "12.0",
+    "18x18": "18.0",
+    "18.0":  "18.0",
+  };
+  return mapa[String(tipo)] ?? String(tipo);
+}
+
+export function drenFondo(flujoMaximo, tipoDrenFondoRaw, datos, numForzado = null) {
+  const tipoDrenFondo = normalizarTipo(tipoDrenFondoRaw);
   const area = parseFloat(datos.area) || 0;
 
   const diametros = {
@@ -35,21 +56,6 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
     "tuberia 18.00": 6.00
   };
 
-  const teeBranch = {
-    "tuberia 1.50": 9.90,
-    "tuberia 2.00": 12.0,
-    "tuberia 2.50": 13.0,
-    "tuberia 3.00": 17.0,
-    "tuberia 4.00": 12.0,
-    "tuberia 6.00": 18.0,
-    "tuberia 8.00": 24.0,
-    "tuberia 10.00": 30.0,
-    "tuberia 12.00": 34.0,
-    "tuberia 14.00": 34.0,
-    "tuberia 16.00": 34.0,
-    "tuberia 18.00": 34.0
-  };
-
   const codo = {
     "tuberia 1.50": 7.40,
     "tuberia 2.00": 8.50,
@@ -80,7 +86,6 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
     "tuberia 18.00": 55.0
   };
 
-  // === Capacidad del dren según tipo ===
   let capacidadDren = 0;
   if (tipoDrenFondo === "1.5")       capacidadDren = 50;
   else if (tipoDrenFondo === "2.0")  capacidadDren = 95;
@@ -90,11 +95,19 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
   else if (tipoDrenFondo === "12.0") capacidadDren = 235;
   else if (tipoDrenFondo === "18.0") capacidadDren = 450;
 
-  // === Número de drenes ===
-  let numDrenFondoFinal = Math.ceil((flujoMaximo * 2) / capacidadDren);
-  if (numDrenFondoFinal % 2 !== 0) numDrenFondoFinal++;
+  // Guardia: si el tipo no es reconocido, capacidadDren queda 0 → evitar división por cero
+  if (capacidadDren === 0) {
+    return { resultadoDF: [], sumaFinal: 0, resumenTramosDF: {}, tablaDistanciaCMDF: null };
+  }
 
-  // === Cálculos básicos ===
+  // Número de drenes: usa numForzado si se proporciona, si no calcula
+  let numDrenFondoFinalCalc = Math.ceil((flujoMaximo * 2) / capacidadDren);
+  if (numDrenFondoFinalCalc % 2 !== 0) numDrenFondoFinalCalc++;
+
+  const numDrenFondoFinal = (numForzado != null && numForzado > 0)
+    ? numForzado
+    : numDrenFondoFinalCalc;
+
   const raizArea = Math.sqrt(area);
   const flujoPorDren = flujoMaximo / numDrenFondoFinal;
   const longitudEntreDrenes = raizArea / (numDrenFondoFinal + 1);
@@ -105,16 +118,13 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
 
   const profMin = parseFloat(datos.profMin) || 0;
   const profMax = parseFloat(datos.profMax) || 0;
-  const profundidad = Math.max(profMin, profMax);
   let diametroMax = 0;
 
-  // === Resumen por diámetro ===
   const resumenTramosDF = {};
   const addDiam = (obj, d) => {
     if (!obj[d]) obj[d] = { tuberia_m: 0, tees: 0, codos: 0, reducciones: 0 };
   };
 
-  // --- Tramo especial: distancia al cuarto de máquinas ---
   const distanciaCMDF = parseFloat(datos.distCuarto) || 0;
   let tablaDistanciaCMDF = null;
 
@@ -163,7 +173,7 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
       velocidadCMDF: fix2(velocidadCMDF),
       cargaBaseCMDF: fix2(cargaCMDF),
       cargaTramoCMDF: fix2(cargaTramoCMDF),
-      cantidadCodosCMDF: cantidadCodosCMDF,
+      cantidadCodosCMDF,
       longEqCodoCMDF: fix2(longEqCodoCMDF),
       cargaCodoCMDF: fix2(cargaCodoCMDF),
       cargaTotalCMDF: fix2(cargaTotalCMDF)
@@ -175,11 +185,9 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
     resumenTramosDF[diametroCMDF].codos += cantidadCodosCMDF;
   }
 
-  // --- Ciclo principal de tramos ---
   for (let i = 0; i < numDrenFondoFinal; i++) {
     let flujoActual = flujoRestante;
 
-    // Elegir diámetro que dé velocidad ≤ 4.5 ft/s
     let diametroSeleccionado = null;
     let velocidadSeleccionada = -Infinity;
     let cargaSeleccionada = null;
@@ -214,7 +222,6 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
 
     const tipoAccesorio = i === numDrenFondoFinal - 1 ? "codo" : "tee";
 
-    // Tee
     let longEqTeeRow = 0;
     let cargaTeeRow = 0;
     if (tipoAccesorio === "tee") {
@@ -222,12 +229,10 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
       cargaTeeRow = (longEqTeeRow * cargaSeleccionada) / 100;
     }
 
-    // Codo base
     const longEqCodoUnit = codo[diametroSeleccionado] || codo["tuberia 18.00"];
     let longEqCodoBaseRow = tipoAccesorio === "codo" ? longEqCodoUnit : 0;
     let cargaCodoBaseRow = (longEqCodoBaseRow * cargaSeleccionada) / 100;
 
-    // Reducción entre tramos
     let longitudEqReduccion = 0;
     let cargaReduccion = 0;
     if (diametroAnterior && diametroAnterior !== diametroSeleccionado) {
@@ -235,25 +240,20 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
       cargaReduccion = (longitudEqReduccion * cargaSeleccionada) / 100;
     }
 
-    // Carga por tubería del tramo
     const cargaTramoRow = (longitudEntreDrenes / 0.3048) * (cargaSeleccionada / 100);
 
     const cantidadTees = tipoAccesorio === "tee" ? 1 : 0;
     const codosBase = tipoAccesorio === "codo" ? 1 : 0;
-    const totalCodosFila = codosBase + 0; // sin codos extra por √area en dren fondo
+    const totalCodosFila = codosBase;
     const cantidadReducciones = longitudEqReduccion > 0 ? 1 : 0;
     const longEqCodoExtraRow = 1 * longEqCodoUnit;
     const cargaCodoExtraRow = (longEqCodoExtraRow * cargaSeleccionada) / 100;
-    const longEqCodoTotalRow = longEqCodoBaseRow + longEqCodoExtraRow;
     const cargaCodoTotalRow = cargaCodoBaseRow + cargaCodoExtraRow;
 
     const cargaTotalFilaNum = +(
       cargaTramoRow + cargaTeeRow + cargaCodoTotalRow + cargaReduccion
     ).toFixed(2);
 
-    const cargaTotal2 = cargaTotalFilaNum + 0;
-
-    // Resumen tramos
     addDiam(resumenTramosDF, diametroSeleccionado);
     resumenTramosDF[diametroSeleccionado].tuberia_m += longitudEntreDrenes;
     if (tipoAccesorio === "tee") resumenTramosDF[diametroSeleccionado].tees += 1;
@@ -265,26 +265,20 @@ export function drenFondo(flujoMaximo, tipoDrenFondo, datos) {
       flujo: fix2(flujoActual),
       tuberia: diametroSeleccionado || "Ninguna cumple",
       velocidad: fix2(velocidadSeleccionada),
-
       cargaBase: cargaSeleccionada ? cargaSeleccionada.toFixed(2) : "N/A",
       cargaTramo: cargaSeleccionada ? cargaTramoRow.toFixed(2) : "N/A",
       longitud: fix2(longitudEntreDrenes),
-
-      cantidadTees: cantidadTees,
+      cantidadTees,
       longEqTee: fix2(longEqTeeRow),
       cargaTee: fix2(cargaTeeRow),
-
       cantidadCodos: totalCodosFila,
       longEqCodo: fix2(longEqCodoUnit),
       cargaCodo: fix2(cargaCodoTotalRow),
-
-      cantidadReducciones: cantidadReducciones,
+      cantidadReducciones,
       longEqReduccion: fix2(longitudEqReduccion),
       cargaReduccion: fix2(cargaReduccion),
-
       cargaTotal: fix2(cargaTotalFilaNum),
-
-      cargaTotal2: cargaTotal2
+      cargaTotal2: cargaTotalFilaNum
     });
 
     sumaCargaTramos += cargaTotalFilaNum;

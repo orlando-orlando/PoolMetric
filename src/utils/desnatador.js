@@ -2,7 +2,7 @@ export function fix2(v) {
   return (parseFloat(v) || 0).toFixed(2);
 }
 
-export function desnatador(flujoMaximo, tipoDesnatador, datos) {
+export function desnatador(flujoMaximo, tipoDesnatador, datos, numForzado = null) {
   const area = parseFloat(datos.area) || 0;
 
   const diametros = {
@@ -35,21 +35,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     "tuberia 18.00": 6.00
   };
 
-  const teeBranch = {
-    "tuberia 1.50": 9.90,
-    "tuberia 2.00": 12.0,
-    "tuberia 2.50": 13.0,
-    "tuberia 3.00": 17.0,
-    "tuberia 4.00": 12.0,
-    "tuberia 6.00": 18.0,
-    "tuberia 8.00": 24.0,
-    "tuberia 10.00": 30.0,
-    "tuberia 12.00": 34.0,
-    "tuberia 14.00": 34.0,
-    "tuberia 16.00": 34.0,
-    "tuberia 18.00": 34.0
-  };
-
   const codo = {
     "tuberia 1.50": 7.40,
     "tuberia 2.00": 8.50,
@@ -80,17 +65,22 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     "tuberia 18.00": 55.0
   };
 
-  let numDesnatadorInicial = Math.ceil(area / 50);
-  let flujoPorDesnatador = flujoMaximo / numDesnatadorInicial;
-  let numDesnatadorFinal = numDesnatadorInicial;
+  // Número de desnatadores: usa numForzado si se proporciona, si no calcula
+  let numDesnatadorCalc = Math.ceil(area / 50);
+  let flujoPorDesnatadorCalc = flujoMaximo / numDesnatadorCalc;
+  let numDesnatadorFinal = numDesnatadorCalc;
 
-  if (tipoDesnatador === "2.0" && flujoPorDesnatador > 50) {
-    numDesnatadorFinal = Math.ceil(flujoMaximo / 50);
-  } else if (tipoDesnatador === "1.5" && flujoPorDesnatador > 35) {
-    numDesnatadorFinal = Math.ceil(flujoMaximo / 35);
+  if (numForzado != null && numForzado > 0) {
+    numDesnatadorFinal = numForzado;
+  } else {
+    if (tipoDesnatador === "2.0" && flujoPorDesnatadorCalc > 50) {
+      numDesnatadorFinal = Math.ceil(flujoMaximo / 50);
+    } else if (tipoDesnatador === "1.5" && flujoPorDesnatadorCalc > 35) {
+      numDesnatadorFinal = Math.ceil(flujoMaximo / 35);
+    }
   }
 
-  flujoPorDesnatador = flujoMaximo / numDesnatadorFinal;
+  const flujoPorDesnatador = flujoMaximo / numDesnatadorFinal;
   const longitudTotal = Math.sqrt(area) * 3.5;
   const longitudEntreDesnatadores = longitudTotal / numDesnatadorFinal;
   const resultadoD = [];
@@ -123,7 +113,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
 
   const cargaDisparoTotal = cargaDisparoTramo + cargaDisparoCodo + cargaDisparoReduccion;
 
-  // === Resumen por diámetro ===
   const resumenTramosD = {};
   const resumenDisparosD = {};
   const addDiam = (obj, d) => {
@@ -134,7 +123,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
   let sumaLongitudes = 0;
   let siguienteUmbral = raizArea;
 
-  // --- Tramo especial: distancia al cuarto de máquinas ---
   const distanciaCMD = parseFloat(datos.distCuarto) || 0;
   let tablaDistanciaCMD = null;
 
@@ -183,7 +171,7 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
       velocidadCMD: fix2(velocidadCMD),
       cargaBaseCMD: fix2(cargaCMD),
       cargaTramoCMD: fix2(cargaTramoCMD),
-      cantidadCodosCMD: cantidadCodosCMD,
+      cantidadCodosCMD,
       longEqCodoCMD: fix2(longEqCodoCMD),
       cargaCodoCMD: fix2(cargaCodoCMD),
       cargaTotalCMD: fix2(cargaTotalCMD)
@@ -195,11 +183,9 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     resumenTramosD[diametroCMD].codos += cantidadCodosCMD;
   }
 
-  // --- Ciclo principal de tramos ---
   for (let i = 0; i < numDesnatadorFinal; i++) {
     let flujoActual = flujoRestante;
 
-    // Elegir diámetro que dé velocidad ≤ 4.5 ft/s
     let diametroSeleccionado = null;
     let velocidadSeleccionada = -Infinity;
     let cargaSeleccionada = null;
@@ -232,7 +218,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     let dPulgadas = parseFloat(diametroSeleccionado.replace("tuberia ", ""));
     if (dPulgadas > diametroMax) diametroMax = dPulgadas;
 
-    // Forzar diámetro del último tramo según tipoDesnatador
     if (i === numDesnatadorFinal - 1) {
       diametroSeleccionado = tipoDesnatador === "2.0" ? "tuberia 2.00" : "tuberia 1.50";
       const d = diametros[diametroSeleccionado];
@@ -244,7 +229,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
 
     const tipoAccesorio = i === numDesnatadorFinal - 1 ? "codo" : "tee";
 
-    // Tee
     let longEqTeeRow = 0;
     let cargaTeeRow = 0;
     if (tipoAccesorio === "tee") {
@@ -252,12 +236,10 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
       cargaTeeRow = (longEqTeeRow * cargaSeleccionada) / 100;
     }
 
-    // Codo base
     const longEqCodoUnit = codo[diametroSeleccionado] || codo["tuberia 18.00"];
     let longEqCodoBaseRow = tipoAccesorio === "codo" ? longEqCodoUnit : 0;
     let cargaCodoBaseRow = (longEqCodoBaseRow * cargaSeleccionada) / 100;
 
-    // Reducción entre tramos
     let longitudEqReduccion = 0;
     let cargaReduccion = 0;
     if (diametroAnterior && diametroAnterior !== diametroSeleccionado) {
@@ -265,10 +247,8 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
       cargaReduccion = (longitudEqReduccion * cargaSeleccionada) / 100;
     }
 
-    // Carga por tubería del tramo
     const cargaTramoRow = (longitudEntreDesnatadores / 0.3048) * (cargaSeleccionada / 100);
 
-    // Codos extra por múltiplos de √area
     sumaLongitudes += longitudEntreDesnatadores;
     let extraCount = 0;
     while (sumaLongitudes >= siguienteUmbral) {
@@ -282,7 +262,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     const cantidadReducciones = longitudEqReduccion > 0 ? 1 : 0;
     const longEqCodoExtraRow = extraCount * longEqCodoUnit;
     const cargaCodoExtraRow = (longEqCodoExtraRow * cargaSeleccionada) / 100;
-    const longEqCodoTotalRow = longEqCodoBaseRow + longEqCodoExtraRow;
     const cargaCodoTotalRow = cargaCodoBaseRow + cargaCodoExtraRow;
 
     const cargaTotalFilaNum = +(
@@ -291,7 +270,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
 
     const cargaTotal2 = cargaTotalFilaNum + cargaDisparoTotal;
 
-    // Resumen tramos
     addDiam(resumenTramosD, diametroSeleccionado);
     resumenTramosD[diametroSeleccionado].tuberia_m += longitudEntreDesnatadores;
     if (tipoAccesorio === "tee") resumenTramosD[diametroSeleccionado].tees += 1;
@@ -299,7 +277,6 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
     resumenTramosD[diametroSeleccionado].codos += extraCount;
     if (longitudEqReduccion > 0) resumenTramosD[diametroSeleccionado].reducciones += 1;
 
-    // Resumen disparos
     addDiam(resumenDisparosD, tuberiaDisparo);
     resumenDisparosD[tuberiaDisparo].tuberia_m += longitudDisparo;
     resumenDisparosD[tuberiaDisparo].codos += 1;
@@ -320,39 +297,31 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos) {
       flujo: fix2(flujoActual),
       tuberia: diametroSeleccionado || "Ninguna cumple",
       velocidad: fix2(velocidadSeleccionada),
-
       cargaBase: cargaSeleccionada ? cargaSeleccionada.toFixed(2) : "N/A",
       cargaTramo: cargaSeleccionada ? cargaTramoRow.toFixed(2) : "N/A",
       longitud: fix2(longitudEntreDesnatadores),
-
-      cantidadTees: cantidadTees,
+      cantidadTees,
       longEqTee: fix2(longEqTeeRow),
       cargaTee: fix2(cargaTeeRow),
-
       cantidadCodos: totalCodosFila,
       longEqCodo: fix2(longEqCodoUnit),
       cargaCodo: fix2(cargaCodoTotalRow),
-
-      cantidadReducciones: cantidadReducciones,
+      cantidadReducciones,
       longEqReduccion: fix2(longitudEqReduccion),
       cargaReduccion: fix2(cargaReduccion),
-
       cargaTotal: fix2(cargaTotalFilaNum),
-
       flujoDisparo: flujoPorDesnatador,
       diametroDisparo: tuberiaDisparo,
-      velocidadDisparo:
-        flujoPorDesnatador * 0.408498 / Math.pow(diametros[tuberiaDisparo], 2),
+      velocidadDisparo: flujoPorDesnatador * 0.408498 / Math.pow(diametros[tuberiaDisparo], 2),
       cargaBaseDisparo: cargaDisparoBase,
       cargaDisparo: cargaDisparoTramo,
-      longitudDisparo: longitudDisparo,
+      longitudDisparo,
       longEqCodoDisparo: codo[tuberiaDisparo],
       cargaCodoDisparo: cargaDisparoCodo,
-      longEqReduccionDisparo: longEqReduccionDisparo,
+      longEqReduccionDisparo,
       cargaReduccionDisparo: cargaDisparoReduccion,
-      cargaDisparoTotal: cargaDisparoTotal,
-
-      cargaTotal2: cargaTotal2
+      cargaDisparoTotal,
+      cargaTotal2
     });
 
     sumaCargaTramos += cargaTotalFilaNum;
