@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import "../estilos.css";
 import { generadoresDeCloro }    from "../data/generadoresDeCloro";
 import { cloradoresAutomaticos } from "../data/cloradoresAutomaticos";
@@ -24,6 +24,9 @@ import { barredora }  from "../utils/barredora";
 import { drenFondo }  from "../utils/drenFondo";
 import { drenCanal }  from "../utils/drenCanal";
 import { volumen }    from "../utils/volumen";
+import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
+import { calcularEquilibrio } from "../utils/equilibrioHidraulico";
+import { motobombas1v } from "../data/motobombas1v";
 
 /* =====================================================
    HELPERS
@@ -509,6 +512,7 @@ function BloqueEmpotrable({
   mostrarPuerto = true,
   mostrarTamano = false,
   onCargaChange = null,
+  onEstadoChange = null,
 }) {
   const [modo,        setModo]        = useState("recomendado");
   const [selId,       setSelId]       = useState(null);
@@ -571,15 +575,14 @@ function BloqueEmpotrable({
 
   const infoActiva = modo === "recomendado" ? rec : manualCalc;
 
-  // Reportar carga activa al padre cada vez que cambia
+  // Reportar carga y estado activo al padre — en useEffect para no llamar setState durante render
   const cargaActivaFt = infoActiva?.res?.sumaFinal ?? null;
-  const onCargaRef = useRef(onCargaChange);
-  onCargaRef.current = onCargaChange;
-  const prevCargaRef = useRef(null);
-  if (prevCargaRef.current !== cargaActivaFt) {
-    prevCargaRef.current = cargaActivaFt;
-    if (onCargaRef.current) onCargaRef.current(cargaActivaFt);
-  }
+  const estadoActual  = infoActiva
+    ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null }
+    : null;
+
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaActivaFt); }, [cargaActivaFt]);
+  useEffect(() => { if (onEstadoChange) onEstadoChange(estadoActual); }, [JSON.stringify(estadoActual)]);
 
   if (!flujoMaximo || flujoMaximo <= 0) {
     return (
@@ -819,7 +822,7 @@ const SISTEMAS_FILTRACION = [
 /* =====================================================
    BLOQUE PREFILTRO
 ===================================================== */
-function BloquePrefiltro({ flujoMaximo, onCargaChange = null }) {
+function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = null }) {
   const [modo,        setModo]        = useState("recomendado");
   const [selId,       setSelId]       = useState(null);
   const [selCant,     setSelCant]     = useState(null);
@@ -877,9 +880,18 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null }) {
     : null;
 
   const cargaPrefiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
-  const onCargaPFRef = useRef(onCargaChange); onCargaPFRef.current = onCargaChange;
-  const prevCargaPFRef = useRef(null);
-  if (prevCargaPFRef.current !== cargaPrefiltroFt) { prevCargaPFRef.current = cargaPrefiltroFt; if (onCargaPFRef.current) onCargaPFRef.current(cargaPrefiltroFt); }
+  const selIdPFefectivo = useMemo(() => {
+    if (modo === "manual") return selId;
+    if (!infoActiva || infoActiva.error) return null;
+    const p = prefiltros.find(p => p.marca === infoActiva.seleccion?.marca && p.modelo === infoActiva.seleccion?.modelo);
+    return p?.id ?? null;
+  }, [modo, selId, infoActiva]);
+
+  const estPF = infoActiva && !infoActiva?.error
+    ? { modo, selId: selIdPFefectivo, cantidad: modo === "recomendado" ? infoActiva.seleccion?.cantidad : selCant, flujoEf: infoActiva.seleccion?.flujoPorPrefiltro ?? infoActiva.flujoPorPrefiltro }
+    : null;
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaPrefiltroFt); }, [cargaPrefiltroFt]);
+  useEffect(() => { if (onEstadoChange) onEstadoChange(estPF); }, [JSON.stringify(estPF)]);
 
   return (
     <div className="sanitizacion-bloque-equipo">
@@ -1003,7 +1015,7 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null }) {
 /* =====================================================
    BLOQUE FILTRO CARTUCHO
 ===================================================== */
-function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null }) {
+function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, onEstadoChange = null }) {
   const [modo,        setModo]        = useState("recomendado");
   const [selId,       setSelId]       = useState(null);
   const [selCant,     setSelCant]     = useState(null);
@@ -1072,9 +1084,18 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null })
   const labelUso = usoGeneral === "residencial" ? "Residencial" : "Comercial";
 
   const cargaCartuchoFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
-  const onCargaCTRef = useRef(onCargaChange); onCargaCTRef.current = onCargaChange;
-  const prevCargaCTRef = useRef(null);
-  if (prevCargaCTRef.current !== cargaCartuchoFt) { prevCargaCTRef.current = cargaCartuchoFt; if (onCargaCTRef.current) onCargaCTRef.current(cargaCartuchoFt); }
+  const selIdCTefectivo = useMemo(() => {
+    if (modo === "manual") return selId;
+    if (!infoActiva || infoActiva.error) return null;
+    const f = filtrosCartucho.find(f => f.marca === infoActiva.seleccion?.marca && f.modelo === infoActiva.seleccion?.modelo);
+    return f?.id ?? null;
+  }, [modo, selId, infoActiva]);
+
+  const estCT = infoActiva && !infoActiva?.error
+    ? { modo, selId: selIdCTefectivo, cantidad: modo === "recomendado" ? infoActiva.seleccion?.cantidad : selCant, flujoEf: parseFloat(infoActiva.seleccion?.flujoEfectivo ?? infoActiva.flujoEf ?? 0) }
+    : null;
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaCartuchoFt); }, [cargaCartuchoFt]);
+  useEffect(() => { if (onEstadoChange) onEstadoChange(estCT); }, [JSON.stringify(estCT)]);
 
   return (
     <div className="sanitizacion-bloque-equipo">
@@ -1203,7 +1224,7 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null })
 /* =====================================================
    BLOQUE FILTRO DE ARENA
 ===================================================== */
-function BloqueFiltroArena({ flujoMaximo, onCargaChange = null }) {
+function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange = null }) {
   const [modo,        setModo]        = useState("recomendado");
   const [selId,       setSelId]       = useState(null);
   const [selCant,     setSelCant]     = useState(null);
@@ -1266,13 +1287,19 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null }) {
 
   // Reportar carga activa al padre
   const cargaFiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
-  const onCargaFARef = useRef(onCargaChange);
-  onCargaFARef.current = onCargaChange;
-  const prevCargaFARef = useRef(null);
-  if (prevCargaFARef.current !== cargaFiltroFt) {
-    prevCargaFARef.current = cargaFiltroFt;
-    if (onCargaFARef.current) onCargaFARef.current(cargaFiltroFt);
-  }
+  // selId efectivo: en recomendado buscamos el id por marca+modelo en el catálogo
+  const selIdFAefectivo = useMemo(() => {
+    if (modo === "manual") return selId;
+    if (!infoActiva || infoActiva.error) return null;
+    const m = filtrosArena.find(f => f.marca === infoActiva.seleccion?.marca && f.modelo === infoActiva.seleccion?.modelo);
+    return m?.id ?? null;
+  }, [modo, selId, infoActiva]);
+
+  const estFA = infoActiva && !infoActiva?.error
+    ? { modo, selId: selIdFAefectivo, cantidad: modo === "recomendado" ? infoActiva.seleccion?.cantidad : selCant, flujoEf: modo === "recomendado" ? parseFloat(infoActiva.seleccion?.flujoPorFiltro) : infoActiva.flujoPorFiltro }
+    : null;
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaFiltroFt); }, [cargaFiltroFt]);
+  useEffect(() => { if (onEstadoChange) onEstadoChange(estFA); }, [JSON.stringify(estFA)]);
 
   if (!flujoMaximo || flujoMaximo <= 0) {
     return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
@@ -1840,27 +1867,681 @@ function BloqueLamparaUV({ flujoMaxSistema }) {
 }
 
 /* =====================================================
+   ICONO — Motobomba
+===================================================== */
+const IconoMotobomba = () => (
+  <svg width="48" height="48" viewBox="0 0 60 48" fill="none">
+    {/* carcasa */}
+    <ellipse cx="22" cy="24" rx="14" ry="14" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.08)"/>
+    {/* impulsor */}
+    <ellipse cx="22" cy="24" rx="7" ry="7" stroke="#7dd3fc" strokeWidth="1.2" fill="rgba(56,189,248,0.12)"/>
+    <line x1="22" y1="17" x2="22" y2="13" stroke="#7dd3fc" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+    <line x1="22" y1="31" x2="22" y2="35" stroke="#7dd3fc" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+    <line x1="15" y1="24" x2="11" y2="24" stroke="#7dd3fc" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+    <line x1="29" y1="24" x2="33" y2="24" stroke="#7dd3fc" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+    {/* motor */}
+    <rect x="36" y="16" width="20" height="16" rx="2" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.06)"/>
+    <line x1="40" y1="20" x2="40" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="44" y1="20" x2="44" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="48" y1="20" x2="48" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="52" y1="20" x2="52" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    {/* eje */}
+    <line x1="33" y1="24" x2="36" y2="24" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round"/>
+    {/* tubo succión y descarga */}
+    <line x1="8" y1="24" x2="4" y2="24" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="22" y1="10" x2="22" y2="6"  stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+
+/* =====================================================
+   BLOQUE MOTOBOMBA
+===================================================== */
+function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null }) {
+  const [modo,        setModo]        = useState("recomendado");
+  const [selId,       setSelId]       = useState(null);
+  const [selCant,     setSelCant]     = useState(null);
+  const [filtroMarca, setFiltroMarca] = useState("todas");
+
+  const rec = useMemo(() => {
+    if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) return null;
+    try {
+      const r = seleccionarMotobomba(flujoMaximo, cargaRequerida);
+      return r?.error ? null : r;
+    } catch { return null; }
+  }, [flujoMaximo, cargaRequerida]);
+
+  const marcas = useMemo(() =>
+    ["todas", ...new Set(motobombas1v.map(b => b.marca))],
+  []);
+
+  const catalogoFiltrado = useMemo(() =>
+    motobombas1v.filter(b => {
+      if (filtroMarca !== "todas" && b.marca !== filtroMarca) return false;
+      return true;
+    }),
+  [filtroMarca]);
+
+  // Cantidad mínima para el equipo seleccionado
+  const cantMin = useMemo(() => {
+    if (!selId || !flujoMaximo || !cargaRequerida) return 1;
+    const b = motobombas1v.find(b => b.id === selId);
+    if (!b) return 1;
+    return cantidadMinima(b, flujoMaximo, cargaRequerida) ?? 1;
+  }, [selId, flujoMaximo, cargaRequerida]);
+
+  const handleSel = (id) => {
+    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    setSelId(id);
+    const b = motobombas1v.find(b => b.id === id);
+    const n = b && flujoMaximo && cargaRequerida
+      ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? 1)
+      : 1;
+    setSelCant(n);
+  };
+
+  // Cálculo manual en render directo
+  let manualCalc = null;
+  if (selId && selCant && flujoMaximo && cargaRequerida) {
+    const b  = motobombas1v.find(b => b.id === selId);
+    if (b) {
+      const op = puntoOperacion(b, flujoMaximo, selCant);
+      if (op) manualCalc = { bomba: b, ...op,
+        flujoMaximo:    parseFloat(flujoMaximo.toFixed(2)),
+        cargaRequerida: parseFloat(cargaRequerida.toFixed(2)),
+      };
+    }
+  }
+
+  const infoActiva = modo === "recomendado" ? rec : manualCalc;
+
+  // Reportar estado activo al padre — useEffect para no llamar setState durante render
+  const estBActual = infoActiva ? { bombaId: infoActiva.bomba.id, nBombas: infoActiva.n, modelo: infoActiva.bomba.modelo, marca: infoActiva.bomba.marca } : null;
+  useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.stringify(estBActual)]);
+
+  const noPuedeCalcular = !flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0;
+
+  if (noPuedeCalcular) {
+    return (
+      <div className="sanitizacion-pendiente">
+        Completa dimensiones, calentamiento y equipamiento para calcular el CDT total del sistema
+      </div>
+    );
+  }
+
+  const cargaCubre = infoActiva ? infoActiva.cargaDisponible >= cargaRequerida : false;
+
+  return (
+    <div className="sanitizacion-bloque-equipo">
+      {/* Toggle modo */}
+      <div className="bdc-modo-toggle-wrapper">
+        <div className="bdc-modo-toggle">
+          <button type="button" className={`bdc-modo-btn ${modo === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("recomendado")}>
+            {modo === "recomendado" && <IconoCheck />}<span>Recomendado</span>
+          </button>
+          <button type="button" className={`bdc-modo-btn ${modo === "manual" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("manual")}>
+            {modo === "manual" && <IconoCheck />}<span>Selección manual</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Parámetros de diseño */}
+      <div style={{ fontSize: "0.7rem", color: "#94a3b8", padding: "0.25rem 0.5rem 0.5rem", display: "flex", gap: "1.2rem" }}>
+        <span>Flujo máx: <span style={{ color: "#38bdf8", fontWeight: 600 }}>{parseFloat(flujoMaximo).toFixed(1)} GPM</span></span>
+        <span>CDT requerido: <span style={{ color: "#f97316", fontWeight: 600 }}>{parseFloat(cargaRequerida).toFixed(2)} ft</span></span>
+      </div>
+
+      <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+        {/* Tarjeta activa */}
+        <div className="layout-clima-bdc-celda celda-bdc-rec">
+          {infoActiva ? (
+            <div className={`bdc-recomendada-card bdc-inset ${modo === "manual" ? "bdc-card-manual-activa" : ""}`}>
+              <div className="bdc-rec-header">
+                <IconoMotobomba />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">{modo === "recomendado" ? "Recomendado" : "Manual"}</span>
+                  <span className="bdc-rec-modelo">{infoActiva.bomba.marca} · {infoActiva.bomba.modelo}</span>
+                </div>
+                <span className={`bdc-modo-badge ${modo === "manual" ? "badge-manual" : "badge-auto"}`}>
+                  {modo === "manual" ? "Manual" : "Auto"}
+                </span>
+              </div>
+              <div className="bdc-rec-stats">
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.n}</span><span className="bdc-stat-label">bombas</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(infoActiva.flujoPorBomba).toFixed(1)}</span><span className="bdc-stat-label">GPM/bomba</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.potenciaTotal}</span><span className="bdc-stat-label">HP total</span></div>
+              </div>
+              <div className="bdc-rec-demanda">
+                <div className="bdc-demanda-fila">
+                  <span className="bdc-demanda-label">Potencia unitaria</span>
+                  <span className="bdc-demanda-valor">{infoActiva.bomba.potencia_hp} HP</span>
+                </div>
+                <div className="bdc-demanda-fila">
+                  <span className="bdc-demanda-label">CDT disponible</span>
+                  <span className={`bdc-demanda-valor ${cargaCubre ? "bdc-ok" : "bdc-insuf"}`}>
+                    {parseFloat(infoActiva.cargaDisponible).toFixed(2)} ft
+                  </span>
+                </div>
+                <div className="bdc-demanda-fila">
+                  <span className="bdc-demanda-label">CDT requerido</span>
+                  <span className="bdc-demanda-valor">{parseFloat(cargaRequerida).toFixed(2)} ft</span>
+                </div>
+                {!cargaCubre && (
+                  <div className="bdc-manual-aviso">⚠ CDT disponible insuficiente — agrega más bombas</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+              <div className="bdc-rec-header">
+                <IconoMotobomba />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">Motobomba</span>
+                  <span className="bdc-rec-modelo bdc-pendiente-txt">
+                    {modo === "recomendado" ? "Calculando selección..." : "Selecciona una bomba del catálogo"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Columna derecha */}
+        <div className="layout-clima-bdc-celda celda-bdc-manual">
+          {modo === "recomendado" && rec && (
+            <div className="bdc-info-automatica bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
+              <div className="bdc-auto-detalle">
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Marca</span><span className="bdc-auto-val">{rec.bomba.marca}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Modelo</span><span className="bdc-auto-val">{rec.bomba.modelo}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Cantidad</span><span className="bdc-auto-val">{rec.cantidad} bomba{rec.cantidad > 1 ? "s" : ""} en paralelo</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo por bomba</span><span className="bdc-auto-val">{parseFloat(rec.flujoPorBomba).toFixed(2)} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo total</span><span className="bdc-auto-val">{parseFloat(rec.flujoMaximo).toFixed(1)} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Potencia unitaria</span><span className="bdc-auto-val">{rec.bomba.potencia_hp} HP</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Potencia total</span><span className="bdc-auto-val">{rec.potenciaTotal} HP</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">CDT requerido</span><span className="bdc-auto-val">{parseFloat(rec.cargaRequerida).toFixed(2)} ft</span></div>
+                <div className="bdc-auto-fila bdc-auto-total">
+                  <span className="bdc-auto-label">CDT disponible</span>
+                  <span className="bdc-auto-val bdc-hid-val-highlight">{parseFloat(rec.cargaDisponible).toFixed(2)} ft</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modo === "manual" && (
+            <div className="bdc-selector-manual bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo — Motobombas</span></div>
+              <div className="bdc-manual-filtros">
+                <div className="campo">
+                  <label>Marca</label>
+                  <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}>
+                    {marcas.map(m => <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="bdc-manual-lista">
+                {catalogoFiltrado.map(b => {
+                  const esRec  = rec && b.id === rec.bomba.id;
+                  const sel    = selId === b.id;
+                  const nMin   = flujoMaximo && cargaRequerida
+                    ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? "—")
+                    : "—";
+                  return (
+                    <div key={b.id}
+                      className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`}
+                      onClick={() => handleSel(b.id)}>
+                      <div className="bdc-manual-fila-info">
+                        <span className="bdc-manual-marca">{b.marca}</span>
+                        <span className="bdc-manual-modelo">{b.modelo}</span>
+                        <span className="bdc-manual-vel vel-1v">{b.potencia_hp} HP</span>
+                        {esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                      </div>
+                      <div className="bdc-manual-fila-cap" style={{ color: "#64748b", fontSize: "0.68rem" }}>
+                        {nMin !== "—" ? `mín. ${nMin}` : "no cubre CDT"}
+                      </div>
+                    </div>
+                  );
+                })}
+                {catalogoFiltrado.length === 0 && <div className="bdc-manual-vacio">Sin modelos para esta marca</div>}
+              </div>
+
+              {selId && selCant !== null && (
+                <div className="bdc-manual-resultado">
+                  <div className="bdc-manual-cant-row">
+                    <span className="bdc-manual-cant-label">
+                      Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMin})</span>
+                    </span>
+                    <div className="bdc-manual-cant-ctrl">
+                      <button onClick={() => setSelCant(c => Math.max(cantMin, c - 1))}>−</button>
+                      <span>{selCant}</span>
+                      <button onClick={() => setSelCant(c => c + 1)}>+</button>
+                    </div>
+                  </div>
+                  {manualCalc && (<>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Flujo por bomba</span>
+                      <span className="bdc-demanda-valor">{parseFloat(manualCalc.flujoPorBomba).toFixed(2)} GPM</span>
+                    </div>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">CDT disponible</span>
+                      <span className={`bdc-demanda-valor ${manualCalc.cargaDisponible >= cargaRequerida ? "bdc-ok" : "bdc-insuf"}`}>
+                        {parseFloat(manualCalc.cargaDisponible).toFixed(2)} ft
+                      </span>
+                    </div>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">CDT requerido</span>
+                      <span className="bdc-demanda-valor">{parseFloat(cargaRequerida).toFixed(2)} ft</span>
+                    </div>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Potencia total</span>
+                      <span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.potenciaTotal).toFixed(2)} HP</span>
+                    </div>
+                    {manualCalc.cargaDisponible < cargaRequerida && (
+                      <div className="bdc-manual-aviso">⚠ CDT insuficiente — agrega más bombas</div>
+                    )}
+                  </>)}
+                </div>
+              )}
+              {!selId && <div className="bdc-manual-hint">Selecciona una bomba del catálogo para calcular</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   NOMBRES LEGIBLES DE EQUIPOS
+===================================================== */
+const NOMBRES_EQUIPOS = {
+  retorno:        "Retornos",
+  desnatador:     "Desnatadores",
+  barredora:      "Barredoras",
+  drenFondo:      "Drenes de fondo",
+  drenCanal:      "Drenes de canal",
+  filtroArena:    "Filtro de arena",
+  prefiltro:      "Prefiltro",
+  filtroCartucho: "Filtro de cartucho",
+};
+
+/* =====================================================
+   BLOQUE VERIFICACIÓN DEL DISEÑO
+===================================================== */
+function BloqueVerificacion({
+  flujoMaxGlobal, cargaTotalGlobal,
+  estados, cargas, datosEmpotrable,
+  tieneDesbordeCanal, usoGeneral,
+  bombaId, nBombas, bombaModelo, bombaMarca,
+  equiposCalentamiento = [],
+}) {
+  const [fase,      setFase]      = useState("idle");
+  const [checks,    setChecks]    = useState([]);
+  const [resultado, setResultado] = useState(null);
+
+  const puedeVerificar = flujoMaxGlobal && cargaTotalGlobal && bombaId;
+
+  const CHECKS_LISTA = [
+    "Validando velocidades en tuberías",
+    "Verificando capacidad de empotrables",
+    "Confirmando bomba dentro de curva",
+    "Calculando equilibrio — iteración 1",
+    "Recalculando empotrables y filtros",
+    "Calculando equilibrio — iteración 2",
+    "Verificando CDT equilibrado",
+    "Generando resumen del diseño",
+  ];
+
+  const iniciarVerificacion = () => {
+    if (!puedeVerificar) return;
+    setFase("verificando");
+    setChecks([]);
+    setResultado(null);
+    CHECKS_LISTA.forEach((msg, i) => {
+      setTimeout(() => setChecks(prev => [...prev, msg]), 250 + i * 340);
+    });
+    setTimeout(() => {
+      try {
+        // cargasBase contiene TODOS los elementos del sistema
+        // (cargas ya es cargasTodas — incluye calentamiento, sanitización, empotrables, filtros)
+        const cargasBase = Object.fromEntries(
+          Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)])
+        );
+        const res = calcularEquilibrio({
+          bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal,
+          estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral,
+        });
+        setResultado(res);
+      } catch (e) { setResultado({ error: e.message }); }
+      setFase("listo");
+    }, 250 + CHECKS_LISTA.length * 340 + 300);
+  };
+
+  const resetear = () => { setFase("idle"); setChecks([]); setResultado(null); };
+
+  if (!puedeVerificar) return null;
+
+  const eq = resultado?.equilibrio;
+
+  return (
+    <div style={{ marginTop: "1.5rem" }}>
+      {/* ── Cabecera de la sección ── */}
+      <div className="selector-subtitulo" style={{ marginBottom: "0.75rem" }}>
+        🔍 Verificación del diseño
+        <span className="selector-subtitulo-hint">Punto de equilibrio hidráulico del sistema</span>
+      </div>
+
+      <div className="bdc-recomendada-card bdc-inset" style={{ padding: "1rem 1.2rem" }}>
+
+        {/* ── Botón principal ── */}
+        {fase === "idle" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: "0.78rem", color: "var(--color-text-primary)", fontWeight: 500 }}>
+                Verificar punto de operación real
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+                Calcula el flujo y CDT de equilibrio usando 2 iteraciones con la motobomba seleccionada
+              </div>
+            </div>
+            <button
+              className="btn-primario"
+              style={{ whiteSpace: "nowrap", marginLeft: "1rem" }}
+              onClick={iniciarVerificacion}
+            >
+              Verificar diseño →
+            </button>
+          </div>
+        )}
+
+        {/* ── Checks animados ── */}
+        {(fase === "verificando" || fase === "listo") && (
+          <div style={{ marginBottom: fase === "listo" ? "1.25rem" : 0 }}>
+            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: "0.6rem", fontWeight: 500 }}>
+              {fase === "verificando" ? "Verificando..." : "Verificación completada"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              {CHECKS_LISTA.map((msg, i) => {
+                const visible = i < checks.length;
+                const activo  = fase === "verificando" && i === checks.length;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: visible ? 1 : activo ? 0.5 : 0.18, transition: "opacity 0.3s" }}>
+                    <span style={{ fontSize: "0.72rem", color: visible ? "#34d399" : activo ? "#94a3b8" : "#475569", fontWeight: 700, width: "14px" }}>
+                      {visible ? "✓" : activo ? "…" : "○"}
+                    </span>
+                    <span style={{ fontSize: "0.72rem", color: visible ? "var(--color-text-primary)" : "#64748b" }}>{msg}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {fase === "listo" && (
+              <button
+                className="btn-secundario"
+                style={{ marginTop: "0.75rem", fontSize: "0.7rem", padding: "0.25rem 0.7rem" }}
+                onClick={resetear}
+              >
+                ↺ Reverificar
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── Error ── */}
+        {fase === "listo" && resultado?.error && (
+          <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", padding: "0.6rem 0.8rem", fontSize: "0.73rem", color: "#f87171" }}>
+            ⚠ {resultado.error}
+          </div>
+        )}
+
+        {/* ── Resultado ── */}
+        {fase === "listo" && eq && !resultado.error && (<>
+
+          {/* Punto de equilibrio — 4 métricas */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+              Punto de operación
+            </div>
+            <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor" style={{ color: "#38bdf8" }}>{parseFloat(eq.flujo).toFixed(1)}</span>
+                <span className="bdc-stat-label">GPM operación</span>
+              </div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor">{parseFloat(eq.carga).toFixed(2)}</span>
+                <span className="bdc-stat-label">ft CDT sistema</span>
+              </div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor" style={{ color: eq.cubre ? "#34d399" : "#f97316" }}>
+                  {eq.cargaDisponible ?? "—"}
+                </span>
+                <span className="bdc-stat-label">ft CDT bomba</span>
+              </div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor" style={{ fontSize: "0.8rem", color: eq.cubre ? "#34d399" : "#f97316" }}>
+                  {eq.cubre ? "✓ OK" : "⚠ Rev."}
+                </span>
+                <span className="bdc-stat-label">equilibrio</span>
+              </div>
+            </div>
+            {eq.flujo > flujoMaxGlobal && (
+              <div style={{ fontSize: "0.68rem", color: "#f97316", marginTop: "0.35rem", paddingLeft: "0.2rem" }}>
+                ↑ Flujo aumentó {parseFloat(eq.flujo - flujoMaxGlobal).toFixed(1)} GPM respecto al diseño original ({parseFloat(flujoMaxGlobal).toFixed(1)} GPM)
+              </div>
+            )}
+          </div>
+
+          {/* Iteraciones */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>
+              Iteraciones de cálculo
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              {resultado.iteraciones.map((it, i) => (
+                <div key={i} className="bdc-auto-fila" style={{ background: "rgba(15,23,42,0.3)", borderRadius: "5px", padding: "0.35rem 0.6rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.68rem", color: "#7dd3fc", fontWeight: 600, minWidth: "70px" }}>Iter. {it.iter}</span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Q = <span style={{ color: "var(--color-text-primary)" }}>{parseFloat(it.flujoEquilibrio).toFixed(1)} GPM</span></span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>CDT entrada = <span style={{ color: "var(--color-text-primary)" }}>{parseFloat(it.cargaEntrada).toFixed(2)} ft</span></span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>CDT salida = <span style={{ color: "var(--color-text-primary)" }}>{parseFloat(it.cargaSalida).toFixed(2)} ft</span></span>
+                  <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>CDT bomba = <span style={{ color: it.cargaDispBomba >= it.cargaSalida ? "#34d399" : "#f97316" }}>{parseFloat(it.cargaDispBomba).toFixed(2)} ft</span></span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Equipos — todos los elementos del sistema */}
+          <div>
+            <div style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+              Todos los equipos en punto de equilibrio
+            </div>
+
+            {/* ── Helper de fila reutilizable ── */}
+            {(() => {
+              const FilaEquipo = ({ icono, nombre, subNombre, detalle1, detalle2, cargaFt, cambio, badgeTexto }) => (
+                <div style={{
+                  borderRadius: "6px", padding: "0.5rem 0.7rem", marginBottom: "0.3rem",
+                  background: cambio ? "rgba(249,115,22,0.07)" : "rgba(56,189,248,0.04)",
+                  border: `1px solid ${cambio ? "rgba(249,115,22,0.3)" : "rgba(56,189,248,0.1)"}`,
+                  display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap",
+                }}>
+                  {/* Ícono + nombre */}
+                  <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: "140px" }}>
+                    <span style={{ fontSize: "0.73rem", color: "var(--color-text-primary)", fontWeight: cambio ? 600 : 400 }}>
+                      {icono && <span style={{ marginRight: "0.3rem" }}>{icono}</span>}{nombre}
+                    </span>
+                    {subNombre && <span style={{ fontSize: "0.67rem", color: "#64748b", marginTop: "0.05rem" }}>{subNombre}</span>}
+                  </div>
+                  {/* Detalles centrales */}
+                  <div style={{ display: "flex", gap: "0.9rem", alignItems: "center", flexWrap: "wrap" }}>
+                    {detalle1 && <span style={{ fontSize: "0.68rem", color: cambio ? "#f97316" : "#94a3b8" }}>{detalle1}</span>}
+                    {detalle2 && <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{detalle2}</span>}
+                    {cargaFt != null && (
+                      <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>
+                        CDT <span style={{ color: cambio ? "#f97316" : "var(--color-text-primary)", fontWeight: cambio ? 600 : 400 }}>{parseFloat(cargaFt).toFixed(2)} ft</span>
+                      </span>
+                    )}
+                  </div>
+                  {/* Badge */}
+                  <span style={{
+                    fontSize: "0.65rem", borderRadius: "4px", padding: "0.15rem 0.5rem", fontWeight: cambio ? 600 : 500, whiteSpace: "nowrap",
+                    background: cambio ? "rgba(249,115,22,0.15)" : "rgba(100,116,139,0.13)",
+                    color: cambio ? "#f97316" : "#94a3b8",
+                  }}>
+                    {badgeTexto ?? (cambio ? "↑ Recalculado" : "✓ Sin cambio")}
+                  </span>
+                </div>
+              );
+
+              // ── Datos de cargasIniciales del resultado (todos los elementos) ──
+              const ci = resultado.cargasIniciales ?? {};
+
+              // ─ Grupos de elementos ─
+              // Mapa de marca/modelo de calentamiento para mostrar en la UI
+              const calMap = Object.fromEntries(
+                equiposCalentamiento.map(e => [e.key, { marca: e.marca, modelo: e.modelo, cantidad: e.cantidad }])
+              );
+
+              const GRUPOS = [
+                {
+                  titulo: "Calentamiento",
+                  items: [
+                    { key: "bombaCalor",          icono: "♨️", label: "Bomba de calor"        },
+                    { key: "panelSolar",           icono: "☀️", label: "Panel solar"           },
+                    { key: "caldera",              icono: "🔥", label: "Caldera"               },
+                    { key: "calentadorElectrico",  icono: "⚡", label: "Calentador eléctrico"  },
+                  ],
+                },
+                {
+                  titulo: "Sanitización",
+                  items: [
+                    { key: "cloradorSalino",     icono: "🧂", label: "Generador de cloro"  },
+                    { key: "cloradorAutomatico", icono: "💧", label: "Clorador automático" },
+                    { key: "lamparaUV",          icono: "💡", label: "Lámpara UV"          },
+                  ],
+                },
+                {
+                  titulo: "Empotrables",
+                  items: [
+                    { key: "retorno",    icono: "↩️", label: "Retornos",        recalc: true },
+                    { key: "desnatador", icono: "🌊", label: "Desnatadores",    recalc: true },
+                    { key: "drenCanal",  icono: "🔵", label: "Drenes de canal", recalc: true },
+                    { key: "barredora",  icono: "🔄", label: "Barredoras",      recalc: true },
+                    { key: "drenFondo",  icono: "⬇️", label: "Drenes de fondo", recalc: true },
+                  ],
+                },
+                {
+                  titulo: "Filtración",
+                  items: [
+                    { key: "filtroArena",    icono: "🏖️", label: "Filtro de arena",    recalc: true },
+                    { key: "prefiltro",      icono: "🔶", label: "Prefiltro",           recalc: true },
+                    { key: "filtroCartucho", icono: "🟠", label: "Filtro de cartucho", recalc: true },
+                  ],
+                },
+              ];
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+
+                  {/* Motobomba — nunca cambia */}
+                  <div style={{ fontSize: "0.67rem", color: "#64748b", fontWeight: 500, margin: "0.4rem 0 0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Motobomba</div>
+                  <FilaEquipo
+                    icono="⚙️" nombre={`${bombaMarca} · ${bombaModelo}`}
+                    detalle1={`${nBombas} bomba${nBombas > 1 ? "s" : ""} en paralelo`}
+                    detalle2={`Q = ${parseFloat(eq.flujo / nBombas).toFixed(1)} GPM/bomba`}
+                    cargaFt={null}
+                    cambio={false}
+                  />
+
+                  {/* Grupos */}
+                  {GRUPOS.map(grupo => {
+                    const itemsConDatos = grupo.items.filter(it => {
+                      const c = ci[it.key] ?? cargas[it.key];
+                      const eqIt = eq.equipos[it.key];
+                      return (c != null && parseFloat(c) > 0) || eqIt != null;
+                    });
+                    if (itemsConDatos.length === 0) return null;
+
+                    return (
+                      <div key={grupo.titulo}>
+                        <div style={{ fontSize: "0.67rem", color: "#64748b", fontWeight: 500, margin: "0.6rem 0 0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{grupo.titulo}</div>
+                        {itemsConDatos.map(it => {
+                          const eqIt      = eq.equipos[it.key];
+                          const cargaOrig = parseFloat(ci[it.key] ?? cargas[it.key] ?? 0);
+                          const cambio    = eqIt?.cambio ?? false;
+                          const cargaFt   = eqIt
+                            ? parseFloat(eqIt.sumaFinal ?? eqIt.cargaTotal ?? cargaOrig)
+                            : cargaOrig;
+                          // Para calentamiento/sanitización: marca/modelo de calMap o estados
+                          const infoEq   = eqIt ?? calMap[it.key] ?? null;
+                          const subNombre = infoEq?.marca
+                            ? `${infoEq.marca} · ${infoEq.modelo}`
+                            : null;
+                          const cantInfo  = eqIt
+                            ? `${eqIt.cantidad} equipo${eqIt.cantidad > 1 ? "s" : ""}${cambio ? ` (era ${eqIt.cantOriginal})` : ""}`
+                            : infoEq?.cantidad
+                            ? `${infoEq.cantidad} equipo${infoEq.cantidad > 1 ? "s" : ""}`
+                            : null;
+
+                          return (
+                            <FilaEquipo key={it.key}
+                              icono={it.icono} nombre={it.label} subNombre={subNombre}
+                              detalle1={cantInfo} cargaFt={cargaFt} cambio={cambio}
+                            />
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
    EQUIPAMIENTO — componente principal
 ===================================================== */
 export default function Equipamiento({
   setSeccion, sistemaActivo, datosPorSistema,
   setDatosPorSistema, configBombas, resultadoClorador,
-  flujoMaxGlobal,
+  flujoMaxGlobal, cargaTotalGlobal,
 }) {
   const [hoveredField,                setHoveredField]                = useState(null);
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState({});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState({});
 
   // Cargas individuales de cada bloque — se actualizan via callbacks
-  const [cargas, setCargas] = useState({});
+  const [cargas,   setCargas]   = useState({});
+  const [estados,  setEstados]  = useState({});  // estado activo de cada bloque {modo, selId, cantidad, ...}
+  const [estadoBomba, setEstadoBomba] = useState(null); // { bombaId, nBombas, modelo, marca }
 
   const setCarga = (key, valor) => {
     setCargas(prev => {
       if (prev[key] === valor) return prev;
-      const next = { ...prev, [key]: valor };
-      // Persistir en datosPorSistema.equipamiento para que App.jsx lo lea
-      setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas: next } }));
-      return next;
+      return { ...prev, [key]: valor };
+    });
+  };
+
+  // Sincronizar cargas al padre en useEffect (no durante render)
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas } }));
+  }, [cargas]);
+
+  const setEstado = (key, valor) => {
+    setEstados(prev => {
+      const prevStr = JSON.stringify(prev[key]);
+      const newStr  = JSON.stringify(valor);
+      if (prevStr === newStr) return prev;
+      return { ...prev, [key]: valor };
     });
   };
 
@@ -1884,6 +2565,72 @@ export default function Equipamiento({
   [datosPorSistema?.calentamiento]);
 
   const hayCalentamiento = equiposCalentamiento.length > 0;
+
+  // ── Cargas completas del sistema para la verificación ──
+  // Combina cargas de empotrables/filtros (estado local) con las de
+  // calentamiento (datosPorSistema.calentamiento) y sanitización
+  const cargasTodas = useMemo(() => {
+    const cal = datosPorSistema?.calentamiento ?? {};
+    const ss  = cal.sistemasSeleccionados ?? {};
+
+    // Extraer carga de un equipo de calentamiento según modo activo
+    const cargaCal = (modoKey, manualKey, manualPath, selKey, selPath) => {
+      const modo = cal[modoKey] ?? "recomendado";
+      const src  = modo === "manual"
+        ? (cal[manualKey] && !cal[manualKey]?.error ? cal[manualKey] : null)
+        : (cal[selKey]   && !cal[selKey]?.error    ? cal[selKey]    : null);
+      if (!src) return null;
+      // manualPath y selPath son funciones que extraen la carga del objeto
+      const v = (modo === "manual" ? manualPath : selPath)(src);
+      return v != null ? (parseFloat(v) || null) : null;
+    };
+
+    return {
+      // ── Calentamiento ──
+      bombaCalor: ss.bombaCalor
+        ? cargaCal("modoBDC", "bdcManual",
+            m => m.hidraulica?.cargaTotal,
+            "bdcSeleccionada",
+            s => s.cargaTotal)
+        : null,
+      panelSolar: ss.panelSolar
+        ? cargaCal("modoPS", "psManual",
+            m => m.hidraulica?.cargaTotal,
+            "psSeleccionado",
+            s => s.hidraulica?.cargaTotal)
+        : null,
+      caldera: ss.caldera
+        ? cargaCal("modoCaldera", "calderaManual",
+            m => m.hidraulica?.cargaTotal,
+            "calderaSeleccionada",
+            s => s.cargaTotal)
+        : null,
+      calentadorElectrico: ss.calentadorElectrico
+        ? cargaCal("modoCE", "ceManual",
+            m => m.hidraulica?.cargaTotal,
+            "ceSeleccionado",
+            s => s.cargaTotal)
+        : null,
+      // ── Sanitización — solo si el usuario los seleccionó ──
+      cloradorSalino: sistemasSeleccionadosSanit.cloradorSalino && resultadoClorador && !resultadoClorador.error
+        ? (parseFloat(resultadoClorador.cargaTotal) || null)
+        : null,
+      cloradorAutomatico: sistemasSeleccionadosSanit.cloradorAutomatico
+        ? (cargas.cloradorAutomatico ?? null) : null,
+      lamparaUV: sistemasSeleccionadosSanit.lamparaUV
+        ? (cargas.lamparaUV ?? null) : null,
+      // ── Empotrables ──
+      retorno:        cargas.retorno        ?? null,
+      desnatador:     cargas.desnatador     ?? null,
+      barredora:      cargas.barredora      ?? null,
+      drenFondo:      cargas.drenFondo      ?? null,
+      drenCanal:      cargas.drenCanal      ?? null,
+      // ── Filtración ──
+      filtroArena:    cargas.filtroArena    ?? null,
+      prefiltro:      cargas.prefiltro      ?? null,
+      filtroCartucho: cargas.filtroCartucho ?? null,
+    };
+  }, [cargas, datosPorSistema, resultadoClorador]);
 
   // ── Datos para funciones de empotrables ──
   // Usamos el primer cuerpo del sistema activo como referencia para datos físicos
@@ -1918,6 +2665,7 @@ export default function Equipamiento({
     sanitizacion:  "Sistema de desinfección y control microbiológico del agua",
     empotrables:   "Elementos hidráulicos instalados en las paredes y fondo del cuerpo de agua",
     filtracion:    "Sistema de filtración y acondicionamiento del agua",
+    motobomba:     "Selección de motobomba basada en flujo máximo global y CDT total del sistema",
     default:       "Configuración integral del equipamiento del sistema",
   };
 
@@ -1993,6 +2741,7 @@ export default function Equipamiento({
                   datos={datosEmpotrable}
                   fnCalculo={(flujo, tipo, dat, num) => retorno(flujo, tipo, dat, num)}
                   onCargaChange={(v) => setCarga("retorno", v)}
+                  onEstadoChange={(e) => setEstado("retorno", e)}
                   mostrarPuerto
                 />
               </div>
@@ -2013,6 +2762,7 @@ export default function Equipamiento({
                     datos={datosEmpotrable}
                     fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)}
                     onCargaChange={(v) => setCarga("desnatador", v)}
+                    onEstadoChange={(e) => setEstado("desnatador", e)}
                     mostrarPuerto
                   />
                 </div>
@@ -2033,6 +2783,7 @@ export default function Equipamiento({
                   datos={datosEmpotrable}
                   fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)}
                   onCargaChange={(v) => setCarga("barredora", v)}
+                  onEstadoChange={(e) => setEstado("barredora", e)}
                   mostrarPuerto
                 />
               </div>
@@ -2052,6 +2803,7 @@ export default function Equipamiento({
                   datos={datosEmpotrable}
                   fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)}
                   onCargaChange={(v) => setCarga("drenFondo", v)}
+                  onEstadoChange={(e) => setEstado("drenFondo", e)}
                   mostrarPuerto
                   mostrarTamano
                 />
@@ -2073,6 +2825,7 @@ export default function Equipamiento({
                     datos={datosEmpotrable}
                     fnCalculo={(flujo, tipo, dat, num) => drenCanal(flujo, tipo, dat, num)}
                     onCargaChange={(v) => setCarga("drenCanal", v)}
+                    onEstadoChange={(e) => setEstado("drenCanal", e)}
                     mostrarPuerto
                     mostrarTamano
                   />
@@ -2185,7 +2938,7 @@ export default function Equipamiento({
                       <span className="sistema-detalle-icon-svg"><IconoFiltroArena /></span>
                       <span className="sistema-detalle-titulo">Filtro de arena</span>
                     </div>
-                    <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("filtroArena", v)} />
+                    <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("filtroArena", v)} onEstadoChange={(e) => setEstado("filtroArena", e)} />
                   </div>
                 )}
 
@@ -2195,7 +2948,7 @@ export default function Equipamiento({
                       <span className="sistema-detalle-icon-svg"><IconoPrefiltro /></span>
                       <span className="sistema-detalle-titulo">Prefiltro</span>
                     </div>
-                    <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("prefiltro", v)} />
+                    <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("prefiltro", v)} onEstadoChange={(e) => setEstado("prefiltro", e)} />
                   </div>
                 )}
 
@@ -2205,13 +2958,48 @@ export default function Equipamiento({
                       <span className="sistema-detalle-icon-svg"><IconoFiltroCartucho /></span>
                       <span className="sistema-detalle-titulo">Filtro de cartucho</span>
                     </div>
-                    <BloqueFiltroCartucho flujoMaximo={flujoMaxGlobal} usoGeneral={usoGeneral} onCargaChange={(v) => setCarga("filtroCartucho", v)} />
+                    <BloqueFiltroCartucho flujoMaximo={flujoMaxGlobal} usoGeneral={usoGeneral} onCargaChange={(v) => setCarga("filtroCartucho", v)} onEstadoChange={(e) => setEstado("filtroCartucho", e)} />
                   </div>
                 )}
 
               </div>
             )}
           </div>
+
+
+          {/* ══ MOTOBOMBA ══ */}
+          <div
+            className="selector-grupo"
+            onMouseEnter={() => setHoveredField("motobomba")}
+            onMouseLeave={() => setHoveredField(null)}
+          >
+            <div className="selector-subtitulo">
+              ⚙️ Motobomba
+              <span className="selector-subtitulo-hint">Selección basada en flujo máximo y CDT total del sistema</span>
+            </div>
+            <BloqueMotobomba
+              flujoMaximo={flujoMaxGlobal}
+              cargaRequerida={cargaTotalGlobal}
+              onEstadoChange={setEstadoBomba}
+            />
+          </div>
+
+
+          {/* ══ VERIFICACIÓN DEL DISEÑO ══ */}
+          <BloqueVerificacion
+            flujoMaxGlobal={flujoMaxGlobal}
+            cargaTotalGlobal={cargaTotalGlobal}
+            estados={estados}
+            cargas={cargasTodas}
+            datosEmpotrable={datosEmpotrable}
+            tieneDesbordeCanal={tieneDesbordeCanal}
+            usoGeneral={usoGeneral}
+            bombaId={estadoBomba?.bombaId ?? null}
+            nBombas={estadoBomba?.nBombas ?? 1}
+            bombaModelo={estadoBomba?.modelo ?? "—"}
+            bombaMarca={estadoBomba?.marca ?? "—"}
+            equiposCalentamiento={equiposCalentamiento}
+          />
 
         </div>
 

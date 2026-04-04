@@ -837,6 +837,7 @@ export default function App() {
               configBombas={configBombas}
               resultadoClorador={resultadoClorador}
               flujoMaxGlobal={flujoMaxGlobal}
+              cargaTotalGlobal={cargaTotalGlobal}
             />
           )}
         </div>
