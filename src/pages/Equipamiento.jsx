@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import "../estilos.css";
 import { generadoresDeCloro }    from "../data/generadoresDeCloro";
 import { cloradoresAutomaticos } from "../data/cloradoresAutomaticos";
 import { generadoresUV }         from "../data/generadoresUV";
+import { filtrosArena }          from "../data/filtrosArena";
 import { barredoras }            from "../data/barredoras";
 import { desnatadores }          from "../data/desnatadores";
 import { drenesFondo }           from "../data/drenesFondo";
@@ -11,6 +12,12 @@ import { retornos }              from "../data/retornos";
 import { calcularCargaCloradorManual }                               from "../utils/generadorDeCloro";
 import { cloradorAutomatico, calcularCargaCloradorAutomaticoManual } from "../utils/cloradorAutomatico";
 import { generadorUV, calcularCargaUVManual }                       from "../utils/generadorUV";
+import { filtroArena, calcularCargaFiltroArenaManual }               from "../utils/filtroArena";
+import { prefiltro, calcularCargaPrefiltroManual }                     from "../utils/prefiltro";
+import { filtroCartucho, calcularCargaFiltroCartuchoManual,
+         flujoEfectivo }                                               from "../utils/filtroCartucho";
+import { filtrosCartucho }  from "../data/filtrosCartucho";
+import { prefiltros }       from "../data/prefiltros";
 import { retorno }    from "../utils/retorno";
 import { desnatador } from "../utils/desnatador";
 import { barredora }  from "../utils/barredora";
@@ -337,6 +344,59 @@ const IconoCheck = () => (
   </svg>
 );
 
+
+/* =====================================================
+   ICONOS SVG — filtración
+===================================================== */
+const IconoFiltroArena = () => (
+  <svg width="48" height="48" viewBox="0 0 60 48" fill="none">
+    {/* cuerpo cilíndrico del filtro */}
+    <ellipse cx="30" cy="12" rx="16" ry="5" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.1)"/>
+    <rect x="14" y="12" width="32" height="22" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.08)"/>
+    <ellipse cx="30" cy="34" rx="16" ry="5" stroke="#38bdf8" strokeWidth="1.5" fill="rgba(56,189,248,0.1)"/>
+    {/* arena interior */}
+    <ellipse cx="30" cy="28" rx="12" ry="3" fill="rgba(251,191,36,0.25)" stroke="#fbbf24" strokeWidth="0.8"/>
+    <line x1="18" y1="25" x2="42" y2="25" stroke="#fbbf24" strokeWidth="0.7" opacity="0.4"/>
+    <line x1="18" y1="22" x2="42" y2="22" stroke="#fbbf24" strokeWidth="0.7" opacity="0.3"/>
+    {/* tubo entrada/salida */}
+    <line x1="30" y1="7" x2="30" y2="3" stroke="#7dd3fc" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="30" y1="39" x2="30" y2="43" stroke="#7dd3fc" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconoPrefiltro = () => (
+  <svg width="48" height="48" viewBox="0 0 60 48" fill="none">
+    <ellipse cx="30" cy="12" rx="14" ry="4" stroke="#7dd3fc" strokeWidth="1.5" fill="rgba(125,211,252,0.08)"/>
+    <rect x="16" y="12" width="28" height="20" stroke="#7dd3fc" strokeWidth="1.5" fill="rgba(125,211,252,0.06)"/>
+    <ellipse cx="30" cy="32" rx="14" ry="4" stroke="#7dd3fc" strokeWidth="1.5" fill="rgba(125,211,252,0.08)"/>
+    {/* malla */}
+    <line x1="20" y1="16" x2="20" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="25" y1="16" x2="25" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="30" y1="16" x2="30" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="35" y1="16" x2="35" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="40" y1="16" x2="40" y2="28" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="16" y1="19" x2="44" y2="19" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="16" y1="24" x2="44" y2="24" stroke="#7dd3fc" strokeWidth="0.9" opacity="0.5"/>
+    <line x1="30" y1="8" x2="30" y2="4" stroke="#7dd3fc" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="30" y1="36" x2="30" y2="40" stroke="#7dd3fc" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconoFiltroCartucho = () => (
+  <svg width="48" height="48" viewBox="0 0 60 48" fill="none">
+    <ellipse cx="30" cy="10" rx="12" ry="4" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/>
+    <rect x="18" y="10" width="24" height="26" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.06)"/>
+    <ellipse cx="30" cy="36" rx="12" ry="4" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/>
+    {/* pliegues cartucho */}
+    <path d="M22 14 Q26 17 30 14 Q34 11 38 14" stroke="#a78bfa" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round"/>
+    <path d="M22 20 Q26 23 30 20 Q34 17 38 20" stroke="#a78bfa" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round"/>
+    <path d="M22 26 Q26 29 30 26 Q34 23 38 26" stroke="#a78bfa" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round"/>
+    <path d="M22 32 Q26 35 30 32 Q34 29 38 32" stroke="#a78bfa" strokeWidth="1" fill="none" opacity="0.6" strokeLinecap="round"/>
+    <line x1="30" y1="6" x2="30" y2="3" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="30" y1="40" x2="30" y2="44" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
 /* =====================================================
    TARJETA SOLO LECTURA — calentamiento
 ===================================================== */
@@ -448,11 +508,16 @@ function BloqueEmpotrable({
   fnCalculo,
   mostrarPuerto = true,
   mostrarTamano = false,
+  onCargaChange = null,
 }) {
   const [modo,        setModo]        = useState("recomendado");
   const [selId,       setSelId]       = useState(null);
-  const [selCant,     setSelCant]     = useState(null); // null hasta que se elige equipo
+  const [selCant,     setSelCant]     = useState(null);
   const [filtroMarca, setFiltroMarca] = useState("todas");
+
+  // Ref estable para fnCalculo — se actualiza cada render pero no invalida useMemo
+  const fnCalcRef = useRef(fnCalculo);
+  fnCalcRef.current = fnCalculo;
 
   const marcas = useMemo(() =>
     ["todas", ...new Set(catalogo.filter(e => e.metadata.activo).map(e => e.marca))],
@@ -466,7 +531,6 @@ function BloqueEmpotrable({
     }),
   [catalogo, filtroMarca]);
 
-  // Cantidad mínima para el equipo seleccionado: ceil(flujoMaximo / flujoNominal)
   const cantMinima = useMemo(() => {
     if (!selId || !flujoMaximo) return 2;
     const eq = catalogo.find(e => e.id === selId);
@@ -474,7 +538,6 @@ function BloqueEmpotrable({
     return Math.max(2, Math.ceil(flujoMaximo / eq.specs.flujo));
   }, [selId, flujoMaximo, catalogo]);
 
-  // Cuando cambia el equipo seleccionado, ajustar cantidad al mínimo
   const handleSelEquipo = (id) => {
     if (selId === id) { setSelId(null); setSelCant(null); return; }
     setSelId(id);
@@ -486,27 +549,37 @@ function BloqueEmpotrable({
     }
   };
 
-  // Cálculo manual: usa el tipo del equipo seleccionado, la cantidad elegida
-  // y pasa selCant como numForzado para que la función recalcule toda la hidráulica
-  const manualCalc = useMemo(() => {
-    if (!selId || !selCant || !flujoMaximo || !datos) return null;
+  // Calculo directo en render sin useMemo — garantiza recalculo en cada cambio de selCant
+  let manualCalc = null;
+  if (selId && selCant && flujoMaximo && datos) {
     const eq = catalogo.find(e => e.id === selId);
-    if (!eq) return null;
-    try {
-      const tipo       = tipoParaCalculo(eq);
-      const res        = fnCalculo(flujoMaximo, tipo, datos, selCant);
-      const flujoPorEq = flujoMaximo / selCant;
-      return {
-        equipo: eq,
-        cantidad: selCant,
-        flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)),
-        flujoTotal: parseFloat((eq.specs.flujo * selCant).toFixed(2)),
-        res,
-      };
-    } catch { return null; }
-  }, [selId, selCant, flujoMaximo, datos, catalogo, fnCalculo]);
+    if (eq) {
+      try {
+        const tipo       = tipoParaCalculo(eq);
+        const res        = fnCalcRef.current(flujoMaximo, tipo, datos, selCant);
+        const flujoPorEq = flujoMaximo / selCant;
+        manualCalc = {
+          equipo: eq,
+          cantidad: selCant,
+          flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)),
+          flujoTotal: parseFloat((eq.specs.flujo * selCant).toFixed(2)),
+          res,
+        };
+      } catch { manualCalc = null; }
+    }
+  }
 
   const infoActiva = modo === "recomendado" ? rec : manualCalc;
+
+  // Reportar carga activa al padre cada vez que cambia
+  const cargaActivaFt = infoActiva?.res?.sumaFinal ?? null;
+  const onCargaRef = useRef(onCargaChange);
+  onCargaRef.current = onCargaChange;
+  const prevCargaRef = useRef(null);
+  if (prevCargaRef.current !== cargaActivaFt) {
+    prevCargaRef.current = cargaActivaFt;
+    if (onCargaRef.current) onCargaRef.current(cargaActivaFt);
+  }
 
   if (!flujoMaximo || flujoMaximo <= 0) {
     return (
@@ -731,6 +804,711 @@ const SISTEMAS_SANITIZACION = [
   { key: "cloradorAutomatico", label: "Clorador automático",       Icon: IconoCloradorAutomatico },
   { key: "lamparaUV",          label: "Lámpara UV",                Icon: IconoLamparaUV          },
 ];
+
+
+/* =====================================================
+   SISTEMAS DE FILTRACIÓN
+===================================================== */
+const SISTEMAS_FILTRACION = [
+  { key: "filtroArena",     label: "Filtro de arena",      Icon: IconoFiltroArena     },
+  { key: "prefiltro",       label: "Prefiltro",            Icon: IconoPrefiltro       },
+  { key: "filtroCartucho",  label: "Filtro de cartucho",   Icon: IconoFiltroCartucho  },
+];
+
+
+/* =====================================================
+   BLOQUE PREFILTRO
+===================================================== */
+function BloquePrefiltro({ flujoMaximo, onCargaChange = null }) {
+  const [modo,        setModo]        = useState("recomendado");
+  const [selId,       setSelId]       = useState(null);
+  const [selCant,     setSelCant]     = useState(null);
+  const [filtroMarca, setFiltroMarca] = useState("todas");
+
+  const rec = useMemo(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) return null;
+    try { const r = prefiltro(flujoMaximo); return r?.error ? null : r; }
+    catch { return null; }
+  }, [flujoMaximo]);
+
+  const marcas = useMemo(() =>
+    ["todas", ...new Set(prefiltros.filter(p => p.metadata.activo).map(p => p.marca))], []);
+
+  const catalogoFiltrado = useMemo(() =>
+    prefiltros.filter(p => {
+      if (!p.metadata.activo) return false;
+      if (filtroMarca !== "todas" && p.marca !== filtroMarca) return false;
+      return true;
+    }), [filtroMarca]);
+
+  const cantMinima = useMemo(() => {
+    if (!selId || !flujoMaximo) return 1;
+    const p = prefiltros.find(p => p.id === selId);
+    if (!p) return 1;
+    return Math.max(1, Math.ceil(flujoMaximo / p.specs.maxFlow));
+  }, [selId, flujoMaximo]);
+
+  const handleSel = (id) => {
+    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    setSelId(id);
+    const p = prefiltros.find(p => p.id === id);
+    setSelCant(p && flujoMaximo ? Math.max(1, Math.ceil(flujoMaximo / p.specs.maxFlow)) : 1);
+  };
+
+  let manualCalc = null;
+  if (selId && selCant && flujoMaximo) {
+    const p = prefiltros.find(pi => pi.id === selId);
+    if (p) {
+      try {
+        const res = calcularCargaPrefiltroManual(p.specs.maxFlow, selCant);
+        if (!res?.error) manualCalc = { prefiltroEq: p, cantidad: selCant, flujoPorPrefiltro: p.specs.maxFlow, flujoTotal: parseFloat((p.specs.maxFlow * selCant).toFixed(2)), ...res };
+      } catch { manualCalc = null; }
+    }
+  }
+
+  const infoActiva = modo === "recomendado" ? rec : manualCalc;
+
+  if (!flujoMaximo || flujoMaximo <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
+
+  const datosActivos = modo === "recomendado" && rec
+    ? { marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoPorUnidad: rec.seleccion.flujoPorPrefiltro, flujoTotal: rec.seleccion.flujoTotal, diameter: rec.seleccion.diameter }
+    : manualCalc
+    ? { marca: manualCalc.prefiltroEq.marca, modelo: manualCalc.prefiltroEq.modelo, cantidad: manualCalc.cantidad, flujoPorUnidad: manualCalc.flujoPorPrefiltro, flujoTotal: manualCalc.flujoTotal, diameter: manualCalc.prefiltroEq.specs.diameter }
+    : null;
+
+  const cargaPrefiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
+  const onCargaPFRef = useRef(onCargaChange); onCargaPFRef.current = onCargaChange;
+  const prevCargaPFRef = useRef(null);
+  if (prevCargaPFRef.current !== cargaPrefiltroFt) { prevCargaPFRef.current = cargaPrefiltroFt; if (onCargaPFRef.current) onCargaPFRef.current(cargaPrefiltroFt); }
+
+  return (
+    <div className="sanitizacion-bloque-equipo">
+      <div className="bdc-modo-toggle-wrapper">
+        <div className="bdc-modo-toggle">
+          <button type="button" className={`bdc-modo-btn ${modo === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("recomendado")}>{modo === "recomendado" && <IconoCheck />}<span>Recomendado</span></button>
+          <button type="button" className={`bdc-modo-btn ${modo === "manual" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("manual")}>{modo === "manual" && <IconoCheck />}<span>Selección manual</span></button>
+        </div>
+      </div>
+      <div style={{ fontSize: "0.7rem", color: "#94a3b8", padding: "0.25rem 0.5rem 0.5rem" }}>
+        Flujo máximo: <span style={{ color: "#38bdf8", fontWeight: 600 }}>{parseFloat(flujoMaximo).toFixed(1)} GPM</span>
+      </div>
+      <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+        <div className="layout-clima-bdc-celda celda-bdc-rec">
+          {datosActivos ? (
+            <div className={`bdc-recomendada-card bdc-inset ${modo === "manual" ? "bdc-card-manual-activa" : ""}`}>
+              <div className="bdc-rec-header">
+                <IconoPrefiltro />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">{modo === "recomendado" ? "Recomendado" : "Manual"}</span>
+                  <span className="bdc-rec-modelo">{datosActivos.marca} · {datosActivos.modelo}</span>
+                </div>
+                <span className={`bdc-modo-badge ${modo === "manual" ? "badge-manual" : "badge-auto"}`}>{modo === "manual" ? "Manual" : "Auto"}</span>
+              </div>
+              <div className="bdc-rec-stats">
+                <div className="bdc-stat"><span className="bdc-stat-valor">{datosActivos.cantidad}</span><span className="bdc-stat-label">equipos</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(datosActivos.flujoPorUnidad).toFixed(1)}</span><span className="bdc-stat-label">GPM/equipo</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotal}</span><span className="bdc-stat-label">ft CDT</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotalPSI}</span><span className="bdc-stat-label">PSI</span></div>
+              </div>
+              <div className="bdc-rec-demanda">
+                <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Diámetro</span><span className="bdc-demanda-valor">{datosActivos.diameter}"</span></div>
+              </div>
+              <div className="bdc-rec-hidraulica">
+                <span className="bdc-hid-label">Carga hidráulica</span>
+                <span className="bdc-hid-valor">{infoActiva.cargaTotal} ft · {infoActiva.cargaTotalPSI} PSI</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+              <div className="bdc-rec-header"><IconoPrefiltro /><div className="bdc-rec-titulo"><span className="bdc-rec-label">Prefiltro</span><span className="bdc-rec-modelo bdc-pendiente-txt">{modo === "recomendado" ? "Calculando..." : "Selecciona un equipo"}</span></div></div>
+            </div>
+          )}
+        </div>
+        <div className="layout-clima-bdc-celda celda-bdc-manual">
+          {modo === "recomendado" && rec && !rec.error && (
+            <div className="bdc-info-automatica bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
+              <div className="bdc-auto-detalle">
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Marca</span><span className="bdc-auto-val">{rec.seleccion.marca}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Modelo</span><span className="bdc-auto-val">{rec.seleccion.modelo}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Cantidad</span><span className="bdc-auto-val">{rec.seleccion.cantidad} equipo{rec.seleccion.cantidad > 1 ? "s" : ""}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo por equipo</span><span className="bdc-auto-val">{rec.seleccion.flujoPorPrefiltro} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo total</span><span className="bdc-auto-val">{rec.seleccion.flujoTotal} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Diámetro</span><span className="bdc-auto-val">{rec.seleccion.diameter}"</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{rec.cargaTramos} ft</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{rec.cargaFija_ft} ft</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{rec.cargaTotal} ft · {rec.cargaTotalPSI} PSI</span></div>
+              </div>
+            </div>
+          )}
+          {modo === "manual" && (
+            <div className="bdc-selector-manual bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo — Prefiltros</span></div>
+              <div className="bdc-manual-filtros"><div className="campo"><label>Marca</label><select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}>{marcas.map(m => <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>)}</select></div></div>
+              <div className="bdc-manual-lista">
+                {catalogoFiltrado.map(p => {
+                  const esRec = rec && !rec.error && p.marca === rec.seleccion.marca && p.modelo === rec.seleccion.modelo;
+                  const sel   = selId === p.id;
+                  const minE  = Math.max(1, Math.ceil(flujoMaximo / p.specs.maxFlow));
+                  return (
+                    <div key={p.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => handleSel(p.id)}>
+                      <div className="bdc-manual-fila-info">
+                        <span className="bdc-manual-marca">{p.marca}</span>
+                        <span className="bdc-manual-modelo">{p.modelo}</span>
+                        <span className="bdc-manual-vel vel-1v">{p.specs.maxFlow} GPM</span>
+                        <span className="bdc-manual-vel" style={{ color: "#94a3b8" }}>{p.specs.diameter}"</span>
+                        {esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                      </div>
+                      <div className="bdc-manual-fila-cap" style={{ color: "#64748b", fontSize: "0.68rem" }}>mín. {minE}</div>
+                    </div>
+                  );
+                })}
+                {catalogoFiltrado.length === 0 && <div className="bdc-manual-vacio">Sin modelos para estos filtros</div>}
+              </div>
+              {selId && selCant !== null && (
+                <div className="bdc-manual-resultado">
+                  <div className="bdc-manual-cant-row">
+                    <span className="bdc-manual-cant-label">Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMinima})</span></span>
+                    <div className="bdc-manual-cant-ctrl">
+                      <button onClick={() => setSelCant(c => Math.max(cantMinima, c - 1))}>−</button>
+                      <span>{selCant}</span>
+                      <button onClick={() => setSelCant(c => c + 1)}>+</button>
+                    </div>
+                  </div>
+                  {manualCalc && (<>
+                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por equipo</span><span className="bdc-demanda-valor">{manualCalc.flujoPorPrefiltro} GPM</span></div>
+                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total instalado</span><span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.flujoTotal).toFixed(1)} GPM</span></div>
+                    <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                    <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{manualCalc.cargaTramos} ft</span></div>
+                    <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{manualCalc.cargaFija_ft} ft</span></div>
+                    <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                    <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{manualCalc.cargaTotal} ft · {manualCalc.cargaTotalPSI} PSI</span></div>
+                  </>)}
+                </div>
+              )}
+              {!selId && <div className="bdc-manual-hint">Selecciona un equipo del catálogo para calcular</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   BLOQUE FILTRO CARTUCHO
+===================================================== */
+function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null }) {
+  const [modo,        setModo]        = useState("recomendado");
+  const [selId,       setSelId]       = useState(null);
+  const [selCant,     setSelCant]     = useState(null);
+  const [filtroMarca, setFiltroMarca] = useState("todas");
+
+  const rec = useMemo(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) return null;
+    try { const r = filtroCartucho(flujoMaximo, usoGeneral); return r?.error ? null : r; }
+    catch { return null; }
+  }, [flujoMaximo, usoGeneral]);
+
+  const marcas = useMemo(() =>
+    ["todas", ...new Set(
+      filtrosCartucho
+        .filter(f => f.metadata.activo && flujoEfectivo(f, usoGeneral) !== null)
+        .map(f => f.marca)
+    )], [usoGeneral]);
+
+  const catalogoFiltrado = useMemo(() =>
+    filtrosCartucho.filter(f => {
+      if (!f.metadata.activo) return false;
+      if (flujoEfectivo(f, usoGeneral) === null) return false;
+      if (filtroMarca !== "todas" && f.marca !== filtroMarca) return false;
+      return true;
+    }), [filtroMarca, usoGeneral]);
+
+  const cantMinima = useMemo(() => {
+    if (!selId || !flujoMaximo) return 1;
+    const f = filtrosCartucho.find(f => f.id === selId);
+    if (!f) return 1;
+    const fe = flujoEfectivo(f, usoGeneral);
+    if (!fe) return 1;
+    return Math.max(1, Math.ceil(flujoMaximo / fe));
+  }, [selId, flujoMaximo, usoGeneral]);
+
+  const handleSel = (id) => {
+    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    setSelId(id);
+    const f  = filtrosCartucho.find(f => f.id === id);
+    const fe = f ? flujoEfectivo(f, usoGeneral) : null;
+    setSelCant(fe && flujoMaximo ? Math.max(1, Math.ceil(flujoMaximo / fe)) : 1);
+  };
+
+  let manualCalc = null;
+  if (selId && selCant && flujoMaximo) {
+    const f  = filtrosCartucho.find(fi => fi.id === selId);
+    const fe = f ? flujoEfectivo(f, usoGeneral) : null;
+    if (f && fe) {
+      try {
+        const res = calcularCargaFiltroCartuchoManual(fe, selCant);
+        if (!res?.error) manualCalc = { filtroEq: f, flujoEf: fe, cantidad: selCant, flujoTotal: parseFloat((fe * selCant).toFixed(2)), ...res };
+      } catch { manualCalc = null; }
+    }
+  }
+
+  const infoActiva = modo === "recomendado" ? rec : manualCalc;
+
+  if (!flujoMaximo || flujoMaximo <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
+
+  const datosActivos = modo === "recomendado" && rec
+    ? { marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoEf: rec.seleccion.flujoEfectivo, flujoTotal: rec.seleccion.flujoTotal, filtrationArea: rec.seleccion.filtrationArea }
+    : manualCalc
+    ? { marca: manualCalc.filtroEq.marca, modelo: manualCalc.filtroEq.modelo, cantidad: manualCalc.cantidad, flujoEf: manualCalc.flujoEf, flujoTotal: manualCalc.flujoTotal, filtrationArea: manualCalc.filtroEq.specs.filtrationArea }
+    : null;
+
+  const labelUso = usoGeneral === "residencial" ? "Residencial" : "Comercial";
+
+  const cargaCartuchoFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
+  const onCargaCTRef = useRef(onCargaChange); onCargaCTRef.current = onCargaChange;
+  const prevCargaCTRef = useRef(null);
+  if (prevCargaCTRef.current !== cargaCartuchoFt) { prevCargaCTRef.current = cargaCartuchoFt; if (onCargaCTRef.current) onCargaCTRef.current(cargaCartuchoFt); }
+
+  return (
+    <div className="sanitizacion-bloque-equipo">
+      <div className="bdc-modo-toggle-wrapper">
+        <div className="bdc-modo-toggle">
+          <button type="button" className={`bdc-modo-btn ${modo === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("recomendado")}>{modo === "recomendado" && <IconoCheck />}<span>Recomendado</span></button>
+          <button type="button" className={`bdc-modo-btn ${modo === "manual" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("manual")}>{modo === "manual" && <IconoCheck />}<span>Selección manual</span></button>
+        </div>
+      </div>
+      <div style={{ fontSize: "0.7rem", color: "#94a3b8", padding: "0.25rem 0.5rem 0.5rem" }}>
+        Flujo máximo: <span style={{ color: "#38bdf8", fontWeight: 600 }}>{parseFloat(flujoMaximo).toFixed(1)} GPM</span>
+        <span style={{ marginLeft: "0.75rem" }}>· Uso: <span style={{ color: "#34d399" }}>{labelUso}</span></span>
+      </div>
+      <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+        <div className="layout-clima-bdc-celda celda-bdc-rec">
+          {datosActivos ? (
+            <div className={`bdc-recomendada-card bdc-inset ${modo === "manual" ? "bdc-card-manual-activa" : ""}`}>
+              <div className="bdc-rec-header">
+                <IconoFiltroCartucho />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">{modo === "recomendado" ? "Recomendado" : "Manual"}</span>
+                  <span className="bdc-rec-modelo">{datosActivos.marca} · {datosActivos.modelo}</span>
+                </div>
+                <span className={`bdc-modo-badge ${modo === "manual" ? "badge-manual" : "badge-auto"}`}>{modo === "manual" ? "Manual" : "Auto"}</span>
+              </div>
+              <div className="bdc-rec-stats">
+                <div className="bdc-stat"><span className="bdc-stat-valor">{datosActivos.cantidad}</span><span className="bdc-stat-label">filtros</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(datosActivos.flujoEf).toFixed(1)}</span><span className="bdc-stat-label">GPM/filtro</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotal}</span><span className="bdc-stat-label">ft CDT</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{infoActiva.cargaTotalPSI}</span><span className="bdc-stat-label">PSI</span></div>
+              </div>
+              <div className="bdc-rec-demanda">
+                <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Área filtración</span><span className="bdc-demanda-valor bdc-ok">{datosActivos.filtrationArea} ft²</span></div>
+                <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Uso</span><span className="bdc-demanda-valor">{labelUso}</span></div>
+              </div>
+              <div className="bdc-rec-hidraulica">
+                <span className="bdc-hid-label">Carga hidráulica</span>
+                <span className="bdc-hid-valor">{infoActiva.cargaTotal} ft · {infoActiva.cargaTotalPSI} PSI</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+              <div className="bdc-rec-header"><IconoFiltroCartucho /><div className="bdc-rec-titulo"><span className="bdc-rec-label">Filtro de cartucho</span><span className="bdc-rec-modelo bdc-pendiente-txt">{modo === "recomendado" ? "Calculando..." : "Selecciona un filtro"}</span></div></div>
+            </div>
+          )}
+        </div>
+        <div className="layout-clima-bdc-celda celda-bdc-manual">
+          {modo === "recomendado" && rec && !rec.error && (
+            <div className="bdc-info-automatica bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
+              <div className="bdc-auto-detalle">
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Marca</span><span className="bdc-auto-val">{rec.seleccion.marca}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Modelo</span><span className="bdc-auto-val">{rec.seleccion.modelo}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Cantidad</span><span className="bdc-auto-val">{rec.seleccion.cantidad} filtro{rec.seleccion.cantidad > 1 ? "s" : ""}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo por filtro</span><span className="bdc-auto-val">{rec.seleccion.flujoEfectivo} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo total</span><span className="bdc-auto-val">{rec.seleccion.flujoTotal} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Exceso flujo</span><span className="bdc-auto-val">{rec.seleccion.exceso} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Área filtración</span><span className="bdc-auto-val">{rec.seleccion.filtrationArea} ft²</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Uso</span><span className="bdc-auto-val">{labelUso}</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{rec.cargaTramos} ft</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{rec.cargaFija_ft} ft</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{rec.cargaTotal} ft · {rec.cargaTotalPSI} PSI</span></div>
+              </div>
+            </div>
+          )}
+          {modo === "manual" && (
+            <div className="bdc-selector-manual bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo — Filtros de cartucho · {labelUso}</span></div>
+              <div className="bdc-manual-filtros"><div className="campo"><label>Marca</label><select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}>{marcas.map(m => <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>)}</select></div></div>
+              <div className="bdc-manual-lista">
+                {catalogoFiltrado.map(f => {
+                  const fe    = flujoEfectivo(f, usoGeneral);
+                  const esRec = rec && !rec.error && f.marca === rec.seleccion.marca && f.modelo === rec.seleccion.modelo;
+                  const sel   = selId === f.id;
+                  const minE  = fe ? Math.max(1, Math.ceil(flujoMaximo / fe)) : "—";
+                  return (
+                    <div key={f.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => handleSel(f.id)}>
+                      <div className="bdc-manual-fila-info">
+                        <span className="bdc-manual-marca">{f.marca}</span>
+                        <span className="bdc-manual-modelo">{f.modelo}</span>
+                        <span className="bdc-manual-vel vel-1v">{fe} GPM</span>
+                        <span className="bdc-manual-vel" style={{ color: "#94a3b8" }}>{f.specs.filtrationArea} ft²</span>
+                        {esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                      </div>
+                      <div className="bdc-manual-fila-cap" style={{ color: "#64748b", fontSize: "0.68rem" }}>mín. {minE}</div>
+                    </div>
+                  );
+                })}
+                {catalogoFiltrado.length === 0 && <div className="bdc-manual-vacio">Sin modelos para uso {labelUso.toLowerCase()}</div>}
+              </div>
+              {selId && selCant !== null && (
+                <div className="bdc-manual-resultado">
+                  <div className="bdc-manual-cant-row">
+                    <span className="bdc-manual-cant-label">Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMinima})</span></span>
+                    <div className="bdc-manual-cant-ctrl">
+                      <button onClick={() => setSelCant(c => Math.max(cantMinima, c - 1))}>−</button>
+                      <span>{selCant}</span>
+                      <button onClick={() => setSelCant(c => c + 1)}>+</button>
+                    </div>
+                  </div>
+                  {manualCalc && (<>
+                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por filtro</span><span className="bdc-demanda-valor">{manualCalc.flujoEf} GPM</span></div>
+                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total instalado</span><span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.flujoTotal).toFixed(1)} GPM</span></div>
+                    <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                    <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{manualCalc.cargaTramos} ft</span></div>
+                    <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{manualCalc.cargaFija_ft} ft</span></div>
+                    <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                    <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{manualCalc.cargaTotal} ft · {manualCalc.cargaTotalPSI} PSI</span></div>
+                  </>)}
+                </div>
+              )}
+              {!selId && <div className="bdc-manual-hint">Selecciona un filtro del catálogo para calcular</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   BLOQUE FILTRO DE ARENA
+===================================================== */
+function BloqueFiltroArena({ flujoMaximo, onCargaChange = null }) {
+  const [modo,        setModo]        = useState("recomendado");
+  const [selId,       setSelId]       = useState(null);
+  const [selCant,     setSelCant]     = useState(null);
+  const [filtroMarca, setFiltroMarca] = useState("todas");
+
+  const rec = useMemo(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) return null;
+    try { const r = filtroArena(flujoMaximo); return r?.error ? null : r; }
+    catch { return null; }
+  }, [flujoMaximo]);
+
+  const marcas = useMemo(() =>
+    ["todas", ...new Set(filtrosArena.filter(f => f.metadata.activo).map(f => f.marca))],
+  []);
+
+  const catalogoFiltrado = useMemo(() =>
+    filtrosArena.filter(f => {
+      if (!f.metadata.activo) return false;
+      if (filtroMarca !== "todas" && f.marca !== filtroMarca) return false;
+      return true;
+    }),
+  [filtroMarca]);
+
+  const cantMinima = useMemo(() => {
+    if (!selId || !flujoMaximo) return 1;
+    const f = filtrosArena.find(f => f.id === selId);
+    if (!f) return 1;
+    return Math.max(1, Math.ceil(flujoMaximo / f.specs.maxFlow));
+  }, [selId, flujoMaximo]);
+
+  const handleSelFiltro = (id) => {
+    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    setSelId(id);
+    const f = filtrosArena.find(f => f.id === id);
+    if (f && flujoMaximo) setSelCant(Math.max(1, Math.ceil(flujoMaximo / f.specs.maxFlow)));
+    else setSelCant(1);
+  };
+
+  // Cálculo directo en render — igual que BloqueEmpotrable
+  let manualCalc = null;
+  if (selId && selCant && flujoMaximo) {
+    const f = filtrosArena.find(fi => fi.id === selId);
+    if (f) {
+      try {
+        const res = calcularCargaFiltroArenaManual(f.specs.maxFlow, selCant);
+        if (!res?.error) {
+          manualCalc = {
+            filtro: f,
+            cantidad: selCant,
+            flujoPorFiltro: f.specs.maxFlow,
+            flujoTotal: parseFloat((f.specs.maxFlow * selCant).toFixed(2)),
+            ...res,
+          };
+        }
+      } catch { manualCalc = null; }
+    }
+  }
+
+  const infoActiva = modo === "recomendado" ? rec : manualCalc;
+
+  // Reportar carga activa al padre
+  const cargaFiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
+  const onCargaFARef = useRef(onCargaChange);
+  onCargaFARef.current = onCargaChange;
+  const prevCargaFARef = useRef(null);
+  if (prevCargaFARef.current !== cargaFiltroFt) {
+    prevCargaFARef.current = cargaFiltroFt;
+    if (onCargaFARef.current) onCargaFARef.current(cargaFiltroFt);
+  }
+
+  if (!flujoMaximo || flujoMaximo <= 0) {
+    return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
+  }
+
+  return (
+    <div className="sanitizacion-bloque-equipo">
+      <div className="bdc-modo-toggle-wrapper">
+        <div className="bdc-modo-toggle">
+          <button type="button" className={`bdc-modo-btn ${modo === "recomendado" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("recomendado")}>
+            {modo === "recomendado" && <IconoCheck />}<span>Recomendado</span>
+          </button>
+          <button type="button" className={`bdc-modo-btn ${modo === "manual" ? "bdc-modo-activo" : ""}`} onClick={() => setModo("manual")}>
+            {modo === "manual" && <IconoCheck />}<span>Selección manual</span>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ fontSize: "0.7rem", color: "#94a3b8", padding: "0.25rem 0.5rem 0.5rem" }}>
+        Flujo máximo del sistema: <span style={{ color: "#38bdf8", fontWeight: 600 }}>{parseFloat(flujoMaximo).toFixed(1)} GPM</span>
+      </div>
+
+      <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
+        {/* Tarjeta activa */}
+        <div className="layout-clima-bdc-celda celda-bdc-rec">
+          {infoActiva && !infoActiva.error ? (
+            <div className={`bdc-recomendada-card bdc-inset ${modo === "manual" ? "bdc-card-manual-activa" : ""}`}>
+              <div className="bdc-rec-header">
+                <IconoFiltroArena />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">{modo === "recomendado" ? "Recomendado" : "Manual"}</span>
+                  <span className="bdc-rec-modelo">
+                    {modo === "recomendado"
+                      ? `${infoActiva.seleccion.marca} · ${infoActiva.seleccion.modelo}`
+                      : `${infoActiva.filtro.marca} · ${infoActiva.filtro.modelo}`}
+                  </span>
+                </div>
+                <span className={`bdc-modo-badge ${modo === "manual" ? "badge-manual" : "badge-auto"}`}>
+                  {modo === "manual" ? "Manual" : "Auto"}
+                </span>
+              </div>
+              <div className="bdc-rec-stats">
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor">
+                    {modo === "recomendado" ? infoActiva.seleccion.cantidad : infoActiva.cantidad}
+                  </span>
+                  <span className="bdc-stat-label">filtros</span>
+                </div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor">
+                    {modo === "recomendado"
+                      ? parseFloat(infoActiva.seleccion.flujoPorFiltro).toFixed(1)
+                      : parseFloat(infoActiva.flujoPorFiltro).toFixed(1)}
+                  </span>
+                  <span className="bdc-stat-label">GPM/filtro</span>
+                </div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor">{infoActiva.cargaTotal}</span>
+                  <span className="bdc-stat-label">ft CDT</span>
+                </div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor">{infoActiva.cargaTotalPSI}</span>
+                  <span className="bdc-stat-label">PSI</span>
+                </div>
+              </div>
+              <div className="bdc-rec-demanda">
+                {modo === "recomendado" && (<>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Diámetro</span>
+                    <span className="bdc-demanda-valor">{infoActiva.seleccion.diameter}"</span>
+                  </div>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Área de filtración</span>
+                    <span className="bdc-demanda-valor">{infoActiva.seleccion.filtrationArea} ft²</span>
+                  </div>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Arena</span>
+                    <span className="bdc-demanda-valor bdc-ok">{infoActiva.seleccion.arena} kg</span>
+                  </div>
+                  {infoActiva.seleccion.grava > 0 && (
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Grava</span>
+                      <span className="bdc-demanda-valor">{infoActiva.seleccion.grava} kg</span>
+                    </div>
+                  )}
+                </>)}
+                {modo === "manual" && (<>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Diámetro</span>
+                    <span className="bdc-demanda-valor">{infoActiva.filtro.specs.diameter}"</span>
+                  </div>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Área de filtración</span>
+                    <span className="bdc-demanda-valor">{infoActiva.filtro.specs.filtrationArea} ft²</span>
+                  </div>
+                  <div className="bdc-demanda-fila">
+                    <span className="bdc-demanda-label">Arena</span>
+                    <span className="bdc-demanda-valor bdc-ok">{infoActiva.filtro.specs.arena} kg</span>
+                  </div>
+                  {infoActiva.filtro.specs.grava > 0 && (
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Grava</span>
+                      <span className="bdc-demanda-valor">{infoActiva.filtro.specs.grava} kg</span>
+                    </div>
+                  )}
+                </>)}
+              </div>
+              <div className="bdc-rec-hidraulica">
+                <span className="bdc-hid-label">Carga hidráulica</span>
+                <span className="bdc-hid-valor">{infoActiva.cargaTotal} ft · {infoActiva.cargaTotalPSI} PSI</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bdc-recomendada-card bdc-pendiente bdc-inset">
+              <div className="bdc-rec-header">
+                <IconoFiltroArena />
+                <div className="bdc-rec-titulo">
+                  <span className="bdc-rec-label">Filtro de arena</span>
+                  <span className="bdc-rec-modelo bdc-pendiente-txt">
+                    {modo === "recomendado" ? "Calculando selección..." : "Selecciona un filtro del catálogo"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Columna derecha */}
+        <div className="layout-clima-bdc-celda celda-bdc-manual">
+          {modo === "recomendado" && rec && !rec.error && (
+            <div className="bdc-info-automatica bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Detalle de selección automática</span></div>
+              <div className="bdc-auto-detalle">
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Marca</span><span className="bdc-auto-val">{rec.seleccion.marca}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Modelo</span><span className="bdc-auto-val">{rec.seleccion.modelo}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Cantidad</span><span className="bdc-auto-val">{rec.seleccion.cantidad} filtro{rec.seleccion.cantidad > 1 ? "s" : ""}</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo por filtro</span><span className="bdc-auto-val">{rec.seleccion.flujoPorFiltro} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Flujo total</span><span className="bdc-auto-val">{rec.seleccion.flujoTotal} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Exceso flujo</span><span className="bdc-auto-val">{rec.seleccion.exceso} GPM</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Diámetro</span><span className="bdc-auto-val">{rec.seleccion.diameter}"</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Área filtración</span><span className="bdc-auto-val">{rec.seleccion.filtrationArea} ft²</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Arena</span><span className="bdc-auto-val">{rec.seleccion.arena} kg</span></div>
+                {rec.seleccion.grava > 0 && <div className="bdc-auto-fila"><span className="bdc-auto-label">Grava</span><span className="bdc-auto-val">{rec.seleccion.grava} kg</span></div>}
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{rec.cargaTramos} ft</span></div>
+                <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{rec.cargaFija_ft} ft</span></div>
+                <div className="bdc-auto-sep" />
+                <div className="bdc-auto-fila bdc-auto-total">
+                  <span className="bdc-auto-label">Carga total</span>
+                  <span className="bdc-auto-val bdc-hid-val-highlight">{rec.cargaTotal} ft · {rec.cargaTotalPSI} PSI</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {modo === "manual" && (
+            <div className="bdc-selector-manual bdc-inset">
+              <div className="bdc-manual-header"><span className="bdc-manual-titulo">Catálogo — Filtros de arena</span></div>
+              <div className="bdc-manual-filtros">
+                <div className="campo">
+                  <label>Marca</label>
+                  <select value={filtroMarca} onChange={e => setFiltroMarca(e.target.value)}>
+                    {marcas.map(m => <option key={m} value={m}>{m === "todas" ? "Todas las marcas" : m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="bdc-manual-lista">
+                {catalogoFiltrado.map(f => {
+                  const esRec  = rec && !rec.error && f.marca === rec.seleccion.marca && f.modelo === rec.seleccion.modelo;
+                  const sel    = selId === f.id;
+                  const minEst = Math.max(1, Math.ceil(flujoMaximo / f.specs.maxFlow));
+                  return (
+                    <div key={f.id}
+                      className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`}
+                      onClick={() => handleSelFiltro(f.id)}>
+                      <div className="bdc-manual-fila-info">
+                        <span className="bdc-manual-marca">{f.marca}</span>
+                        <span className="bdc-manual-modelo">{f.modelo}</span>
+                        <span className="bdc-manual-vel vel-1v">{f.specs.maxFlow} GPM</span>
+                        <span className="bdc-manual-vel" style={{ color: "#94a3b8" }}>{f.specs.diameter}"</span>
+                        {esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}
+                      </div>
+                      <div className="bdc-manual-fila-cap" style={{ color: "#64748b", fontSize: "0.68rem" }}>
+                        mín. {minEst}
+                      </div>
+                    </div>
+                  );
+                })}
+                {catalogoFiltrado.length === 0 && <div className="bdc-manual-vacio">Sin modelos para estos filtros</div>}
+              </div>
+
+              {selId && selCant !== null && (
+                <div className="bdc-manual-resultado">
+                  <div className="bdc-manual-cant-row">
+                    <span className="bdc-manual-cant-label">
+                      Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMinima})</span>
+                    </span>
+                    <div className="bdc-manual-cant-ctrl">
+                      <button onClick={() => setSelCant(c => Math.max(cantMinima, c - 1))}>−</button>
+                      <span>{selCant}</span>
+                      <button onClick={() => setSelCant(c => c + 1)}>+</button>
+                    </div>
+                  </div>
+                  {manualCalc && (
+                    <>
+                      <div className="bdc-demanda-fila">
+                        <span className="bdc-demanda-label">Flujo por filtro</span>
+                        <span className="bdc-demanda-valor">{manualCalc.flujoPorFiltro} GPM</span>
+                      </div>
+                      <div className="bdc-demanda-fila">
+                        <span className="bdc-demanda-label">Flujo total instalado</span>
+                        <span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.flujoTotal).toFixed(1)} GPM</span>
+                      </div>
+                      <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                      <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga tramos</span><span className="bdc-auto-val">{manualCalc.cargaTramos} ft</span></div>
+                      <div className="bdc-auto-fila"><span className="bdc-auto-label">Carga fija</span><span className="bdc-auto-val">{manualCalc.cargaFija_ft} ft</span></div>
+                      <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
+                      <div className="bdc-auto-fila bdc-auto-total">
+                        <span className="bdc-auto-label">Carga total</span>
+                        <span className="bdc-auto-val bdc-hid-val-highlight">{manualCalc.cargaTotal} ft · {manualCalc.cargaTotalPSI} PSI</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {!selId && <div className="bdc-manual-hint">Selecciona un filtro del catálogo para calcular</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* =====================================================
    BLOQUE GENERADOR DE CLORO SALINO
@@ -1071,8 +1849,23 @@ export default function Equipamiento({
 }) {
   const [hoveredField,                setHoveredField]                = useState(null);
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState({});
+  const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState({});
+
+  // Cargas individuales de cada bloque — se actualizan via callbacks
+  const [cargas, setCargas] = useState({});
+
+  const setCarga = (key, valor) => {
+    setCargas(prev => {
+      if (prev[key] === valor) return prev;
+      const next = { ...prev, [key]: valor };
+      // Persistir en datosPorSistema.equipamiento para que App.jsx lo lea
+      setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas: next } }));
+      return next;
+    });
+  };
 
   const toggleSanitizacion = (key) => setSistemasSeleccionadosSanit(prev => { if (prev[key]) { const n = { ...prev }; delete n[key]; return n; } return { ...prev, [key]: true }; });
+  const toggleFiltracion    = (key) => setSistemasSeleccionadosFilt(prev  => { if (prev[key]) { const n = { ...prev }; delete n[key]; return n; } return { ...prev, [key]: true }; });
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
@@ -1124,6 +1917,7 @@ export default function Equipamiento({
     calentamiento: "Sistema encargado del aporte energético térmico",
     sanitizacion:  "Sistema de desinfección y control microbiológico del agua",
     empotrables:   "Elementos hidráulicos instalados en las paredes y fondo del cuerpo de agua",
+    filtracion:    "Sistema de filtración y acondicionamiento del agua",
     default:       "Configuración integral del equipamiento del sistema",
   };
 
@@ -1197,7 +1991,8 @@ export default function Equipamiento({
                   catalogo={retornos}
                   flujoMaximo={flujoMaxGlobal}
                   datos={datosEmpotrable}
-                  fnCalculo={(flujo, tipo, dat) => retorno(flujo, tipo, dat)}
+                  fnCalculo={(flujo, tipo, dat, num) => retorno(flujo, tipo, dat, num)}
+                  onCargaChange={(v) => setCarga("retorno", v)}
                   mostrarPuerto
                 />
               </div>
@@ -1216,7 +2011,8 @@ export default function Equipamiento({
                     catalogo={desnatadores}
                     flujoMaximo={flujoMaxGlobal}
                     datos={datosEmpotrable}
-                    fnCalculo={(flujo, tipo, dat) => desnatador(flujo, tipo, dat)}
+                    fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)}
+                    onCargaChange={(v) => setCarga("desnatador", v)}
                     mostrarPuerto
                   />
                 </div>
@@ -1235,7 +2031,8 @@ export default function Equipamiento({
                   catalogo={barredoras}
                   flujoMaximo={flujoMaxGlobal}
                   datos={datosEmpotrable}
-                  fnCalculo={(flujo, tipo, dat) => barredora(flujo, tipo, dat)}
+                  fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)}
+                  onCargaChange={(v) => setCarga("barredora", v)}
                   mostrarPuerto
                 />
               </div>
@@ -1253,7 +2050,8 @@ export default function Equipamiento({
                   catalogo={drenesFondo}
                   flujoMaximo={flujoMaxGlobal}
                   datos={datosEmpotrable}
-                  fnCalculo={(flujo, tipo, dat) => drenFondo(flujo, tipo, dat)}
+                  fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)}
+                  onCargaChange={(v) => setCarga("drenFondo", v)}
                   mostrarPuerto
                   mostrarTamano
                 />
@@ -1273,7 +2071,8 @@ export default function Equipamiento({
                     catalogo={drenesCanal}
                     flujoMaximo={flujoMaxGlobal}
                     datos={datosEmpotrable}
-                    fnCalculo={(flujo, tipo, dat) => drenCanal(flujo, tipo, dat)}
+                    fnCalculo={(flujo, tipo, dat, num) => drenCanal(flujo, tipo, dat, num)}
+                    onCargaChange={(v) => setCarga("drenCanal", v)}
                     mostrarPuerto
                     mostrarTamano
                   />
@@ -1344,6 +2143,69 @@ export default function Equipamiento({
                       <span className="sistema-detalle-titulo">Lámpara UV</span>
                     </div>
                     <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal} />
+                  </div>
+                )}
+
+              </div>
+            )}
+          </div>
+
+
+          {/* ══ FILTRACIÓN ══ */}
+          <div
+            className="selector-grupo"
+            onMouseEnter={() => setHoveredField("filtracion")}
+            onMouseLeave={() => setHoveredField(null)}
+          >
+            <div className="selector-subtitulo">
+              🧹 Filtración
+              <span className="selector-subtitulo-hint">Selecciona uno o más sistemas de filtración</span>
+            </div>
+
+            <div className="sistemas-calentamiento-grid">
+              {SISTEMAS_FILTRACION.map(({ key, label, Icon }) => {
+                const activo = !!sistemasSeleccionadosFilt[key];
+                return (
+                  <div key={key} className={`sistema-cal-card ${activo ? "activo" : ""}`}
+                    onClick={() => toggleFiltracion(key)}>
+                    <div className="sistema-cal-icon"><Icon /></div>
+                    <div className="sistema-cal-label">{label}</div>
+                    <div className={`sistema-cal-check ${activo ? "checked" : ""}`}>{activo ? "✓" : ""}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {Object.keys(sistemasSeleccionadosFilt).length > 0 && (
+              <div className="sistemas-detalle-wrapper">
+
+                {sistemasSeleccionadosFilt.filtroArena && (
+                  <div className="sistema-detalle-card">
+                    <div className="sistema-detalle-header">
+                      <span className="sistema-detalle-icon-svg"><IconoFiltroArena /></span>
+                      <span className="sistema-detalle-titulo">Filtro de arena</span>
+                    </div>
+                    <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("filtroArena", v)} />
+                  </div>
+                )}
+
+                {sistemasSeleccionadosFilt.prefiltro && (
+                  <div className="sistema-detalle-card">
+                    <div className="sistema-detalle-header">
+                      <span className="sistema-detalle-icon-svg"><IconoPrefiltro /></span>
+                      <span className="sistema-detalle-titulo">Prefiltro</span>
+                    </div>
+                    <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={(v) => setCarga("prefiltro", v)} />
+                  </div>
+                )}
+
+                {sistemasSeleccionadosFilt.filtroCartucho && (
+                  <div className="sistema-detalle-card">
+                    <div className="sistema-detalle-header">
+                      <span className="sistema-detalle-icon-svg"><IconoFiltroCartucho /></span>
+                      <span className="sistema-detalle-titulo">Filtro de cartucho</span>
+                    </div>
+                    <BloqueFiltroCartucho flujoMaximo={flujoMaxGlobal} usoGeneral={usoGeneral} onCargaChange={(v) => setCarga("filtroCartucho", v)} />
                   </div>
                 )}
 

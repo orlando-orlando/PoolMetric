@@ -250,6 +250,8 @@ export default function App() {
   const [toggleFiltrado,      setToggleFiltrado]      = useState(false);
   const [toggleCalentamiento, setToggleCalentamiento] = useState(false);
   const [toggleSanitizacion,  setToggleSanitizacion]  = useState(false);
+  const [toggleEmpotrables,   setToggleEmpotrables]   = useState(false);
+  const [toggleFiltracion,    setToggleFiltracion]    = useState(false);
 
   const handleHome = () => {
     setSeccion("dimensiones");
@@ -303,7 +305,6 @@ export default function App() {
 
   const sistemaListoCalor = areaCalculada > 0 && volumenTotal > 0 && profundidadPromedio > 0;
 
-  /* ── Tubería + velocidad inicial filtrado ── */
   const tuberiaInicialFiltrado  = useMemo(() => {
     const r = datosPorSistema?.calentamiento?.resultadoRetorno;
     return r?.resultadoR?.[0]?.tuberia   ?? null;
@@ -328,7 +329,6 @@ export default function App() {
     return "—";
   }, [datosDim]);
 
-  /* ── Pérdidas ── */
   const perdidaTotalBTU    = datosPorSistema?.calentamiento?.perdidaTotalBTU          ?? 0;
   const perdidaEvaporacion = datosPorSistema?.calentamiento?.perdidasBTU?.evaporacion ?? 0;
   const perdidaConveccion  = datosPorSistema?.calentamiento?.perdidasBTU?.conveccion  ?? 0;
@@ -340,7 +340,6 @@ export default function App() {
 
   const calentamiento = datosPorSistema?.calentamiento;
 
-  /* ── Bomba de calor ── */
   const { flujo: flujoBDC, carga: cargaBDCft, tuberia: tuberiaBDC, velocidad: velocidadBDC } =
     useMemo(() => extraerFlujoCarga(calentamiento, {
       sistemaKey: "bombaCalor", modoKey: "modoBDC",
@@ -351,7 +350,6 @@ export default function App() {
       manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }), [calentamiento]);
 
-  /* ── Panel solar ── */
   const { flujo: flujoPS, carga: cargaPSft, tuberia: tuberiaPS, velocidad: velocidadPS } =
     useMemo(() => extraerFlujoCarga(calentamiento, {
       sistemaKey: "panelSolar", modoKey: "modoPS",
@@ -362,7 +360,6 @@ export default function App() {
       manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }), [calentamiento]);
 
-  /* ── Caldera ── */
   const { flujo: flujoCaldera, carga: cargaCalderaCft, tuberia: tuberiaCaldera, velocidad: velocidadCaldera } =
     useMemo(() => extraerFlujoCarga(calentamiento, {
       sistemaKey: "caldera", modoKey: "modoCaldera",
@@ -373,7 +370,6 @@ export default function App() {
       manualCargaFn: (m) => m.hidraulica?.cargaTotal,
     }), [calentamiento]);
 
-  /* ── Calentador eléctrico ── */
   const { flujo: flujoCE, carga: cargaCEft, tuberia: tuberiaCE, velocidad: velocidadCE } =
     useMemo(() => extraerFlujoCarga(calentamiento, {
       sistemaKey: "calentadorElectrico", modoKey: "modoCE",
@@ -401,7 +397,6 @@ export default function App() {
     return c.length ? c.reduce((a, b) => a + parseFloat(b), 0) : null;
   }, [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft]);
 
-  /* ── Generador de cloro ── */
   const usoGeneralSistema = useMemo(() => datosDim?.usoGeneral ?? "residencial", [datosDim]);
 
   const tempAgua = useMemo(() => {
@@ -422,13 +417,11 @@ export default function App() {
   }, [volumenTotal, areaCalculada, usoGeneralSistema, tempAgua]);
 
   const kgDiaCloroNecesario = useMemo(() =>
-    (!resultadoClorador || resultadoClorador.error) ? null
-    : (resultadoClorador.kgDiaNecesario ?? null),
+    (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaNecesario ?? null),
   [resultadoClorador]);
 
   const kgDiaCloroInstalado = useMemo(() =>
-    (!resultadoClorador || resultadoClorador.error) ? null
-    : (resultadoClorador.kgDiaInstalado ?? null),
+    (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaInstalado ?? null),
   [resultadoClorador]);
 
   const flujoClorador = useMemo(() =>
@@ -454,6 +447,31 @@ export default function App() {
   const cloradorListo         = volumenTotal > 0 && areaCalculada > 0 && flujoClorador != null;
   const cargaSumaSanitizacion = cargaClorador ? parseFloat(cargaClorador) : null;
 
+  /* ── Cargas de Equipamiento (empotrables + filtración) ── */
+  const cargasEquipamiento = datosPorSistema?.equipamiento?.cargas ?? {};
+
+  // Empotrables activos (solo los que tienen carga)
+  const cargaRetorno    = cargasEquipamiento.retorno    != null ? parseFloat(cargasEquipamiento.retorno)    : null;
+  const cargaDesnatador = cargasEquipamiento.desnatador != null ? parseFloat(cargasEquipamiento.desnatador) : null;
+  const cargaDrenCanal  = cargasEquipamiento.drenCanal  != null ? parseFloat(cargasEquipamiento.drenCanal)  : null;
+  const cargaBarredora  = cargasEquipamiento.barredora  != null ? parseFloat(cargasEquipamiento.barredora)  : null;
+  const cargaDrenFondo  = cargasEquipamiento.drenFondo  != null ? parseFloat(cargasEquipamiento.drenFondo)  : null;
+
+  // Filtración
+  const cargaFiltroArena    = cargasEquipamiento.filtroArena    != null ? parseFloat(cargasEquipamiento.filtroArena)    : null;
+  const cargaPrefiltro      = cargasEquipamiento.prefiltro      != null ? parseFloat(cargasEquipamiento.prefiltro)      : null;
+  const cargaFiltroCartucho = cargasEquipamiento.filtroCartucho != null ? parseFloat(cargasEquipamiento.filtroCartucho) : null;
+
+  const cargaSumaEmpotrables = useMemo(() => {
+    const vals = [cargaRetorno, cargaDesnatador, cargaDrenCanal, cargaBarredora, cargaDrenFondo].filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  }, [cargaRetorno, cargaDesnatador, cargaDrenCanal, cargaBarredora, cargaDrenFondo]);
+
+  const cargaSumaFiltracion = useMemo(() => {
+    const vals = [cargaFiltroArena, cargaPrefiltro, cargaFiltroCartucho].filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  }, [cargaFiltroArena, cargaPrefiltro, cargaFiltroCartucho]);
+
   const flujoMaxGlobal = useMemo(() => {
     const f = [
       flujoFiltrado > 0 ? flujoFiltrado : null,
@@ -463,10 +481,16 @@ export default function App() {
     return f.length ? Math.max(...f) : null;
   }, [flujoFiltrado, flujoMaxCalentamiento, flujoClorador]);
 
+  // CDT total = filtrado + calentamiento + sanitización + empotrables + filtración
   const cargaTotalGlobal = useMemo(() => {
-    const c = [cargaSumaCalentamiento, cargaSumaSanitizacion].filter(v => v != null);
-    return c.length ? c.reduce((a, b) => a + parseFloat(b), 0) : null;
-  }, [cargaSumaCalentamiento, cargaSumaSanitizacion]);
+    const vals = [
+      cargaSumaCalentamiento,
+      cargaSumaSanitizacion,
+      cargaSumaEmpotrables,
+      cargaSumaFiltracion,
+    ].filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + parseFloat(b), 0) : null;
+  }, [cargaSumaCalentamiento, cargaSumaSanitizacion, cargaSumaEmpotrables, cargaSumaFiltracion]);
 
   /* =====================================================
      RENDER
@@ -535,7 +559,6 @@ export default function App() {
               abierto={toggleFiltrado}
               onToggle={() => setToggleFiltrado(v => !v)}
             >
-              {/* Filtrado principal */}
               <div className="resultado-subheader resultado-subheader--filtrado">
                 Circuito de filtrado
               </div>
@@ -556,29 +579,16 @@ export default function App() {
                 </tbody>
               </table>
 
-              {/* Infinity */}
               {flujoInfinitySistema > 0 && (<>
                 <div className="resultado-subheader resultado-subheader--filtrado">
                   Circuito infinity
                 </div>
                 <table className="tabla-resultados">
                   <tbody>
-                    <tr>
-                      <th className="th-indent">Flujo infinity:</th>
-                      <td className="td-flujo">{formatGPM(flujoInfinitySistema)}</td>
-                    </tr>
-                    <tr>
-                      <th className="th-indent">Tubería inicial:</th>
-                      <td>{fmtTub(tuberiaInicialFiltrado)}</td>
-                    </tr>
-                    <tr>
-                      <th className="th-indent">Velocidad:</th>
-                      <td className="td-vel">{fmtVel(velocidadInicialFiltrado)}</td>
-                    </tr>
-                    <tr>
-                      <th className="th-indent">Motobomba dedicada:</th>
-                      <td>{textoBombaInfinity}</td>
-                    </tr>
+                    <tr><th className="th-indent">Flujo infinity:</th><td className="td-flujo">{formatGPM(flujoInfinitySistema)}</td></tr>
+                    <tr><th className="th-indent">Tubería inicial:</th><td>{fmtTub(tuberiaInicialFiltrado)}</td></tr>
+                    <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadInicialFiltrado)}</td></tr>
+                    <tr><th className="th-indent">Motobomba dedicada:</th><td>{textoBombaInfinity}</td></tr>
                   </tbody>
                 </table>
               </>)}
@@ -592,7 +602,6 @@ export default function App() {
               abierto={toggleCalentamiento}
               onToggle={() => setToggleCalentamiento(v => !v)}
             >
-              {/* Pérdidas */}
               <div className="resultado-subheader resultado-subheader--perdidas">
                 Pérdidas energéticas
               </div>
@@ -612,7 +621,6 @@ export default function App() {
                 </tbody>
               </table>
 
-              {/* BDC */}
               {bdcListoParaMostrar && (<>
                 <div className="resultado-subheader resultado-subheader--equipo">Bomba de calor</div>
                 <table className="tabla-resultados">
@@ -625,7 +633,6 @@ export default function App() {
                 </table>
               </>)}
 
-              {/* Panel solar */}
               {psListoParaMostrar && (<>
                 <div className="resultado-subheader resultado-subheader--equipo">Panel solar</div>
                 <table className="tabla-resultados">
@@ -638,7 +645,6 @@ export default function App() {
                 </table>
               </>)}
 
-              {/* Caldera */}
               {calderaListoParaMostrar && (<>
                 <div className="resultado-subheader resultado-subheader--equipo">Caldera de gas</div>
                 <table className="tabla-resultados">
@@ -651,7 +657,6 @@ export default function App() {
                 </table>
               </>)}
 
-              {/* Calentador eléctrico */}
               {ceListoParaMostrar && (<>
                 <div className="resultado-subheader resultado-subheader--equipo">Calentador eléctrico</div>
                 <table className="tabla-resultados">
@@ -690,16 +695,10 @@ export default function App() {
                     <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr>
                     <tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr>
                     {kgDiaCloroNecesario != null && (
-                      <tr>
-                        <th className="th-indent">Cloro necesario:</th>
-                        <td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td>
-                      </tr>
+                      <tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr>
                     )}
                     {kgDiaCloroInstalado != null && (
-                      <tr>
-                        <th className="th-indent">Cloro instalado:</th>
-                        <td className="td-cloro-ins">{fmtKg(kgDiaCloroInstalado)}</td>
-                      </tr>
+                      <tr><th className="th-indent">Cloro instalado:</th><td className="td-cloro-ins">{fmtKg(kgDiaCloroInstalado)}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -709,6 +708,54 @@ export default function App() {
                 </div>
               )}
             </ResultadoToggle>
+
+            {/* ══ TOGGLE EMPOTRABLES ══ */}
+            {cargaSumaEmpotrables != null && (
+              <ResultadoToggle
+                variante="filtrado"
+                emoji="🔩"
+                label="Empotrables"
+                abierto={toggleEmpotrables}
+                onToggle={() => setToggleEmpotrables(v => !v)}
+              >
+                <table className="tabla-resultados">
+                  <tbody>
+                    {cargaRetorno    != null && <tr><th className="th-indent">Retornos:</th>      <td className="td-cdt">{fmtFt(cargaRetorno)}</td></tr>}
+                    {cargaDesnatador != null && <tr><th className="th-indent">Desnatadores:</th>  <td className="td-cdt">{fmtFt(cargaDesnatador)}</td></tr>}
+                    {cargaDrenCanal  != null && <tr><th className="th-indent">Drenes canal:</th>  <td className="td-cdt">{fmtFt(cargaDrenCanal)}</td></tr>}
+                    {cargaBarredora  != null && <tr><th className="th-indent">Barredoras:</th>    <td className="td-cdt">{fmtFt(cargaBarredora)}</td></tr>}
+                    {cargaDrenFondo  != null && <tr><th className="th-indent">Drenes fondo:</th>  <td className="td-cdt">{fmtFt(cargaDrenFondo)}</td></tr>}
+                    <tr>
+                      <th className="th-indent th-total th-seccion">Subtotal:</th>
+                      <td className="td-cdt">{fmtFt(cargaSumaEmpotrables)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </ResultadoToggle>
+            )}
+
+            {/* ══ TOGGLE FILTRACIÓN ══ */}
+            {cargaSumaFiltracion != null && (
+              <ResultadoToggle
+                variante="filtrado"
+                emoji="🧹"
+                label="Filtración"
+                abierto={toggleFiltracion}
+                onToggle={() => setToggleFiltracion(v => !v)}
+              >
+                <table className="tabla-resultados">
+                  <tbody>
+                    {cargaFiltroArena    != null && <tr><th className="th-indent">Filtro de arena:</th>    <td className="td-cdt">{fmtFt(cargaFiltroArena)}</td></tr>}
+                    {cargaPrefiltro      != null && <tr><th className="th-indent">Prefiltro:</th>           <td className="td-cdt">{fmtFt(cargaPrefiltro)}</td></tr>}
+                    {cargaFiltroCartucho != null && <tr><th className="th-indent">Filtro cartucho:</th>     <td className="td-cdt">{fmtFt(cargaFiltroCartucho)}</td></tr>}
+                    <tr>
+                      <th className="th-indent th-total th-seccion">Subtotal:</th>
+                      <td className="td-cdt">{fmtFt(cargaSumaFiltracion)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </ResultadoToggle>
+            )}
 
             {/* ══ TOTALES siempre visibles ══ */}
             <table className="tabla-resultados tabla-resultados-totales">
