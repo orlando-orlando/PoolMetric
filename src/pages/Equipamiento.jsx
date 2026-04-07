@@ -1653,7 +1653,7 @@ function BloqueCloradorSalino({ resultadoClorador }) {
 /* =====================================================
    BLOQUE CLORADOR AUTOMÁTICO
 ===================================================== */
-function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC }) {
+function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null }) {
   const [modoCL,          setModoCL]          = useState("recomendado");
   const [instalacion,     setInstalacion]     = useState(null);
   const [selManualCLId,   setSelManualCLId]   = useState(null);
@@ -1692,6 +1692,9 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     if (rec) return { marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, instalacion: rec.seleccion.instalacion, cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal, cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI, capInstalada: rec.kgDiaInstalado, unidad: rec.modoCloro === "comercial" ? "kg/día" : "litros" };
     return null;
   }, [modoCL, cloradorManual, rec]);
+
+const cargaCAFt = infoActiva?.cargaTotal != null ? (parseFloat(infoActiva.cargaTotal) || null) : null;
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaCAFt); }, [cargaCAFt]); 
 
   const labelInstalacion = (inst) => inst === "enLinea" ? "En línea" : inst === "fueraLinea" ? "Fuera de línea" : inst;
 
@@ -1780,7 +1783,7 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
 /* =====================================================
    BLOQUE LÁMPARA UV
 ===================================================== */
-function BloqueLamparaUV({ flujoMaxSistema }) {
+function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null }) {
   const [modoUV,          setModoUV]          = useState("recomendado");
   const [selManualUVId,   setSelManualUVId]   = useState(null);
   const [selManualUVCant, setSelManualUVCant] = useState(1);
@@ -1804,6 +1807,9 @@ function BloqueLamparaUV({ flujoMaxSistema }) {
     if (rec) return { marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal, cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI };
     return null;
   }, [modoUV, uvManual, rec]);
+
+const cargaUVFt = infoActiva?.cargaTotal != null ? (parseFloat(infoActiva.cargaTotal) || null) : null;
+  useEffect(() => { if (onCargaChange) onCargaChange(cargaUVFt); }, [cargaUVFt]);
 
   if (!flujoMaxSistema || flujoMaxSistema <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
 
@@ -2514,10 +2520,15 @@ export default function Equipamiento({
   setSeccion, sistemaActivo, datosPorSistema,
   setDatosPorSistema, configBombas, resultadoClorador,
   flujoMaxGlobal, cargaTotalGlobal,
+  onSanitizacionChange,
 }) {
   const [hoveredField,                setHoveredField]                = useState(null);
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState({});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState({});
+
+  useEffect(() => {
+    if (onSanitizacionChange) onSanitizacionChange(sistemasSeleccionadosSanit);
+  }, [sistemasSeleccionadosSanit]);
 
   // Cargas individuales de cada bloque — se actualizan via callbacks
   const [cargas,   setCargas]   = useState({});
@@ -2545,9 +2556,29 @@ export default function Equipamiento({
     });
   };
 
-  const toggleSanitizacion = (key) => setSistemasSeleccionadosSanit(prev => { if (prev[key]) { const n = { ...prev }; delete n[key]; return n; } return { ...prev, [key]: true }; });
-  const toggleFiltracion    = (key) => setSistemasSeleccionadosFilt(prev  => { if (prev[key]) { const n = { ...prev }; delete n[key]; return n; } return { ...prev, [key]: true }; });
+  const CARGA_KEY_SANIT = { cloradorSalino: null, cloradorAutomatico: "cloradorAutomatico", lamparaUV: "lamparaUV" };
+  const CARGA_KEY_FILT  = { filtroArena: "filtroArena", prefiltro: "prefiltro", filtroCartucho: "filtroCartucho" };
 
+  const toggleSanitizacion = (key) => {
+    setSistemasSeleccionadosSanit(prev => {
+      if (prev[key]) {
+        const ck = CARGA_KEY_SANIT[key]; if (ck) setCarga(ck, null);
+        const n = { ...prev }; delete n[key]; return n;
+      }
+      return { ...prev, [key]: true };
+    });
+  };
+
+  const toggleFiltracion = (key) => {
+    setSistemasSeleccionadosFilt(prev => {
+      if (prev[key]) {
+        const ck = CARGA_KEY_FILT[key]; if (ck) setCarga(ck, null);
+        const n = { ...prev }; delete n[key]; return n;
+      }
+      return { ...prev, [key]: true };
+    });
+  };
+  
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
   const volM3         = useMemo(() => volumenTotal(datosDim), [datosDim]);
@@ -2885,6 +2916,7 @@ export default function Equipamiento({
                       areaM2={areaM2}
                       volumenM3={volM3}
                       tempC={tempC}
+                      onCargaChange={(v) => setCarga("cloradorAutomatico", v)}
                     />
                   </div>
                 )}
@@ -2895,8 +2927,7 @@ export default function Equipamiento({
                       <span className="sistema-detalle-icon-svg"><IconoLamparaUV /></span>
                       <span className="sistema-detalle-titulo">Lámpara UV</span>
                     </div>
-                    <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal} />
-                  </div>
+<BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal} onCargaChange={(v) => setCarga("lamparaUV", v)} />                  </div>
                 )}
 
               </div>
