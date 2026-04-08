@@ -1,3 +1,11 @@
+// Al inicio de App.jsx
+if (window.location.pathname === "/memoria-calculo") {
+  import("./pages/MemoriaCalculo.jsx").then(m => {
+    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
+  });
+  // early return para no renderizar el resto
+}
+
 import "./estilos.css";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {

@@ -1,12 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
 import "./index.css";
 import "./estilos.css";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const root = document.getElementById("root");
 
+if (window.location.pathname === "/memoria-calculo") {
+  import("./pages/MemoriaCalculo.jsx").then((m) => {
+    ReactDOM.createRoot(root).render(<m.default />);
+  });
+} else {
+  import("./App.jsx").then((m) => {
+    ReactDOM.createRoot(root).render(
+      <React.StrictMode>
+        <m.default />
+      </React.StrictMode>
+    );
+  });
+}

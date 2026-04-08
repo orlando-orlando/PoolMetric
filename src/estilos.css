@@ -1454,3 +1454,381 @@ select option:hover { background-color: #d1d5db; }
   color: #60a5fa;
   font-variant-numeric: tabular-nums;
 }
+
+/* =====================================================
+   EQUIPAMIENTO — SISTEMA DE PESTAÑAS
+   Agrega esto a estilos.css
+===================================================== */
+
+/* ── Root ── */
+.eq-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-primary, #0a1628);
+}
+
+/* ── Header ── */
+.eq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem 0.75rem;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.08);
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.eq-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.eq-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 5px;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.eq-back-btn:hover {
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.1);
+}
+
+.eq-titulo {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #e2e8f0);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.eq-header-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.eq-header-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 20px;
+  padding: 0.2rem 0.6rem;
+}
+
+.eq-header-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.eq-header-badge-dot--flujo { background: #38bdf8; box-shadow: 0 0 6px #38bdf860; }
+.eq-header-badge-dot--cdt   { background: #f97316; box-shadow: 0 0 6px #f9731660; }
+
+/* ── Tabs wrapper ── */
+.eq-tabs-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem 0;
+  background: var(--color-bg-primary, #0a1628);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.06);
+}
+
+.eq-tabs {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+
+.eq-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: color 0.18s, background 0.18s;
+  white-space: nowrap;
+  position: relative;
+}
+
+.eq-tab:hover:not(.eq-tab--activa) {
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.06);
+}
+
+.eq-tab--activa {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.eq-tab-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.8;
+}
+.eq-tab--activa .eq-tab-icon {
+  opacity: 1;
+}
+
+.eq-tab-label {
+  /* se oculta en pantallas muy pequeñas si fuera necesario */
+}
+
+/* Badge de conteo / estado */
+.eq-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 0.1rem 0.38rem;
+  line-height: 1;
+  min-width: 16px;
+}
+.eq-tab-badge--count {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+}
+.eq-tab-badge--ok {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+/* Línea indicadora animada */
+.eq-tabs-indicador-track {
+  position: absolute;
+  bottom: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  background: rgba(56, 189, 248, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.eq-tabs-indicador {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #38bdf8;
+  border-radius: 2px;
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px #38bdf880;
+}
+
+/* ── Contenido ── */
+.eq-contenido {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+/* ── Sección ── */
+.eq-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.eq-seccion-intro {
+  margin-bottom: 1rem;
+}
+
+.eq-seccion-desc {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Grid selector de sistemas (sanitización / filtración) ── */
+.eq-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.eq-selector-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.85rem 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, transform 0.12s;
+  text-align: center;
+}
+
+.eq-selector-card:hover:not(.eq-selector-card--activo) {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.eq-selector-card--activo {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(56, 189, 248, 0.07);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.08);
+}
+
+.eq-selector-card-check {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  font-size: 0.65rem;
+  color: #34d399;
+  font-weight: 700;
+  min-width: 12px;
+}
+
+.eq-selector-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+.eq-selector-card--activo .eq-selector-card-icon {
+  opacity: 1;
+}
+
+.eq-selector-card-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+.eq-selector-card--activo .eq-selector-card-label {
+  color: #e2e8f0;
+}
+
+/* ── Bloque de equipo ── */
+.eq-bloque {
+  border: 1px solid rgba(56, 189, 248, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  background: rgba(15, 23, 42, 0.3);
+}
+
+.eq-bloque-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  background: rgba(56, 189, 248, 0.05);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.08);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7dd3fc;
+}
+
+.eq-bloque-header--descarga { background: rgba(56, 189, 248, 0.06); }
+.eq-bloque-header--succion  { background: rgba(148, 163, 184, 0.05); color: #94a3b8; }
+.eq-bloque-header--info     { background: rgba(100, 116, 139, 0.04); color: #64748b; }
+
+.eq-bloque > .sanitizacion-bloque-equipo,
+.eq-bloque > div > .sanitizacion-bloque-equipo {
+  padding: 0.75rem 0.75rem 0.5rem;
+}
+
+.eq-bloque-badge {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+}
+.eq-bloque-badge--suma    { background: rgba(52, 211, 153, 0.12); color: #34d399; }
+.eq-bloque-badge--goberna { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+.eq-bloque-badge--info    { background: rgba(100, 116, 139, 0.15); color: #64748b; }
+
+/* Sub-label dentro de empotrables */
+.eq-sub-label {
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 500;
+  padding: 0.6rem 1rem 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid rgba(100, 116, 139, 0.1);
+}
+.eq-sub-label:first-of-type {
+  border-top: none;
+}
+
+/* ── Calentamiento lista ── */
+.eq-cal-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ── Botón ir a sección ── */
+.eq-ir-seccion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  margin-top: 0.75rem;
+}
+.eq-ir-seccion-btn:hover {
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.14);
+}
+
+/* ── Estado vacío ── */
+.eq-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1rem;
+  color: #475569;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* ── Responsive — si el panel es muy estrecho ── */
+@media (max-width: 520px) {
+  .eq-tab-label { display: none; }
+  .eq-tab { padding: 0.55rem 0.4rem; }
+  .eq-selector-grid { grid-template-columns: 1fr 1fr; }
+  .eq-header { padding: 0.75rem 1rem 0.6rem; }
+  .eq-contenido { padding: 1rem 1rem 2rem; }
+}
