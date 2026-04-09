@@ -73,15 +73,62 @@ function recomendarRetorno(flujoMaximo, datos) {
 function recomendarDesnatador(flujoMaximo, datos) {
   if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
   try {
-    const res = desnatador(flujoMaximo, "2.0", datos);
-    if (!res?.resultadoD?.length) return null;
-    const num        = res.resultadoD.length;
+    const area     = parseFloat(datos?.area) || 0;
+    const catalogo = desnatadores.filter(d => d.metadata.activo && d.specs.dimensionPuerto === 2.0);
+    if (!catalogo.length) return null;
+    // Usar el primer equipo activo para obtener capacidad de flujo unitaria
+    const equipo = catalogo[0];
+    const capFlujo = equipo.specs.flujo ?? 0;
+    // Cantidad mínima: el mayor entre criterio de área y criterio de flujo
+    const num = cantMinDesnatador(flujoMaximo, datos, capFlujo);
     const flujoPorEq = flujoMaximo / num;
-    const catalogo   = desnatadores.filter(d => d.metadata.activo && d.specs.dimensionPuerto === 2.0);
-    const equipo     = catalogo.find(d => d.specs.flujo >= flujoPorEq) ?? catalogo[catalogo.length - 1];
-    if (!equipo) return null;
+    // Recalcular hidráulica con la cantidad correcta
+    const res = desnatador(flujoMaximo, "2.0", datos, num);
+    if (!res?.resultadoD?.length) return null;
     return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo: "2.0", res };
   } catch { return null; }
+}
+
+/* Calcula la cantidad mínima de desnatadores:
+   max(ceil(area/40), ceil(flujo/capacidad_desnatador))
+   La capacidad por área es 40 m² por desnatador (superficie de cobertura).
+   Si el flujo unitario resultante excede la capacidad del equipo → prima el flujo.
+   Se pasa la capacidad de flujo del equipo seleccionado via el prop cantMinFn
+   usando un closure: cantMinFn = (flujo, datos) => cantMinDesnatador(flujo, datos, capacidad)
+*/
+function cantMinDesnatador(flujoMaximo, datos, capacidadFlujoPorEquipo) {
+  const area = parseFloat(datos?.area) || 0;
+  // Criterio 1: cobertura de área (1 desnatador por cada 40 m²)
+  const numPorArea  = area > 0 ? Math.ceil(area / 40) : 2;
+  // Criterio 2: flujo total / capacidad por equipo
+  const numPorFlujo = capacidadFlujoPorEquipo > 0
+    ? Math.max(2, Math.ceil(flujoMaximo / capacidadFlujoPorEquipo))
+    : 2;
+  // El más restrictivo (mayor número) manda
+  return Math.max(numPorArea, numPorFlujo, 2);
+}
+
+/* Calcula la cantidad mínima de drenes de fondo:
+   flujoMaximo × 2 / capacidadDren (igual que drenFondo.js) */
+function cantMinDrenFondo(flujoMaximo, datos, capacidadDren) {
+  if (!flujoMaximo || capacidadDren <= 0) return 2;
+  let num = Math.ceil((flujoMaximo * 2) / capacidadDren);
+  if (num % 2 !== 0) num++;
+  return Math.max(2, num);
+}
+
+/* Calcula la cantidad mínima de barredoras por geometría del área
+   (misma lógica que barredora.js) para usarla en BloqueEmpotrable */
+function cantMinBarredora(flujoMaximo, datos) {
+  const area = parseFloat(datos?.area) || 0;
+  if (area <= 0) return 2;
+  const manguera = parseFloat(datos?.mangueraBarredora) || 7.5;
+  const largoFinal = manguera - manguera * 0.05;
+  const areaSemiCirculo = (Math.PI * largoFinal * largoFinal) / 2;
+  const numA = area / areaSemiCirculo;
+  const numB = Math.sqrt(area) / (largoFinal * 2);
+  const num = largoFinal > Math.sqrt(area) ? numB : numA;
+  return Math.max(2, Math.ceil(num));
 }
 
 function recomendarBarredora(flujoMaximo, datos) {
@@ -435,7 +482,7 @@ function tipoParaCalculo(eq) {
 /* =====================================================
    BLOQUE EMPOTRABLE GENÉRICO
 ===================================================== */
-function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null }) {
+function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1 }) {
   const [modo, setModo]               = useState("recomendado");
   const [selId, setSelId]             = useState(null);
   const [selCant, setSelCant]         = useState(null);
@@ -445,17 +492,29 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
 
   const marcas          = useMemo(() => ["todas", ...new Set(catalogo.filter(e => e.metadata.activo).map(e => e.marca))], [catalogo]);
   const catalogoFiltrado = useMemo(() => catalogo.filter(e => e.metadata.activo && (filtroMarca === "todas" || e.marca === filtroMarca)), [catalogo, filtroMarca]);
-  const cantMinima      = useMemo(() => {
-    if (!selId || !flujoMaximo) return 2;
-    const eq = catalogo.find(e => e.id === selId);
-    return eq ? Math.max(2, Math.ceil(flujoMaximo / eq.specs.flujo)) : 2;
-  }, [selId, flujoMaximo, catalogo]);
+
+  // Calcula el mínimo dado un equipo (o el seleccionado si no se pasa)
+  const calcMin = (eqId) => {
+    const id = eqId ?? selId;
+    if (!id || !flujoMaximo) return 2;
+    const eq = catalogo.find(e => e.id === id);
+    if (!eq) return 2;
+    if (cantMinFn && datos) {
+      const cap = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+      return cantMinFn(flujoMaximo, datos, cap);
+    }
+    const flujoEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    if (flujoEq <= 0) return 2;
+    let num = Math.ceil((flujoMaximo * cantMinMultiplier) / flujoEq);
+    if (cantMinMultiplier > 1 && num % 2 !== 0) num++;
+    return Math.max(2, num);
+  };
+  const cantMinima = calcMin();
 
   const handleSelEquipo = (id) => {
     if (selId === id) { setSelId(null); setSelCant(null); return; }
     setSelId(id);
-    const eq = catalogo.find(e => e.id === id);
-    setSelCant(eq && flujoMaximo ? Math.max(2, Math.ceil(flujoMaximo / eq.specs.flujo)) : 2);
+    setSelCant(calcMin(id));
   };
 
   let manualCalc = null;
@@ -473,6 +532,11 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   const infoActiva    = modo === "recomendado" ? rec : manualCalc;
   const cargaActivaFt = infoActiva?.res?.sumaFinal ?? null;
   const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null } : null;
+
+  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  useEffect(() => {
+    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+  }, [cantMinima]);
 
   useEffect(() => { if (onCargaChange) onCargaChange(cargaActivaFt); }, [cargaActivaFt]);
   useEffect(() => { if (onEstadoChange) onEstadoChange(estadoActual); }, [JSON.stringify(estadoActual)]);
@@ -539,7 +603,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                 {catalogoFiltrado.map(eq => {
                   const esRec   = rec && eq.id === rec.equipo.id;
                   const sel     = selId === eq.id;
-                  const minEste = Math.max(2, Math.ceil(flujoMaximo / eq.specs.flujo));
+                  const minEste = calcMin(eq.id);
                   return (
                     <div key={eq.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => handleSelEquipo(eq.id)}>
                       <div className="bdc-manual-fila-info">
@@ -1775,15 +1839,15 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                 })()}
                 {/* Iteraciones */}
                 {resultado.iteraciones.map((it, i) => {
-                  const cargaBomba = parseFloat(it.cargaDispBomba ?? it.cargaBomba ?? 0);
-                  const cargaSal   = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
+                  const cargaSal = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
+                  const qBomba   = it.flujoPorBomba ?? parseFloat((it.flujoEquilibrio ?? 0) / (resultado?.nBombas ?? 1));
                   return (
                     <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px solid rgba(56,189,248,0.08)", borderRadius: "6px", padding: "0.4rem 0.7rem", display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "center" }}>
                       <span style={{ fontSize: "0.68rem", color: "#7dd3fc", fontWeight: 700, minWidth: "56px" }}>Iter. {it.iter ?? (i+1)}</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q = <span style={{ color: "#e2e8f0" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span></span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT entrada = <span style={{ color: "#e2e8f0" }}>{parseFloat(it.cargaEntrada ?? 0).toFixed(2)} ft</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT salida = <span style={{ color: "#e2e8f0" }}>{cargaSal.toFixed(2)} ft</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT bomba = <span style={{ color: cargaBomba > 0 && cargaBomba >= cargaSal ? "#34d399" : "#f97316" }}>{cargaBomba > 0 ? cargaBomba.toFixed(2) : "—"} ft</span></span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q bomba = <span style={{ color: "#38bdf8" }}>{parseFloat(qBomba).toFixed(1)} GPM/bomba</span></span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q total = <span style={{ color: "#38bdf8" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span></span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT salida = <span style={{ color: "#fbbf24" }}>{cargaSal.toFixed(2)} ft</span></span>
                     </div>
                   );
                 })}
@@ -2478,7 +2542,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} />
                 </div>
               </>) : (<>
                 <div className="sistema-detalle-card" style={{ marginBottom: "0.5rem" }}>
@@ -2486,14 +2550,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDesnatador /></span>
                     <span className="sistema-detalle-titulo">Desnatadores</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" rec={recDesnatador} catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto />
+                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" rec={recDesnatador} catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} />
                 </div>
               </>)}
             </div>
@@ -2505,7 +2569,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Barredoras</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Solo informativo</span>
                 </div>
-                <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto />
+                <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} />
               </div>
             </div>
           </>)}

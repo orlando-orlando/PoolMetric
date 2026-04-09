@@ -14,18 +14,48 @@ import { drenFondo }                      from "./drenFondo";
 import { drenCanal }                      from "./drenCanal";
 import { calcularCargaFiltroArenaManual } from "./filtroArena";
 import { calcularCargaPrefiltroManual }   from "./prefiltro";
-import { calcularCargaFiltroCartuchoManual, flujoEfectivo } from "./filtroCartucho";
+import { calcularCargaFiltroCartuchoManual } from "./filtroCartucho";
 
 /* ================================================================
-   INTERPOLACIÓN/EXTRAPOLACIÓN — carga dado flujo en curva de bomba
-   Si el flujo está fuera del rango tabulado, extrapola linealmente
-   con los dos últimos puntos de la curva.
+   INTERPOLACIÓN/EXTRAPOLACIÓN — flujo dado CDT en curva de bomba
+   Dado un CDT objetivo, devuelve el flujo que entrega la bomba.
+   La curva es decreciente: a mayor CDT requerido, menor flujo.
+   ================================================================ */
+function flujoEnCurva(curva, cargaObjetivo) {
+  if (!curva || curva.length === 0) return null;
+
+  // CDT mayor que el máximo de la bomba (shut-off) → bomba no arranca
+  if (cargaObjetivo > curva[0].carga_ft) return 0;
+
+  // CDT menor que el mínimo tabulado → extrapolar con últimos 2 puntos
+  if (cargaObjetivo < curva[curva.length - 1].carga_ft) {
+    const ult = curva[curva.length - 1];
+    const pen = curva[curva.length - 2];
+    const dH  = ult.carga_ft - pen.carga_ft;
+    const dQ  = ult.flujo_gpm - pen.flujo_gpm;
+    if (Math.abs(dH) < 1e-10) return ult.flujo_gpm;
+    const t = (cargaObjetivo - pen.carga_ft) / dH;
+    return Math.max(0, pen.flujo_gpm + t * dQ);
+  }
+
+  // Interpolar dentro del rango
+  for (let i = 0; i < curva.length - 1; i++) {
+    const p1 = curva[i], p2 = curva[i + 1];
+    if (cargaObjetivo <= p1.carga_ft && cargaObjetivo >= p2.carga_ft) {
+      const t = (p1.carga_ft - cargaObjetivo) / (p1.carga_ft - p2.carga_ft);
+      return p1.flujo_gpm + t * (p2.flujo_gpm - p1.flujo_gpm);
+    }
+  }
+  return null;
+}
+
+/* ================================================================
+   INTERPOLACIÓN/EXTRAPOLACIÓN — CDT dado flujo en curva de bomba
    ================================================================ */
 function cargaEnCurva(curva, flujo_gpm) {
   if (!curva || curva.length === 0) return null;
   if (flujo_gpm <= curva[0].flujo_gpm) return curva[0].carga_ft;
 
-  // Dentro del rango: interpolación
   for (let i = 0; i < curva.length - 1; i++) {
     const p1 = curva[i], p2 = curva[i + 1];
     if (flujo_gpm >= p1.flujo_gpm && flujo_gpm <= p2.flujo_gpm) {
@@ -34,15 +64,13 @@ function cargaEnCurva(curva, flujo_gpm) {
     }
   }
 
-  // Fuera del rango por la derecha: extrapolación lineal con últimos 2 puntos
+  // Extrapolar con últimos 2 puntos
   const ult = curva[curva.length - 1];
   const pen = curva[curva.length - 2];
   const dQ  = ult.flujo_gpm - pen.flujo_gpm;
   if (dQ === 0) return ult.carga_ft;
-  const pendiente = (ult.carga_ft - pen.carga_ft) / dQ;
-  const extrapolado = ult.carga_ft + pendiente * (flujo_gpm - ult.flujo_gpm);
-  // No puede ser negativa (bomba no entrega carga negativa)
-  return Math.max(0, extrapolado);
+  const pend = (ult.carga_ft - pen.carga_ft) / dQ;
+  return Math.max(0, ult.carga_ft + pend * (flujo_gpm - ult.flujo_gpm));
 }
 
 /* ================================================================
@@ -54,17 +82,42 @@ function normTipo(raw) {
 }
 
 /* ================================================================
-   RECALCULAR CARGA DE UN EMPOTRABLE dado flujo y estado actual
+   RECALCULAR CARGA DE UN EMPOTRABLE dado flujo nuevo
    ================================================================ */
 function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalculo, catalogo) {
   if (!estado?.selId || !flujoNuevo || !datosEmpotrable) return null;
   const eq = catalogo.find(e => e.id === estado.selId);
   if (!eq) return null;
 
-  const flujoPorEq  = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
-  const cantMinNueva = flujoPorEq > 0 ? Math.max(2, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
-  const cantFinal   = Math.max(cantMinNueva, estado.cantidad ?? 1);
-  const tipo        = estado.tipo ?? normTipo(eq.specs.tamano ?? eq.specs.dimensionPuerto ?? "");
+  let cantMinNueva;
+  if (key === "barredora") {
+    const area = parseFloat(datosEmpotrable?.area) || 0;
+    const manguera = parseFloat(datosEmpotrable?.mangueraBarredora) || 7.5;
+    const largoFinal = manguera - manguera * 0.05;
+    const areaSemiCirculo = (Math.PI * largoFinal * largoFinal) / 2;
+    const numA = area / areaSemiCirculo;
+    const numB = Math.sqrt(area) / (largoFinal * 2);
+    const numGeom = largoFinal > Math.sqrt(area) ? numB : numA;
+    cantMinNueva = Math.max(2, Math.ceil(numGeom));
+  } else if (key === "desnatador") {
+    // Desnatadores: mayor entre criterio de área (area/40) y criterio de flujo
+    const area       = parseFloat(datosEmpotrable?.area) || 0;
+    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    const numPorArea  = area > 0 ? Math.ceil(area / 40) : 2;
+    const numPorFlujo = flujoPorEq > 0 ? Math.max(2, Math.ceil(flujoNuevo / flujoPorEq)) : 2;
+    cantMinNueva = Math.max(numPorArea, numPorFlujo, 2);
+  } else if (key === "drenFondo" || key === "drenCanal") {
+    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
+    if (num % 2 !== 0) num++;
+    cantMinNueva = Math.max(2, num);
+  } else {
+    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    cantMinNueva = flujoPorEq > 0 ? Math.max(2, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
+  }
+
+  const cantFinal = Math.max(cantMinNueva, estado.cantidad ?? 1);
+  const tipo = estado.tipo ?? normTipo(eq.specs.tamano ?? eq.specs.dimensionPuerto ?? "");
 
   try {
     const res = fnCalculo(flujoNuevo, tipo, datosEmpotrable, cantFinal);
@@ -78,7 +131,7 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 }
 
 /* ================================================================
-   RECALCULAR CARGA DE UN FILTRO dado flujo y estado actual
+   RECALCULAR CARGA DE UN FILTRO dado flujo nuevo
    ================================================================ */
 function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGeneral) {
   if (!estado?.selId || !flujoNuevo) return null;
@@ -97,7 +150,7 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   } else if (key === "filtroCartucho") {
     const f = catalogo.find(f => f.id === estado.selId);
     if (!f) return null;
-    flujoEf = flujoEfectivo(f, usoGeneral) ?? estado.flujoEf;
+    flujoEf = estado.flujoEf ?? f.specs.flujoComercial;
     modelo = f.modelo; marca = f.marca;
   }
 
@@ -121,23 +174,20 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
 /* ================================================================
    FUNCIÓN PRINCIPAL: calcularEquilibrio()
 
-   Física correcta:
-   ─────────────────
-   La curva del SISTEMA es parabólica: CDT_sis(Q) = k · Q²
-   donde k = cargaInicial / flujoInicial²   (punto de diseño)
+   ALGORITMO:
+   ──────────
+   El punto de partida es la CDT de diseño (cargaInicial).
+   La bomba a esa CDT entrega cierto flujo → ese es el flujo de trabajo real.
+   Con ese flujo se recalculan los equipos → nuevo CDT.
+   La bomba a ese nuevo CDT entrega otro flujo → iteración 2.
+   Con ese flujo se vuelven a recalcular los equipos → CDT final.
 
-   El punto de EQUILIBRIO es la intersección de la curva del sistema
-   con la curva de la bomba (o banco en paralelo):
-     CDT_bomba(Q/n) = k · Q²
-
-   Se resuelve buscando el Q donde esa igualdad se cumple.
-   A mayor flujo de diseño → mayor CDT del sistema → la bomba
-   opera más a la izquierda de su curva.
-   Si la bomba tiene exceso de carga en el punto de diseño, el
-   equilibrio real estará a la DERECHA (mayor Q), no a la izquierda.
-
-   Los empotrables y filtros se recalculan en el punto de equilibrio
-   solo para informar cuántas unidades se necesitan.
+   Iter 1:
+     - Flujo_1 = flujo que da 1 bomba a CDT_diseño × nBombas
+     - Recalcular equipos con Flujo_1 → CDT_nuevo_1
+   Iter 2:
+     - Flujo_2 = flujo que da 1 bomba a CDT_nuevo_1 × nBombas
+     - Recalcular equipos con Flujo_2 → CDT_nuevo_2 (resultado final)
    ================================================================ */
 export function calcularEquilibrio({
   bombaId, nBombas, flujoInicial, cargaInicial,
@@ -149,15 +199,15 @@ export function calcularEquilibrio({
 
   const curva = bomba.curva;
   if (!curva || curva.length < 2) return { error: "La motobomba no tiene curva de rendimiento definida." };
-
-  // ── Constante de la curva del sistema (parabólica, pasa por el origen) ──
-  // CDT_sis(Q) = k · Q²   con   k = cargaInicial / flujoInicial²
   if (!flujoInicial || flujoInicial <= 0 || !cargaInicial || cargaInicial <= 0)
     return { error: "Flujo o carga de diseño no válidos." };
 
-  const k = cargaInicial / (flujoInicial * flujoInicial);
+  // Verificar que la bomba alcanza la CDT de diseño
+  const cargaMaxBomba = curva[0].carga_ft;
+  if (cargaInicial > cargaMaxBomba) {
+    return { error: `La motobomba no alcanza la CDT de diseño (${cargaInicial.toFixed(2)} ft > ${cargaMaxBomba} ft shut-off).` };
+  }
 
-  // Mapa de funciones y catálogos
   const empotrablesConfig = {
     retorno:    { fn: (f,t,d,n) => retorno(f,t,d,n),    cat: retornos    },
     desnatador: { fn: (f,t,d,n) => desnatador(f,t,d,n), cat: desnatadores },
@@ -171,179 +221,40 @@ export function calcularEquilibrio({
     filtroCartucho: { fn: calcularCargaFiltroCartuchoManual, cat: filtrosCartucho },
   };
 
-  /* ── Buscar Q de equilibrio ──────────────────────────────────────
-     Recorremos la curva de la bomba en paralelo punto a punto.
-     Para cada punto (Q_b, H_b) de la curva de UNA bomba:
-       - Q_total = Q_b * nBombas
-       - CDT_sis  = k * Q_total²
-     El equilibrio es donde H_b cruce CDT_sis(Q_total).
-     Interpolamos la intersección entre los dos puntos donde ocurre.
-  ──────────────────────────────────────────────────────────────── */
-  let flujoEq = null;
-  let cargaEq = null;
-
-  for (let i = 0; i < curva.length - 1; i++) {
-    const p1 = curva[i],     p2 = curva[i + 1];
-    const Q1 = p1.flujo_gpm * nBombas;
-    const Q2 = p2.flujo_gpm * nBombas;
-    const H1_bomba = p1.carga_ft;
-    const H2_bomba = p2.carga_ft;
-    const H1_sis   = k * Q1 * Q1;
-    const H2_sis   = k * Q2 * Q2;
-
-    // Diferencia: bomba - sistema
-    const d1 = H1_bomba - H1_sis;
-    const d2 = H2_bomba - H2_sis;
-
-    // Si cruzan de positivo a negativo (o igual a cero) → hay intersección
-    if (d1 >= 0 && d2 <= 0) {
-      // Interpolación lineal de la intersección
-      const t   = d1 / (d1 - d2);          // fracción entre p1 y p2
-      flujoEq   = Q1 + t * (Q2 - Q1);
-      cargaEq   = H1_sis + t * (H2_sis - H1_sis); // CDT del sistema en ese punto
-      break;
-    }
-  }
-
-  // Si no encontramos intersección dentro del rango de la curva
-  if (flujoEq == null) {
-    const ultimo  = curva[curva.length - 1];
-    const primero = curva[0];
-
-    // Caso A: bomba siempre POR DEBAJO del sistema → subdimensionada
-    const H0_bomba = primero.carga_ft;
-    const H0_sis   = k * (primero.flujo_gpm * nBombas) ** 2;
-    if (H0_bomba < H0_sis) {
-      return { error: "La motobomba no alcanza la curva del sistema. Selecciona una bomba de mayor potencia." };
-    }
-
-    // Caso B: bomba siempre POR ENCIMA → equilibrio más allá del rango tabulado.
-    // Extrapolamos linealmente con los últimos dos puntos de la curva para
-    // encontrar el flujo donde la bomba entregaría la carga del sistema.
-    const penultimo = curva[curva.length - 2];
-
-    // Pendiente de la curva de la bomba (ft por GPM) entre los últimos dos puntos
-    const dQ_curva = ultimo.flujo_gpm - penultimo.flujo_gpm;
-    const dH_curva = ultimo.carga_ft  - penultimo.carga_ft;   // negativo (curva baja)
-    const pendiente = dQ_curva !== 0 ? dH_curva / dQ_curva : 0;
-
-    // Pendiente de la curva del sistema en el último punto (tangente de k·Q²)
-    // d(k·Q²)/dQ = 2·k·Q  — evaluada en Q_total del último punto
-    const Q_ult_total = ultimo.flujo_gpm * nBombas;
-    const pendSis_Q   = 2 * k * Q_ult_total;           // ft por GPM (del sistema)
-    // En términos de flujo por bomba: dividimos por nBombas
-    const pendSis     = pendSis_Q * nBombas;            // ft por GPM_total
-
-    // Diferencia en el último punto (bomba - sistema)
-    const H_sis_ult = k * Q_ult_total * Q_ult_total;
-    const diff_ult  = ultimo.carga_ft - H_sis_ult;      // positivo (bomba aún > sistema)
-
-    // La diferencia cambia a razón de (pendiente_bomba - pendiente_sistema) por GPM
-    // Extrapolamos cuántos GPM más necesitamos para que diff = 0
-    const pendDiff = pendiente - pendSis / nBombas;     // pendiente de la diferencia
-    let deltaQ_extra = 0;
-    if (Math.abs(pendDiff) > 1e-10) {
-      deltaQ_extra = -diff_ult / pendDiff;              // puede ser positivo (a la derecha)
-    }
-
-    const Q_b_extra   = ultimo.flujo_gpm + deltaQ_extra;
-    flujoEq = parseFloat((Q_b_extra * nBombas).toFixed(2));
-    const H_sis_extra = k * flujoEq * flujoEq;
-    cargaEq = parseFloat(H_sis_extra.toFixed(2));
-  }
-
-  flujoEq = parseFloat(flujoEq.toFixed(2));
-  cargaEq = parseFloat(cargaEq.toFixed(2));
-
-  // CDT que la bomba entrega en el punto de equilibrio
-  const cargaDispBomba = cargaEnCurva(curva, flujoEq / nBombas);
-
-  /* ── Función auxiliar: buscar Q de equilibrio dado k (curva del sistema) ── */
-  function buscarEquilibrio(kSis) {
-    let fEq = null, hEq = null;
-    for (let i = 0; i < curva.length - 1; i++) {
-      const p1 = curva[i], p2 = curva[i + 1];
-      const Q1 = p1.flujo_gpm * nBombas, Q2 = p2.flujo_gpm * nBombas;
-      const d1 = p1.carga_ft - kSis * Q1 * Q1;
-      const d2 = p2.carga_ft - kSis * Q2 * Q2;
-      if (d1 >= 0 && d2 <= 0) {
-        const t = d1 / (d1 - d2);
-        fEq = Q1 + t * (Q2 - Q1);
-        hEq = kSis * fEq * fEq;
-        break;
-      }
-    }
-    // Si no hay intersección dentro del rango → extrapolar con últimos 2 puntos
-    if (fEq == null) {
-      const ult = curva[curva.length - 1], pen = curva[curva.length - 2];
-      // Verificar si la bomba está siempre por debajo (subdimensionada)
-      const H0 = curva[0].carga_ft, H0sis = kSis * (curva[0].flujo_gpm * nBombas) ** 2;
-      if (H0 < H0sis) return null; // subdimensionada
-      // Extrapolación lineal
-      const dQ = ult.flujo_gpm - pen.flujo_gpm;
-      const dH = ult.carga_ft  - pen.carga_ft;
-      const pend = dQ !== 0 ? dH / dQ : 0;
-      const Q_ult = ult.flujo_gpm * nBombas;
-      const H_sis_ult = kSis * Q_ult * Q_ult;
-      const diff_ult  = ult.carga_ft - H_sis_ult;
-      const pendSis   = 2 * kSis * Q_ult;
-      const pendDiff  = pend - pendSis / nBombas;
-      const deltaQ    = Math.abs(pendDiff) > 1e-10 ? -diff_ult / pendDiff : 0;
-      fEq = (ult.flujo_gpm + deltaQ) * nBombas;
-      hEq = kSis * fEq * fEq;
-    }
-    return { flujoEq: parseFloat(fEq.toFixed(2)), cargaEq: parseFloat(hEq.toFixed(2)) };
-  }
-
-  /* ── 2 iteraciones completas ─────────────────────────────────────────────
-     Iter 1: equilibrio con curva de diseño original  (k = CDT_dis / Q_dis²)
-             → recalcular equipos con Q_eq1
-             → nuevo CDT sumando deltas de cargas recalculadas
-     Iter 2: equilibrio con curva actualizada          (k2 = CDT_nuevo / Q_eq1²)
-             → recalcular equipos con Q_eq2
-             → resultado final
-  ──────────────────────────────────────────────────────────────────────── */
-  const iteraciones = [];
   const empKeys = tieneDesbordeCanal
     ? ["retorno", "barredora", "drenFondo", "drenCanal"]
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
-  let kActual        = k;
-  let flujoEqActual  = flujoEq;
-  let cargaEqActual  = cargaEq;
-  let equiposFinales = {};
-
-  for (let iter = 0; iter < 2; iter++) {
-    const flujoIter = flujoEqActual;
-
-    // ── Recalcular empotrables y filtros con el flujo de esta iteración ──
+  /* ── Función: recalcular equipos con flujo dado y obtener CDT nuevo ──
+     cargaBase: el CDT de referencia al que se aplica el delta
+     (iter1 usa cargaInicial, iter2 usa cdt1)
+  ── */
+  function recalcularYObtenerCDT(flujoNuevo, cargaBase) {
     const equiposRecalc = {};
 
     for (const key of empKeys) {
       const est = estados[key];
       if (!est?.selId) continue;
       const cfg = empotrablesConfig[key];
-      const rec = recalcularEmpotrable(key, est, flujoIter, datosEmpotrable, cfg.fn, cfg.cat);
-      if (rec) equiposRecalc[key] = rec;
-    }
-    for (const key of ["filtroArena", "prefiltro", "filtroCartucho"]) {
-      const est = estados[key];
-      if (!est) continue;
-      const cfg = filtrosConfig[key];
-      const rec = recalcularFiltro(key, est, flujoIter, cfg.fn, cfg.cat, usoGeneral);
+      const rec = recalcularEmpotrable(key, est, flujoNuevo, datosEmpotrable, cfg.fn, cfg.cat);
       if (rec) equiposRecalc[key] = rec;
     }
 
-    // ── Calcular el nuevo CDT total con las cargas recalculadas ──
-    // Parte 1: cargas que NO se recalculan (calentamiento, sanitización, etc.)
-    //   → se preservan de cargasIniciales
-    // Parte 2: cargas que SÍ se recalculan → nuevos valores
+    for (const key of ["filtroArena", "prefiltro", "filtroCartucho"]) {
+      const est = estados[key];
+      if (!est?.selId) continue;
+      const cfg = filtrosConfig[key];
+      const rec = recalcularFiltro(key, est, flujoNuevo, cfg.fn, cfg.cat, usoGeneral);
+      if (rec) equiposRecalc[key] = rec;
+    }
+
+    // CDT nuevo = cargaBase + Σ(carga_nueva - carga_original_diseño)
+    // Usamos cargasIniciales (diseño) como referencia fija del delta,
+    // y sumamos ese delta sobre la cargaBase del paso anterior.
     const keysRecalc = [
       ...empKeys.filter(k => equiposRecalc[k] != null),
       ...["filtroArena", "prefiltro", "filtroCartucho"].filter(k => equiposRecalc[k] != null),
     ];
-
-    // CDT nuevo = cargaInicial - Σ(cargas_originales_recalculadas) + Σ(cargas_nuevas)
     let deltaCargas = 0;
     for (const key of keysRecalc) {
       const cargaOrig  = parseFloat(cargasIniciales[key] ?? 0);
@@ -351,51 +262,76 @@ export function calcularEquilibrio({
       const cargaNueva = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
       deltaCargas += (cargaNueva - cargaOrig);
     }
-    const cargaTotalNueva = Math.max(0.1, cargaInicial + deltaCargas);
+    const cargaTotalNueva = Math.max(0.1, cargaBase + deltaCargas);
 
-    // ── CDT de la bomba en este punto ──
-    const cargaBombaIt = parseFloat((cargaEnCurva(curva, flujoIter / nBombas) ?? 0).toFixed(2));
-
-    iteraciones.push({
-      iter:            iter + 1,
-      flujoEquilibrio: flujoIter,
-      cargaEntrada:    parseFloat((iter === 0 ? cargaInicial : iteraciones[0].cargaSalida).toFixed(2)),
-      cargaSalida:     parseFloat(cargaTotalNueva.toFixed(2)),
-      cargaDispBomba:  cargaBombaIt,
-      equiposRecalc,
-    });
-
-    equiposFinales = equiposRecalc;
-
-    // ── Preparar siguiente iteración ──
-    // Nueva curva del sistema: pasa por (flujoIter, cargaTotalNueva)
-    if (iter < 1) {
-      kActual = cargaTotalNueva / (flujoIter * flujoIter);
-      const sig = buscarEquilibrio(kActual);
-      if (sig) {
-        flujoEqActual = sig.flujoEq;
-        cargaEqActual = sig.cargaEq;
-      }
-      // Si sig es null (subdimensionada tras recalculo) dejamos el flujo actual
-    }
+    return { equiposRecalc, cargaTotalNueva };
   }
 
-  const ultima         = iteraciones[iteraciones.length - 1];
-  const flujoFinal     = ultima.flujoEquilibrio;
-  const cargaFinal     = ultima.cargaSalida;
+  /* ══ Iteración 1 ══
+     CDT entrada = CDT del sistema de diseño (31.39 ft)
+     La bomba a ese CDT da más flujo que el de diseño (tiene exceso)
+     → recalcular equipos con ese flujo mayor → CDT salida
+  ══════════════════ */
+  const cargaEntrada_1  = parseFloat(cargaInicial.toFixed(2));
+  const flujoPorBomba_1 = flujoEnCurva(curva, cargaEntrada_1);
+  if (flujoPorBomba_1 == null || flujoPorBomba_1 <= 0) {
+    return { error: "No se puede determinar el flujo de la bomba en el CDT de diseño." };
+  }
+  const flujoTotal_1 = parseFloat((flujoPorBomba_1 * nBombas).toFixed(2));
+  const { equiposRecalc: equip1, cargaTotalNueva: cdt1 } = recalcularYObtenerCDT(flujoTotal_1, cargaInicial);
+
+  /* ══ Iteración 2 ══
+     CDT entrada = CDT salida de iter 1
+     Flujo = lo que da la bomba a ese CDT × nBombas
+  ══════════════════ */
+  const cargaEntrada_2  = parseFloat(cdt1.toFixed(2));
+  const flujoPorBomba_2 = flujoEnCurva(curva, cargaEntrada_2);
+  const flujoTotal_2 = flujoPorBomba_2 != null && flujoPorBomba_2 > 0
+    ? parseFloat((flujoPorBomba_2 * nBombas).toFixed(2))
+    : flujoTotal_1;
+  const { equiposRecalc: equip2, cargaTotalNueva: cdt2 } = recalcularYObtenerCDT(flujoTotal_2, cdt1);
+
+  /* ── Flujo final: lo que da la bomba a CDT_salida_iter2 ── */
+  const flujoPorBomba_final = flujoEnCurva(curva, cdt2);
+  const flujoFinal = flujoPorBomba_final != null && flujoPorBomba_final > 0
+    ? parseFloat((flujoPorBomba_final * nBombas).toFixed(2))
+    : flujoTotal_2;
+
+  /* ── CDT disponible de la bomba en el flujo final ── */
   const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoFinal / nBombas) ?? 0).toFixed(2));
+
+  const iteraciones = [
+    {
+      iter:            1,
+      flujoEquilibrio: flujoTotal_1,
+      flujoPorBomba:   parseFloat(flujoPorBomba_1.toFixed(2)),
+      cargaEntrada:    cargaEntrada_1,   // CDT que da la bomba en el punto de diseño
+      cargaSalida:     parseFloat(cdt1.toFixed(2)),
+      cargaDispBomba:  cargaEntrada_1,
+      equiposRecalc:   equip1,
+    },
+    {
+      iter:            2,
+      flujoEquilibrio: flujoTotal_2,
+      flujoPorBomba:   parseFloat((flujoPorBomba_2 ?? flujoPorBomba_1).toFixed(2)),
+      cargaEntrada:    cargaEntrada_2,   // CDT salida de iter 1
+      cargaSalida:     parseFloat(cdt2.toFixed(2)),
+      cargaDispBomba:  cargaEntrada_2,
+      equiposRecalc:   equip2,
+    },
+  ];
 
   return {
     iteraciones,
     equilibrio: {
       flujo:           flujoFinal,
-      carga:           cargaFinal,
+      carga:           parseFloat(cdt2.toFixed(2)),
       cargaDisponible: cargaDispFinal,
-      cubre:           cargaDispFinal >= cargaFinal,
-      equipos:         equiposFinales,
+      cubre:           cargaDispFinal >= cdt2,
+      equipos:         equip2,
     },
     cargasIniciales,
-    bomba:   bomba,
+    bomba,
     nBombas,
   };
 }
