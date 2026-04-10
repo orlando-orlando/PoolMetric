@@ -530,7 +530,10 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   }
 
   const infoActiva    = modo === "recomendado" ? rec : manualCalc;
-  const cargaActivaFt = infoActiva?.res?.sumaFinal ?? null;
+  // sumaFinal incluye tramos + CM + disparos, pero NO el +1.5 ft de accesorio del empotrable
+  const cargaActivaFt = infoActiva?.res?.sumaFinal != null
+    ? parseFloat(infoActiva.res.sumaFinal) + 1.5
+    : null;
   const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null } : null;
 
   // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
@@ -572,7 +575,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                 <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo nominal</span><span className="bdc-demanda-valor bdc-ok">{infoActiva.equipo.specs.flujo} GPM</span></div>
                 <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo sistema</span><span className="bdc-demanda-valor">{parseFloat(flujoMaximo).toFixed(1)} GPM</span></div>
               </div>
-              {infoActiva.res?.sumaFinal != null && <div className="bdc-rec-hidraulica"><span className="bdc-hid-label">Pérdida de carga total</span><span className="bdc-hid-valor">{parseFloat(infoActiva.res.sumaFinal).toFixed(2)} ft</span></div>}
+              {infoActiva.res?.sumaFinal != null && <div className="bdc-rec-hidraulica"><span className="bdc-hid-label">Pérdida de carga total</span><span className="bdc-hid-valor">{(parseFloat(infoActiva.res.sumaFinal) + 1.5).toFixed(2)} ft</span></div>}
             </div>
           ) : (
             <div className="bdc-recomendada-card bdc-pendiente bdc-inset"><div className="bdc-rec-header">{icono}<div className="bdc-rec-titulo"><span className="bdc-rec-label">{titulo}</span><span className="bdc-rec-modelo bdc-pendiente-txt">{modo === "recomendado" ? "Calculando selección..." : "Selecciona un equipo del catálogo"}</span></div></div></div>
@@ -591,7 +594,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                 <div className="bdc-auto-fila"><span className="bdc-auto-label">Puerto</span><span className="bdc-auto-val">{rec.equipo.specs.dimensionPuerto}"</span></div>
                 {rec.equipo.specs.tamano != null && <div className="bdc-auto-fila"><span className="bdc-auto-label">Tamaño</span><span className="bdc-auto-val">{rec.equipo.specs.tamano}"</span></div>}
                 {rec.tipo && <div className="bdc-auto-fila"><span className="bdc-auto-label">Tipo calculado</span><span className="bdc-auto-val">{rec.tipo}"</span></div>}
-                {rec.res?.sumaFinal != null && (<><div className="bdc-auto-sep" /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{parseFloat(rec.res.sumaFinal).toFixed(2)} ft</span></div></>)}
+                {rec.res?.sumaFinal != null && (<><div className="bdc-auto-sep" /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(rec.res.sumaFinal) + 1.5).toFixed(2)} ft</span></div></>)}
               </div>
             </div>
           )}
@@ -634,7 +637,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por equipo requerido</span><span className="bdc-demanda-valor">{parseFloat(manualCalc.flujoPorEquipo).toFixed(2)} GPM</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo nominal del equipo</span><span className="bdc-demanda-valor bdc-ok">{manualCalc.equipo.specs.flujo} GPM</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total instalado</span><span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.flujoTotal).toFixed(1)} GPM</span></div>
-                    {manualCalc.res?.sumaFinal != null && (<><div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{parseFloat(manualCalc.res.sumaFinal).toFixed(2)} ft</span></div></>)}
+                    {manualCalc.res?.sumaFinal != null && (<><div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(manualCalc.res.sumaFinal) + 1.5).toFixed(2)} ft</span></div></>)}
                   </>)}
                 </div>
               )}
@@ -1772,30 +1775,6 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
         )}
         {fase === "listo" && eq && eq.flujoEq != null && !resultado.error && (<>
 
-          {/* Punto de operación */}
-          <div style={{ marginBottom: "0.75rem" }}>
-            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Punto de operación</div>
-            <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-              <div className="bdc-stat"><span className="bdc-stat-valor" style={{ color: "#38bdf8" }}>{parseFloat(eq.flujoEq).toFixed(1)}</span><span className="bdc-stat-label">GPM operación</span></div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(eq.cargaEq).toFixed(2)}</span><span className="bdc-stat-label">ft CDT sistema</span></div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat">
-                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.flujoEq - flujoMaxGlobal) < flujoMaxGlobal * 0.05 ? "#34d399" : "#f97316" }}>
-                  {(((eq.flujoEq - flujoMaxGlobal) / flujoMaxGlobal) * 100).toFixed(1)}%
-                </span>
-                <span className="bdc-stat-label">Δ flujo</span>
-              </div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat">
-                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.cargaEq - cargaTotalGlobal) < cargaTotalGlobal * 0.05 ? "#34d399" : "#f97316" }}>
-                  {(((eq.cargaEq - cargaTotalGlobal) / cargaTotalGlobal) * 100).toFixed(1)}%
-                </span>
-                <span className="bdc-stat-label">Δ CDT</span>
-              </div>
-            </div>
-          </div>
-
           {/* Iteraciones */}
           {resultado.iteraciones?.length > 0 && (
             <div style={{ marginBottom: "0.75rem" }}>
@@ -1854,6 +1833,30 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
               </div>
             </div>
           )}
+
+          {/* Punto de operación — al final, resultado del proceso iterativo */}
+          <div style={{ marginBottom: "0.75rem" }}>
+            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Punto de operación</div>
+            <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
+              <div className="bdc-stat"><span className="bdc-stat-valor" style={{ color: "#38bdf8" }}>{parseFloat(eq.flujoEq).toFixed(1)}</span><span className="bdc-stat-label">GPM operación</span></div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(eq.cargaEq).toFixed(2)}</span><span className="bdc-stat-label">ft CDT sistema</span></div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.flujoEq - flujoMaxGlobal) < flujoMaxGlobal * 0.05 ? "#34d399" : "#f97316" }}>
+                  {(((eq.flujoEq - flujoMaxGlobal) / flujoMaxGlobal) * 100).toFixed(1)}%
+                </span>
+                <span className="bdc-stat-label">Δ flujo</span>
+              </div>
+              <div className="bdc-stat-sep" />
+              <div className="bdc-stat">
+                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.cargaEq - cargaTotalGlobal) < cargaTotalGlobal * 0.05 ? "#34d399" : "#f97316" }}>
+                  {(((eq.cargaEq - cargaTotalGlobal) / cargaTotalGlobal) * 100).toFixed(1)}%
+                </span>
+                <span className="bdc-stat-label">Δ CDT</span>
+              </div>
+            </div>
+          </div>
 
           {/* ══ RESUMEN COMPLETO DE EQUIPOS + CONFIRMACIÓN ══ */}
           <ResumenEquiposConfirmacion
@@ -2131,7 +2134,7 @@ function ResumenEquiposConfirmacion({
                 flujoInfinityVal: null,
                 vol:              null,
                 estadoBomba,
-                equilibrio:       resultado?.equilibrio ?? null,
+                equilibrio:       resultado ?? null,
                 datosPorSistema,
                 resultadoClorador,
                 sistemasSeleccionadosSanit,

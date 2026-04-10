@@ -12,9 +12,10 @@ import { desnatador }                     from "./desnatador";
 import { barredora }                      from "./barredora";
 import { drenFondo }                      from "./drenFondo";
 import { drenCanal }                      from "./drenCanal";
-import { calcularCargaFiltroArenaManual } from "./filtroArena";
-import { calcularCargaPrefiltroManual }   from "./prefiltro";
+import { calcularCargaFiltroArenaManual }    from "./filtroArena";
+import { calcularCargaPrefiltroManual }      from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual } from "./filtroCartucho";
+import { calcularCargaUVManual }             from "./generadorUV";
 
 /* ================================================================
    INTERPOLACIÓN/EXTRAPOLACIÓN — flujo dado CDT en curva de bomba
@@ -121,11 +122,13 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 
   try {
     const res = fnCalculo(flujoNuevo, tipo, datosEmpotrable, cantFinal);
+    const sumaConAccesorio = res?.sumaFinal != null ? parseFloat(res.sumaFinal) + 1.5 : null;
     return {
       cantidad: cantFinal, cantOriginal: estado.cantidad,
       cambio: cantFinal !== estado.cantidad,
-      sumaFinal: res?.sumaFinal ?? null,
+      sumaFinal: sumaConAccesorio,
       modelo: eq.modelo, marca: eq.marca,
+      resultadoHidraulico: res,
     };
   } catch { return null; }
 }
@@ -167,6 +170,7 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
       cargaTotal: res?.cargaTotal ?? null,
       cargaTotalPSI: res?.cargaTotalPSI ?? null,
       modelo, marca,
+      resultadoHidraulico: res,   // resultado completo para la memoria de cálculo
     };
   } catch { return null; }
 }
@@ -226,10 +230,11 @@ export function calcularEquilibrio({
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
   /* ── Función: recalcular equipos con flujo dado y obtener CDT nuevo ──
-     cargaBase: el CDT de referencia al que se aplica el delta
-     (iter1 usa cargaInicial, iter2 usa cdt1)
+     cargaBase:    CDT de referencia del paso anterior
+     cargasRef:    cargas de referencia para calcular el delta
+                   (iter1 usa cargasIniciales, iter2 usa cargas resultantes de iter1)
   ── */
-  function recalcularYObtenerCDT(flujoNuevo, cargaBase) {
+  function recalcularYObtenerCDT(flujoNuevo, cargaBase, cargasRef) {
     const equiposRecalc = {};
 
     for (const key of empKeys) {
@@ -248,23 +253,53 @@ export function calcularEquilibrio({
       if (rec) equiposRecalc[key] = rec;
     }
 
-    // CDT nuevo = cargaBase + Σ(carga_nueva - carga_original_diseño)
-    // Usamos cargasIniciales (diseño) como referencia fija del delta,
-    // y sumamos ese delta sobre la cargaBase del paso anterior.
+    // Generador UV — trabaja en línea con el flujo principal
+    if (estados?.lamparaUV?.selId) {
+      const est = estados.lamparaUV;
+      const cantOriginal = est.cantidad ?? 1;
+      const flujoPorUV   = flujoNuevo / cantOriginal;
+      try {
+        const res = calcularCargaUVManual(flujoPorUV, cantOriginal);
+        if (res && !res.error) {
+          equiposRecalc.lamparaUV = {
+            cantidad: cantOriginal, cantOriginal, cambio: false,
+            cargaTotal: res.cargaTotal, sumaFinal: res.cargaTotal,
+          };
+        }
+      } catch { /* sin cambio */ }
+    }
+
+    // CDT nuevo = cargaBase + Σ(carga_nueva - carga_referencia_paso_anterior)
+    // Así el delta refleja el cambio real desde el paso anterior, no desde el diseño original
     const keysRecalc = [
       ...empKeys.filter(k => equiposRecalc[k] != null),
-      ...["filtroArena", "prefiltro", "filtroCartucho"].filter(k => equiposRecalc[k] != null),
+      ...["filtroArena", "prefiltro", "filtroCartucho", "lamparaUV"].filter(k => equiposRecalc[k] != null),
     ];
     let deltaCargas = 0;
     for (const key of keysRecalc) {
-      const cargaOrig  = parseFloat(cargasIniciales[key] ?? 0);
+      const cargaRef   = parseFloat(cargasRef[key] ?? 0);
       const eq         = equiposRecalc[key];
       const cargaNueva = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
-      deltaCargas += (cargaNueva - cargaOrig);
+      deltaCargas += (cargaNueva - cargaRef);
     }
     const cargaTotalNueva = Math.max(0.1, cargaBase + deltaCargas);
 
-    return { equiposRecalc, cargaTotalNueva };
+    // Límite físico: el CDT del sistema no puede superar lo que la bomba puede dar
+    // a ese flujo. Si supera, significa que la bomba no alcanza y el sistema
+    // opera en el máximo disponible de la bomba.
+    const cargaDispBombaEnFlujo = cargaEnCurva(curva, flujoNuevo / nBombas);
+    const cargaTotalLimitada = cargaDispBombaEnFlujo != null
+      ? Math.min(cargaTotalNueva, cargaDispBombaEnFlujo)
+      : cargaTotalNueva;
+
+    // Construir las cargas resultantes de este paso para pasarlas como referencia al siguiente
+    const cargasResultantes = { ...cargasRef };
+    for (const key of keysRecalc) {
+      const eq = equiposRecalc[key];
+      cargasResultantes[key] = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
+    }
+
+    return { equiposRecalc, cargaTotalNueva: cargaTotalLimitada, cargasResultantes };
   }
 
   /* ══ Iteración 1 ══
@@ -278,18 +313,21 @@ export function calcularEquilibrio({
     return { error: "No se puede determinar el flujo de la bomba en el CDT de diseño." };
   }
   const flujoTotal_1 = parseFloat((flujoPorBomba_1 * nBombas).toFixed(2));
-  const { equiposRecalc: equip1, cargaTotalNueva: cdt1 } = recalcularYObtenerCDT(flujoTotal_1, cargaInicial);
+  const { equiposRecalc: equip1, cargaTotalNueva: cdt1, cargasResultantes: cargas1 } =
+    recalcularYObtenerCDT(flujoTotal_1, cargaInicial, cargasIniciales);
 
   /* ══ Iteración 2 ══
      CDT entrada = CDT salida de iter 1
      Flujo = lo que da la bomba a ese CDT × nBombas
+     Delta se calcula vs cargas de iter 1 (no vs diseño original)
   ══════════════════ */
   const cargaEntrada_2  = parseFloat(cdt1.toFixed(2));
   const flujoPorBomba_2 = flujoEnCurva(curva, cargaEntrada_2);
   const flujoTotal_2 = flujoPorBomba_2 != null && flujoPorBomba_2 > 0
     ? parseFloat((flujoPorBomba_2 * nBombas).toFixed(2))
     : flujoTotal_1;
-  const { equiposRecalc: equip2, cargaTotalNueva: cdt2 } = recalcularYObtenerCDT(flujoTotal_2, cdt1);
+  const { equiposRecalc: equip2, cargaTotalNueva: cdt2 } =
+    recalcularYObtenerCDT(flujoTotal_2, cdt1, cargas1);
 
   /* ── Flujo final: lo que da la bomba a CDT_salida_iter2 ── */
   const flujoPorBomba_final = flujoEnCurva(curva, cdt2);

@@ -2,82 +2,33 @@ import { useState, useEffect } from "react";
 
 const f2 = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(2); };
 
-/* ═══════════════════════════════════════════════════════
-   TABLA DE TRAMOS — compartida por todos los sistemas
-   Acepta tanto keys de empotrables (cantidadTees) como
-   de equipos (cantTees) porque normalizamos en memoriaCalculo.js
-════════════════════════════════════════════════════════ */
+/* ═══════════ TABLAS BASE ═══════════ */
 function TablaTramos({ resultado, titulo }) {
   if (!resultado?.length) return null;
-  const suma = resultado.reduce((acc, d) => acc + parseFloat(d.cargaTotal || 0), 0);
+  const suma = resultado.reduce((s, d) => s + parseFloat(d.cargaTotal || 0), 0);
   return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">{titulo}</p>
-      <table className="mc-tabla">
-        <thead>
-          <tr>
-            <th>#</th><th>Flujo (gpm)</th><th>Tubería (in)</th><th>Vel. (ft/s)</th>
-            <th>Carga base (ft/100ft)</th><th>Long. (m)</th><th>Carga tramo (ft)</th>
-            <th>Tees</th><th>L.Eq. Tee</th><th>Carga tee</th>
-            <th>Codos</th><th>L.Eq. Codo</th><th>Carga codo</th>
-            <th>Red.</th><th>L.Eq. Red.</th><th>Carga red.</th>
-            <th className="mc-th-total">Carga total (ft)</th>
-          </tr>
-        </thead>
+    <div style={{ overflowX: "auto" }}>
+      {titulo && <p style={{ fontSize:"0.7rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#60a5fa", background:"#1e293b", border:"1px solid #334155", borderBottom:"none", padding:"4px 10px", borderRadius:"6px 6px 0 0", display:"inline-block" }}>{titulo}</p>}
+      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+        <thead><tr style={{ background:"#0f172a" }}>
+          {["#","Flujo","Tubería","Vel.","C.Base","Long.","C.Tramo","Tees","L.Tee","C.Tee","Codos","L.Codo","C.Codo","Red.","L.Red.","C.Red.","Total ft"].map(h => (
+            <th key={h} style={{ padding:"5px 6px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", textAlign:"center" }}>{h}</th>
+          ))}
+        </tr></thead>
         <tbody>
           {resultado.map((d, i) => (
-            <tr key={i}>
-              <td>{d.tramo}</td><td>{d.flujo}</td><td>{d.tuberia}</td><td>{d.velocidad}</td>
-              <td>{d.cargaBase}</td><td>{d.longitud}</td><td>{d.cargaTramo}</td>
-              <td>{d.cantidadTees}</td><td>{d.longEqTee}</td><td>{d.cargaTee}</td>
-              <td>{d.cantidadCodos}</td><td>{d.longEqCodo}</td><td>{d.cargaCodo}</td>
-              <td>{d.cantidadReducciones}</td><td>{d.longEqReduccion}</td><td>{d.cargaReduccion}</td>
-              <td className="mc-td-total">{d.cargaTotal}</td>
+            <tr key={i} style={{ background: i%2===0 ? "#1e293b" : "#162032" }}>
+              <td style={td}>{d.tramo}</td><td style={td}>{d.flujo}</td><td style={td}>{d.tuberia}</td><td style={td}>{d.velocidad}</td>
+              <td style={td}>{d.cargaBase}</td><td style={td}>{d.longitud}</td><td style={td}>{d.cargaTramo}</td>
+              <td style={td}>{d.cantidadTees}</td><td style={td}>{d.longEqTee}</td><td style={td}>{d.cargaTee}</td>
+              <td style={td}>{d.cantidadCodos}</td><td style={td}>{d.longEqCodo}</td><td style={td}>{d.cargaCodo}</td>
+              <td style={td}>{d.cantidadReducciones}</td><td style={td}>{d.longEqReduccion}</td><td style={td}>{d.cargaReduccion}</td>
+              <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{d.cargaTotal}</td>
             </tr>
           ))}
-          <tr className="mc-tr-suma">
-            <td colSpan={16} style={{textAlign:"right"}}>Σ carga tramos (ft):</td>
-            <td>{f2(suma)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* Panel solar tiene filas especiales con tándems */
-function TablaTandems({ resultado, titulo }) {
-  if (!resultado?.length) return null;
-  const suma = resultado.reduce((acc, d) => acc + parseFloat(d.cargaTotal || 0), 0);
-  return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">{titulo}</p>
-      <table className="mc-tabla">
-        <thead>
-          <tr>
-            <th>Tándem</th><th>Paneles</th><th>Flujo (gpm)</th><th>Tubería</th><th>Vel. (ft/s)</th>
-            <th>Carga base</th><th>Long. (m)</th><th>Carga tramo</th>
-            <th>Flujo tándem</th><th>Carga entrada</th>
-            <th>Tees</th><th>L.Eq. Tee</th><th>Carga tee</th>
-            <th>Codos</th><th>L.Eq. Codo</th><th>Carga codo</th>
-            <th className="mc-th-total">Carga total (ft)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resultado.map((d, i) => (
-            <tr key={i}>
-              <td>{d.tramo}</td><td>{d.paneles ?? "—"}</td><td>{d.flujo}</td>
-              <td>{d.tuberia}</td><td>{d.velocidad}</td><td>{d.cargaBase}</td>
-              <td>{d.longitud}</td><td>{d.cargaTramo}</td>
-              <td>{d.flujoTandem ?? "—"}</td><td>{d.cargaEntrada ?? "—"}</td>
-              <td>{d.cantidadTees}</td><td>{d.longEqTee}</td><td>{d.cargaTee}</td>
-              <td>{d.cantidadCodos}</td><td>{d.longEqCodo}</td><td>{d.cargaCodo}</td>
-              <td className="mc-td-total">{d.cargaTotal}</td>
-            </tr>
-          ))}
-          <tr className="mc-tr-suma">
-            <td colSpan={16} style={{textAlign:"right"}}>Σ carga tándems (ft):</td>
-            <td>{f2(suma)}</td>
+          <tr style={{ background:"#1a3a5c" }}>
+            <td colSpan={16} style={{ ...td, textAlign:"right", color:"#93c5fd", fontWeight:700 }}>Σ tramos (ft):</td>
+            <td style={{ ...td, color:"#93c5fd", fontWeight:700 }}>{f2(suma)}</td>
           </tr>
         </tbody>
       </table>
@@ -90,85 +41,20 @@ function TablaCuarto({ tablaDistanciaCM, sufijo = "CM" }) {
   const d = tablaDistanciaCM;
   const k = (c) => d[c + sufijo] ?? d[c] ?? "—";
   return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">Tramo cuarto de máquinas</p>
-      <table className="mc-tabla">
-        <thead>
-          <tr>
-            <th>Flujo (gpm)</th><th>Tubería</th><th>Vel. (ft/s)</th>
-            <th>Carga base (ft/100ft)</th><th>Long. (m)</th><th>Carga tramo</th>
-            <th>Codos</th><th>L.Eq. Codo</th><th>Carga codo</th>
-            <th className="mc-th-total">Carga total (ft)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{k("flujo")}</td><td>{k("tuberia")}</td><td>{k("velocidad")}</td>
-            <td>{k("cargaBase")}</td><td>{k("distancia")}</td><td>{k("cargaTramo")}</td>
-            <td>1</td><td>{k("longEqCodo")}</td><td>{k("cargaCodo")}</td>
-            <td className="mc-td-total">{k("cargaTotal")}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function TablaDistanciaCalentamiento({ tablaDistancia }) {
-  if (!tablaDistancia) return null;
-  const d = tablaDistancia;
-  return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">Tramo cuarto de máquinas (ida + regreso)</p>
-      <table className="mc-tabla">
-        <thead>
-          <tr>
-            <th>Tramo</th><th>Flujo (gpm)</th><th>Tubería</th><th>Vel. (ft/s)</th>
-            <th>Carga base</th><th>Long. (m)</th><th>Carga tubería</th>
-            <th>Codos</th><th>L.Eq. Codo</th><th>Carga codo</th>
-            <th className="mc-th-total">Total (ft)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Ida</td><td>{d.flujo}</td><td>{d.tuberia}</td><td>{d.velocidad}</td>
-            <td>{d.cargaBase}</td><td>{d.distancia_m}</td>
-            <td>{d.cargaTuberiaIda}</td><td>1</td><td>{d.longEqCodo}</td>
-            <td>{d.cargaCodoIda}</td><td className="mc-td-total">{d.cargaTotalIda}</td>
-          </tr>
-          <tr>
-            <td>Regreso</td><td>{d.flujo}</td><td>{d.tuberia}</td><td>{d.velocidad}</td>
-            <td>{d.cargaBase}</td><td>{d.distancia_m}</td>
-            <td>{d.cargaTuberiaReg}</td><td>1</td><td>{d.longEqCodo}</td>
-            <td>{d.cargaCodoReg}</td><td className="mc-td-total">{d.cargaTotalReg}</td>
-          </tr>
-          <tr className="mc-tr-suma">
-            <td colSpan={10} style={{textAlign:"right"}}>Carga total CM (ft):</td>
-            <td>{d.cargaTotal}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function TablaAltura({ tablaAltura, labelEquipo = "equipo" }) {
-  if (!tablaAltura) return null;
-  const d = tablaAltura;
-  const alturaKey = d.alturaBDC_m ?? d.alturaCaldera_m ?? d.alturaCE_m ?? d.alturaPS_m ?? d.alturaPS_ft;
-  const llevaEstatica = d.bdcLlevaCargaEstatica ?? d.calderaLlevaCargaEstatica ?? d.ceLlevaCargaEstatica ?? d.psLlevaCargaEstatica ?? false;
-  return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">Altura vertical y carga estática</p>
-      <table className="mc-tabla">
-        <tbody>
-          <tr><td className="mc-sum-label">Altura {labelEquipo} (m):</td><td>{alturaKey ?? "—"}</td></tr>
-          <tr><td className="mc-sum-label">Altura máx. sistema (m):</td><td>{d.alturaMaxSist_m}</td></tr>
-          <tr><td className="mc-sum-label">Lleva carga estática:</td><td>{llevaEstatica ? "Sí" : "No"}</td></tr>
-          <tr><td className="mc-sum-label">Carga estática (ft):</td><td>{d.cargaEstatica}</td></tr>
-          <tr><td className="mc-sum-label">Carga fricción tubería (ft):</td><td>{d.cargaFriccion}</td></tr>
-          <tr className="mc-tr-suma"><td className="mc-sum-label">Total altura (ft):</td><td>{d.cargaTotal}</td></tr>
-        </tbody>
+    <div style={{ overflowX:"auto" }}>
+      <p style={tituloStyle}>Tramo cuarto de máquinas</p>
+      <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+        <thead><tr style={{ background:"#0f172a" }}>
+          {["Flujo","Tubería","Vel.","C.Base","Long.(m)","C.Tramo","Codos","L.Codo","C.Codo","Total ft"].map(h => (
+            <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody><tr>
+          <td style={td}>{k("flujo")}</td><td style={td}>{k("tuberia")}</td><td style={td}>{k("velocidad")}</td>
+          <td style={td}>{k("cargaBase")}</td><td style={td}>{k("distancia")}</td><td style={td}>{k("cargaTramo")}</td>
+          <td style={td}>1</td><td style={td}>{k("longEqCodo")}</td><td style={td}>{k("cargaCodo")}</td>
+          <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{k("cargaTotal")}</td>
+        </tr></tbody>
       </table>
     </div>
   );
@@ -178,29 +64,22 @@ function TablaDisparo({ disparo, titulo }) {
   if (!disparo) return null;
   const d = disparo;
   return (
-    <div className="mc-tabla-wrap">
-      <p className="mc-tabla-titulo">{titulo}</p>
-      <table className="mc-tabla">
-        <thead>
-          <tr>
-            <th>Flujo (gpm)</th><th>Tubería</th><th>Vel. (ft/s)</th>
-            <th>Carga base</th><th>Long. (m)</th><th>Carga tramo</th>
-            <th>Codos</th><th>L.Eq. Codo</th><th>Carga codo</th>
-            <th>Red.</th><th>L.Eq. Red.</th><th>Carga red.</th>
-            <th className="mc-th-total">Carga disparo (ft)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{f2(d.flujoDisparo)}</td><td>{d.diametroDisparo}</td>
-            <td>{f2(d.velocidadDisparo)}</td><td>{f2(d.cargaBaseDisparo)}</td>
-            <td>{f2(d.longitudDisparo)}</td><td>{f2(d.cargaDisparo)}</td>
-            <td>1</td><td>{f2(d.longEqCodoDisparo)}</td><td>{f2(d.cargaCodoDisparo)}</td>
-            <td>{d.longEqReduccionDisparo !== 0 ? 1 : 0}</td>
-            <td>{f2(d.longEqReduccionDisparo)}</td><td>{f2(d.cargaReduccionDisparo)}</td>
-            <td className="mc-td-total">{f2(d.cargaDisparoTotal)}</td>
-          </tr>
-        </tbody>
+    <div style={{ overflowX:"auto" }}>
+      <p style={tituloStyle}>{titulo}</p>
+      <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+        <thead><tr style={{ background:"#0f172a" }}>
+          {["Flujo","Tubería","Vel.","C.Base","Long.","C.Tramo","Codos","L.Codo","C.Codo","Red.","L.Red.","C.Red.","Total ft"].map(h => (
+            <th key={h} style={{ padding:"5px 6px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody><tr>
+          <td style={td}>{f2(d.flujoDisparo)}</td><td style={td}>{d.diametroDisparo}</td>
+          <td style={td}>{f2(d.velocidadDisparo)}</td><td style={td}>{f2(d.cargaBaseDisparo)}</td>
+          <td style={td}>{f2(d.longitudDisparo)}</td><td style={td}>{f2(d.cargaDisparo)}</td>
+          <td style={td}>1</td><td style={td}>{f2(d.longEqCodoDisparo)}</td><td style={td}>{f2(d.cargaCodoDisparo)}</td>
+          <td style={td}>{d.longEqReduccionDisparo!==0?1:0}</td><td style={td}>{f2(d.longEqReduccionDisparo)}</td><td style={td}>{f2(d.cargaReduccionDisparo)}</td>
+          <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{f2(d.cargaDisparoTotal)}</td>
+        </tr></tbody>
       </table>
     </div>
   );
@@ -210,256 +89,318 @@ function TablaResumen({ resumen, titulo }) {
   if (!resumen || !Object.keys(resumen).length) return null;
   return (
     <div>
-      <p className="mc-tabla-titulo">{titulo}</p>
-      <table className="mc-tabla mc-tabla-resumen">
-        <thead>
-          <tr><th>Diámetro (in)</th><th>Tubería (m)</th><th>Tees</th><th>Codos</th><th>Reducciones</th></tr>
-        </thead>
-        <tbody>
-          {Object.entries(resumen).map(([diam, r]) => (
-            <tr key={diam}>
-              <td>{diam.replace("tuberia ", "")}</td>
-              <td>{f2(r.tuberia_m)}</td><td>{r.tees}</td><td>{r.codos}</td><td>{r.reducciones}</td>
-            </tr>
+      <p style={tituloStyle}>{titulo}</p>
+      <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"220px" }}>
+        <thead><tr style={{ background:"#0f172a" }}>
+          {["Diámetro","Tubería (m)","Tees","Codos","Reductions"].map(h=>(
+            <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155" }}>{h}</th>
           ))}
-        </tbody>
+        </tr></thead>
+        <tbody>{Object.entries(resumen).map(([d,r])=>(
+          <tr key={d}><td style={td}>{d}</td><td style={td}>{f2(r.tuberia_m)}</td><td style={td}>{r.tees}</td><td style={td}>{r.codos}</td><td style={td}>{r.reducciones}</td></tr>
+        ))}</tbody>
       </table>
     </div>
   );
 }
 
-function TablaSumatoria({ items, total }) {
+/* ═══════════ ESTILOS COMPARTIDOS ═══════════ */
+const td = { padding:"4px 7px", textAlign:"center", border:"1px solid #1e3a5f", color:"#cbd5e1" };
+const tituloStyle = { fontSize:"0.7rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#60a5fa", background:"#1e293b", border:"1px solid #334155", borderBottom:"none", padding:"4px 10px", borderRadius:"6px 6px 0 0", display:"inline-block", marginTop:"0.75rem" };
+
+/* ═══════════ ENCABEZADO DE ITERACIÓN ═══════════ */
+const ITER_CONFIG = [
+  { label:"Diseño original", bg:"rgba(100,116,139,0.2)",  border:"#475569", textColor:"#cbd5e1" },
+  { label:"Iteración 1",     bg:"rgba(14,116,144,0.25)",  border:"#0891b2", textColor:"#67e8f9" },
+  { label:"Iteración 2",     bg:"rgba(21,128,61,0.2)",    border:"#16a34a", textColor:"#86efac" },
+];
+
+function HeaderIter({ idx, flujo }) {
+  const c = ITER_CONFIG[idx];
   return (
-    <div className="mc-sumatoria">
-      <p className="mc-tabla-titulo">Sumatoria de cargas</p>
-      <table className="mc-tabla mc-tabla-sumatoria">
-        <tbody>
-          {items.map(({ label, valor }) => (
-            <tr key={label}><td className="mc-sum-label">{label}</td><td>{f2(valor)} ft</td></tr>
-          ))}
-          <tr className="mc-tr-total">
-            <td className="mc-sum-label">Carga dinámica total (ft):</td>
-            <td>{f2(total)} ft</td>
-          </tr>
-        </tbody>
-      </table>
+    <div style={{ background:c.bg, border:`1px solid ${c.border}`, borderRadius:"6px 6px 0 0", padding:"0.45rem 1rem", display:"flex", alignItems:"center", gap:"1.2rem" }}>
+      <span style={{ fontSize:"0.72rem", fontWeight:700, color:c.textColor, textTransform:"uppercase", letterSpacing:"0.07em" }}>{c.label}</span>
+      <span style={{ fontSize:"0.72rem", color:"#94a3b8" }}>Flujo: <strong style={{ color:"#38bdf8" }}>{f2(flujo)} GPM</strong></span>
     </div>
   );
 }
 
-function SumatoriaEquipoSimple({ data }) {
-  return (
-    <div className="mc-sumatoria">
-      <p className="mc-tabla-titulo">Sumatoria de cargas</p>
-      <table className="mc-tabla mc-tabla-sumatoria">
-        <tbody>
-          <tr><td className="mc-sum-label">Σ carga tramos (ft):</td><td>{f2(data.cargaTramos)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga fija (ft):</td><td>{f2(data.cargaFija)} ft</td></tr>
-          <tr className="mc-tr-total">
-            <td className="mc-sum-label">Carga dinámica total (ft):</td>
-            <td>{f2(data.cargaTotal)} ft</td>
-          </tr>
-          <tr><td className="mc-sum-label">Carga total (PSI):</td><td>{f2(data.cargaTotalPSI)} PSI</td></tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SumatoriaCalentamiento({ data }) {
-  return (
-    <div className="mc-sumatoria">
-      <p className="mc-tabla-titulo">Sumatoria de cargas</p>
-      <table className="mc-tabla mc-tabla-sumatoria">
-        <tbody>
-          <tr><td className="mc-sum-label">Σ carga tramos (ft):</td><td>{f2(data.cargaTramos)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga CM ida (ft):</td><td>{f2(data.cargaDistanciaIda)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga CM regreso (ft):</td><td>{f2(data.cargaDistanciaReg)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga estática (ft):</td><td>{f2(data.cargaEstatica)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga fricción altura (ft):</td><td>{f2(data.cargaFriccion)} ft</td></tr>
-          <tr><td className="mc-sum-label">Carga fija (ft):</td><td>{f2(data.cargaFija)} ft</td></tr>
-          <tr className="mc-tr-total">
-            <td className="mc-sum-label">Carga dinámica total (ft):</td>
-            <td>{f2(data.cargaTotal)} ft</td>
-          </tr>
-          <tr><td className="mc-sum-label">Carga total (PSI):</td><td>{f2(data.cargaTotalPSI)} PSI</td></tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* ═══════════ SECCIONES ═══════════ */
-
-function SeccionEmpotrable({ data, titulo, tituloTramos, tituloDisparo, sufijoCM, tituloDisparos }) {
+/* ═══════════ CONTENIDO DE UN EQUIPO EN UNA ITERACIÓN ═══════════ */
+function ContenidoEmpotrable({ data, tituloTramos, sufijoCM, tituloDisparo }) {
+  if (!data) return <p style={{ color:"#475569", fontSize:"0.75rem", padding:"0.75rem" }}>Sin datos para esta iteración.</p>;
   const { resultado, sumaTramos, disparo, cargaDisparoTotal, tablaDistanciaCM, cargaDinamicaTotal, resumenTramos, resumenDisparos } = data;
-  const items = [
-    { label: `Carga tramo ${titulo.toLowerCase()} (ft):`, valor: sumaTramos },
-    { label: "Carga a cuarto de máquinas (ft):", valor: tablaDistanciaCM ? parseFloat(tablaDistanciaCM[`cargaTotal${sufijoCM}`] ?? 0) : 0 },
-  ];
-  if (disparo) items.push({ label: "Carga disparos (ft):", valor: cargaDisparoTotal });
-  items.push({ label: `Carga accesorio ${titulo.toLowerCase()} (ft):`, valor: 1.5 });
+  const cmKey = `cargaTotal${sufijoCM}`;
+  const cmVal = tablaDistanciaCM ? parseFloat(tablaDistanciaCM[cmKey] ?? 0) : 0;
   return (
-    <div className="mc-seccion">
+    <div style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
       <TablaTramos resultado={resultado} titulo={tituloTramos} />
       <TablaCuarto tablaDistanciaCM={tablaDistanciaCM} sufijo={sufijoCM} />
       {disparo && <TablaDisparo disparo={disparo} titulo={tituloDisparo} />}
-      <div className="mc-bottom-row">
-        <div className="mc-resumen-row">
-          <TablaResumen resumen={resumenTramos} titulo="Resumen materiales — tramos" />
-          {resumenDisparos && <TablaResumen resumen={resumenDisparos} titulo={`Resumen materiales — ${tituloDisparos ?? "disparos"}`} />}
+      <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", alignItems:"flex-start" }}>
+        <div style={{ display:"flex", gap:"1rem", flexWrap:"wrap" }}>
+          <TablaResumen resumen={resumenTramos} titulo="Resumen — tramos" />
+          {resumenDisparos && <TablaResumen resumen={resumenDisparos} titulo="Resumen — disparos" />}
         </div>
-        <TablaSumatoria items={items} total={cargaDinamicaTotal} />
+        <div>
+          <p style={tituloStyle}>Sumatoria</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
+            <tbody>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(sumaTramos)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto de máquinas (ft):</td><td style={td}>{f2(cmVal)} ft</td></tr>
+              {disparo && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Disparos (ft):</td><td style={td}>{f2(cargaDisparoTotal)} ft</td></tr>}
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Accesorio (ft):</td><td style={td}>1.50 ft</td></tr>
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(cargaDinamicaTotal)} ft</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-function SeccionEquipoSimple({ data }) {
+function ContenidoFiltro({ data }) {
+  if (!data) return <p style={{ color:"#475569", fontSize:"0.75rem", padding:"0.75rem" }}>Sin datos para esta iteración.</p>;
   return (
-    <div className="mc-seccion">
+    <div style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
       {data.seleccion && (
-        <div className="mc-info-equipo">
-          <span><strong>Modelo:</strong> {data.seleccion.marca} {data.seleccion.modelo}</span>
-          <span><strong>Cantidad:</strong> {data.seleccion.cantidad}</span>
-          <span><strong>Flujo total:</strong> {f2(data.seleccion.flujoTotal)} GPM</span>
-          {data.kgDiaNecesario && <span><strong>Cloro necesario:</strong> {f2(data.kgDiaNecesario)} kg/día</span>}
-          {data.kgDiaInstalado && <span><strong>Cloro instalado:</strong> {f2(data.kgDiaInstalado)} kg/día</span>}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"1rem", padding:"0.5rem 0.75rem", background:"rgba(15,23,42,0.4)", border:"1px solid #1e3a5f", borderRadius:"6px", fontSize:"0.78rem", color:"#94a3b8" }}>
+          <span><strong style={{ color:"#e2e8f0" }}>Modelo:</strong> {data.seleccion.marca} {data.seleccion.modelo}</span>
+          <span><strong style={{ color:"#e2e8f0" }}>Cantidad:</strong> {data.seleccion.cantidad}</span>
+          <span><strong style={{ color:"#e2e8f0" }}>Flujo total:</strong> {f2(data.seleccion.flujoTotal)} GPM</span>
+          {data.kgDiaNecesario && <span><strong style={{ color:"#e2e8f0" }}>Cloro:</strong> {f2(data.kgDiaNecesario)} kg/día</span>}
         </div>
       )}
       <TablaTramos resultado={data.tablaTramos} titulo="Tramos hidráulicos" />
-      <div className="mc-bottom-row">
+      <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", alignItems:"flex-start" }}>
         <TablaResumen resumen={data.resumenMateriales} titulo="Resumen materiales" />
-        <SumatoriaEquipoSimple data={data} />
+        <div>
+          <p style={tituloStyle}>Sumatoria</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
+            <tbody>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(data.cargaTramos)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(data.cargaTotalPSI)} PSI</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-function SeccionCalentamiento({ data }) {
-  const esPanelSolar = data.key === "panelSolar";
+/* ═══════════ TAB DE EQUIPO: 3 bloques uno bajo otro ═══════════ */
+function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, tituloDisparo }) {
   return (
-    <div className="mc-seccion">
-      {data.seleccion && (
-        <div className="mc-info-equipo">
-          <span><strong>Modelo:</strong> {data.seleccion.marca} {data.seleccion.modelo}</span>
-          <span><strong>Cantidad:</strong> {data.seleccion.cantidad}</span>
-          <span><strong>Flujo total:</strong> {f2(data.seleccion.flujoTotal)} GPM</span>
-          {data.tandems && <span><strong>Tándems:</strong> {data.tandems.join(" + ")} paneles</span>}
+    <div style={{ display:"flex", flexDirection:"column", gap:"0" }}>
+      {reportes.map((reporte, i) => {
+        if (!reporte) return null;
+        const data = getEquipoData(reporte, equipoKey);
+        const c = ITER_CONFIG[i];
+        return (
+          <div key={i} style={{ border:`1px solid ${c.border}`, borderRadius: i===0?"8px 8px 0 0" : i===reportes.filter(Boolean).length-1?"0 0 8px 8px":"0", marginTop: i===0?0:"-1px", overflow:"hidden" }}>
+            <HeaderIter idx={i} flujo={reporte.flujo} />
+            <div style={{ padding:"1rem", background:"rgba(15,23,42,0.5)" }}>
+              {tipoRender === "empotrable"
+                ? <ContenidoEmpotrable data={data} tituloTramos={tituloTramos} sufijoCM={sufijoCM} tituloDisparo={tituloDisparo} />
+                : <ContenidoFiltro data={data} />
+              }
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function getEquipoData(reporte, key) {
+  if (!reporte) return null;
+  return reporte.empotrables?.[key] ?? reporte.filtros?.[key] ?? reporte.sanitizacion?.[key] ?? null;
+}
+
+/* ═══════════ TAB RESUMEN ═══════════ */
+function TabResumen({ reportes, calentamiento }) {
+  // Inferir si tiene desborde canal basándose en los datos
+  const tieneDesbordeCanal = reportes.some(r => getEquipoData(r, "drenCanal") != null);
+  const equiposOrden = ["retorno","desnatador","drenFondo","drenCanal","barredora","filtroArena","prefiltro","filtroCartucho","cloradorSalino","lamparaUV","cloradorAutomatico"];
+  const nombresEq = { retorno:"Retornos", desnatador:"Desnatadores", drenFondo:"Drenes fondo", drenCanal:"Drenes canal", barredora:"Barredoras", filtroArena:"Filtro arena", prefiltro:"Prefiltro", filtroCartucho:"F. cartucho", cloradorSalino:"Cloro salino", lamparaUV:"Lámpara UV", cloradorAutomatico:"Clorador auto" };
+
+  const getCDT = (reporte, key) => {
+    const d = getEquipoData(reporte, key);
+    if (!d) return null;
+    return d.cargaDinamicaTotal ?? d.cargaTotal ?? null;
+  };
+
+  const equiposPresentes = equiposOrden.filter(k => reportes.some(r => getEquipoData(r, k)));
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
+      {/* Tabla comparativa de CDT */}
+      <div>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Comparativa de cargas por equipo (ft)</p>
+        <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+          <thead><tr style={{ background:"#0f172a" }}>
+            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px" }}>Equipo</th>
+            {reportes.filter(Boolean).map((r, i) => (
+              <th key={i} style={{ ...td, color: ITER_CONFIG[i].textColor, fontWeight:700, padding:"7px 12px" }}>{ITER_CONFIG[i].label}<br/><span style={{ fontSize:"0.68rem", color:"#64748b", fontWeight:400 }}>{f2(r.flujo)} GPM</span></th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {equiposPresentes.map((key, ri) => {
+              // Determinar si este equipo suma en cada reporte
+              const esBarredora = key === "barredora";
+              return (
+                <tr key={key} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
+                  <td style={{ ...td, textAlign:"left", color: esBarredora?"#64748b":"#e2e8f0", fontWeight:500, padding:"6px 12px" }}>
+                    {nombresEq[key]}
+                    {esBarredora && <span style={{ fontSize:"0.65rem", color:"#475569", marginLeft:"6px" }}>informativo</span>}
+                  </td>
+                  {reportes.filter(Boolean).map((r, i) => {
+                    const v = getCDT(r, key);
+                    // Succión: verificar si gobierna
+                    const succKeys = tieneDesbordeCanal ? ["drenCanal","drenFondo"] : ["desnatador","drenFondo"];
+                    const esSuccion = succKeys.includes(key);
+                    let gobierna = true;
+                    if (esSuccion) {
+                      const succVals = succKeys.map(k => ({ k, v: getCDT(r,k) })).filter(x=>x.v!=null);
+                      if (succVals.length > 1) {
+                        const max = succVals.reduce((a,b)=>parseFloat(b.v)>parseFloat(a.v)?b:a);
+                        gobierna = max.k === key;
+                      }
+                    }
+                    const noSuma = esBarredora || (esSuccion && !gobierna);
+                    return <td key={i} style={{ ...td, color: v==null?"#334155":noSuma?"#475569":"#60a5fa", padding:"6px 12px" }}>
+                      {v!=null ? f2(v)+" ft" : "—"}
+                      {v!=null && noSuma && <span style={{ fontSize:"0.62rem", color:"#475569", display:"block" }}>no suma</span>}
+                      {v!=null && esSuccion && gobierna && <span style={{ fontSize:"0.62rem", color:"#34d399", display:"block" }}>↑ gobierna</span>}
+                    </td>;
+                  })}
+                </tr>
+              );
+            })}
+            {/* Fila total — mismas reglas que App.jsx */}
+            <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+              <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>CDT Total sistema</td>
+              {reportes.filter(Boolean).map((r, i) => {
+                // Barredora nunca suma
+                // Succión: solo la mayor entre desnatador/drenFondo o drenCanal/drenFondo gobierna
+                const succKeys = tieneDesbordeCanal
+                  ? ["drenCanal","drenFondo"]
+                  : ["desnatador","drenFondo"];
+                const succVals = succKeys.map(k => ({ k, v: getCDT(r, k) })).filter(x => x.v != null);
+                const succGobierna = succVals.length ? succVals.reduce((a,b) => parseFloat(b.v)>parseFloat(a.v)?b:a) : null;
+                const noSuma = new Set(["barredora", ...succVals.filter(x => x.k !== succGobierna?.k).map(x => x.k)]);
+                const total = equiposPresentes.reduce((s, k) => {
+                  if (noSuma.has(k)) return s;
+                  const v = getCDT(r, k);
+                  return s + (v ? parseFloat(v) : 0);
+                }, 0);
+                return <td key={i} style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{f2(total)} ft</td>;
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Calentamiento */}
+      {calentamiento?.length > 0 && (
+        <div>
+          <p style={{ ...tituloStyle, marginTop:0 }}>Calentamiento (carga fija — todos los reportes)</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              {["Equipo","Flujo total","CDT (ft)","CDT (PSI)"].map(h=><th key={h} style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px" }}>{h}</th>)}
+            </tr></thead>
+            <tbody>{calentamiento.map((c,i)=>(
+              <tr key={i}><td style={{ ...td, textAlign:"left" }}>{c.label}</td><td style={td}>{f2(c.seleccion?.flujoTotal)} GPM</td><td style={{ ...td, color:"#60a5fa" }}>{f2(c.cargaTotal)} ft</td><td style={td}>{f2(c.cargaTotalPSI)} PSI</td></tr>
+            ))}</tbody>
+          </table>
         </div>
       )}
-      {esPanelSolar
-        ? <TablaTandems resultado={data.tablaTramos} titulo="Tramos por tándem" />
-        : <TablaTramos resultado={data.tablaTramos} titulo="Tramos entre equipos" />
-      }
-      <TablaDistanciaCalentamiento tablaDistancia={data.tablaDistancia} />
-      <TablaAltura tablaAltura={data.tablaAltura} labelEquipo={data.label.toLowerCase()} />
-      <div className="mc-bottom-row">
-        <TablaResumen resumen={data.resumenMateriales} titulo="Resumen materiales" />
-        <SumatoriaCalentamiento data={data} />
-      </div>
     </div>
   );
 }
 
 /* ═══════════ COMPONENTE PRINCIPAL ═══════════ */
-
 export default function MemoriaCalculo() {
-  const [memoria, setMemoria] = useState(null);
+  const [memoria, setMemoria]     = useState(null);
   const [tabActiva, setTabActiva] = useState(0);
-  const [error, setError] = useState(null);
+  const [error, setError]         = useState(null);
 
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("memoriaCalculo");
-      if (!raw) throw new Error("No se encontraron datos. Cierra esta ventana y genera la memoria desde Equipamiento.");
-      setMemoria(JSON.parse(raw));
-    } catch (e) {
-      setError(e.message);
-    }
+      if (!raw) throw new Error("No se encontraron datos. Genera la memoria desde Equipamiento.");
+      const parsed = JSON.parse(raw);
+      setMemoria(parsed);
+    } catch (e) { setError(e.message); }
   }, []);
 
-  if (error) return <div className="mc-error"><p>⚠️ {error}</p></div>;
-  if (!memoria) return <div className="mc-loading">Cargando memoria de cálculo…</div>;
+  if (error) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#f87171", fontFamily:"system-ui" }}>⚠️ {error}</div>;
+  if (!memoria) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#94a3b8", fontFamily:"system-ui" }}>Cargando…</div>;
 
-  const { resumen, retornos, desnatadores, drenFondo, drenCanal, barredoras,
-          filtroArena, prefiltro, filtroCartucho,
-          cloradorSalino, lamparaUV, cloradorAutomatico,
-          calentamiento } = memoria;
+  const { resumen, reportes = [], calentamiento = [] } = memoria;
+
+  const defEquipos = [
+    { key:"retorno",            label:"Retornos",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
+    { key:"desnatador",         label:"Desnatadores",     tipo:"empotrable", sufijoCM:"CMD",  tituloTramos:"Tramos desnatadores", tituloDisparo:"Disparo al desnatador"  },
+    { key:"barredora",          label:"Barredoras",       tipo:"empotrable", sufijoCM:"CMB",  tituloTramos:"Tramos barredoras",   tituloDisparo:"Disparo a barredora"    },
+    { key:"drenFondo",          label:"Drenes fondo",     tipo:"empotrable", sufijoCM:"CMDF", tituloTramos:"Tramos drenes fondo", tituloDisparo:null                     },
+    { key:"drenCanal",          label:"Drenes canal",     tipo:"empotrable", sufijoCM:"CMDC", tituloTramos:"Tramos drenes canal", tituloDisparo:null                     },
+    { key:"filtroArena",        label:"Filtro arena",     tipo:"filtro" },
+    { key:"prefiltro",          label:"Prefiltro",        tipo:"filtro" },
+    { key:"filtroCartucho",     label:"F. cartucho",      tipo:"filtro" },
+    { key:"cloradorSalino",     label:"Cloro salino",     tipo:"filtro" },
+    { key:"lamparaUV",          label:"Lámpara UV",       tipo:"filtro" },
+    { key:"cloradorAutomatico", label:"Clorador auto",    tipo:"filtro" },
+  ].filter(eq => reportes.some(r => getEquipoData(r, eq.key)));
 
   const tabs = [
-    retornos     && { label: "Retornos",      comp: <SeccionEmpotrable data={retornos}     titulo="Retornos"     tituloTramos="Tramos retornos"     tituloDisparo="Disparo — retorno"     sufijoCM="CM"   tituloDisparos="Disparos al retorno"     /> },
-    desnatadores && { label: "Desnatadores",  comp: <SeccionEmpotrable data={desnatadores} titulo="Desnatadores" tituloTramos="Tramos desnatadores" tituloDisparo="Disparo — desnatador" sufijoCM="CMD"  tituloDisparos="Disparos al desnatador"  /> },
-    drenFondo    && { label: "Drenes Fondo",  comp: <SeccionEmpotrable data={drenFondo}    titulo="Drenes fondo" tituloTramos="Tramos drenes fondo" tituloDisparo={null}                 sufijoCM="CMDF" /> },
-    drenCanal    && { label: "Drenes Canal",  comp: <SeccionEmpotrable data={drenCanal}    titulo="Drenes canal" tituloTramos="Tramos drenes canal" tituloDisparo={null}                 sufijoCM="CMDC" /> },
-    barredoras   && { label: "Barredoras",    comp: <SeccionEmpotrable data={barredoras}   titulo="Barredoras"   tituloTramos="Tramos barredoras"   tituloDisparo="Disparo — barredora"  sufijoCM="CMB"  tituloDisparos="Disparos a barredora"    /> },
-    filtroArena      && { label: "Filtro Arena",    comp: <SeccionEquipoSimple data={filtroArena}      /> },
-    prefiltro        && { label: "Prefiltro",        comp: <SeccionEquipoSimple data={prefiltro}        /> },
-    filtroCartucho   && { label: "F. Cartucho",     comp: <SeccionEquipoSimple data={filtroCartucho}   /> },
-    cloradorSalino   && { label: "Cloro Salino",    comp: <SeccionEquipoSimple data={cloradorSalino}   /> },
-    lamparaUV        && { label: "Lámpara UV",       comp: <SeccionEquipoSimple data={lamparaUV}        /> },
-    cloradorAutomatico && { label: "Clorador Auto",  comp: <SeccionEquipoSimple data={cloradorAutomatico} /> },
-    ...(calentamiento ?? []).map(c => ({ label: c.label, comp: <SeccionCalentamiento data={c} /> })),
-  ].filter(Boolean);
+    { label:"📊 Resumen", comp: <TabResumen reportes={reportes} calentamiento={calentamiento} /> },
+    ...defEquipos.map(eq => ({
+      label: eq.label,
+      comp: <TabEquipo equipoKey={eq.key} reportes={reportes} tipoRender={eq.tipo} sufijoCM={eq.sufijoCM} tituloTramos={eq.tituloTramos} tituloDisparo={eq.tituloDisparo} />,
+    })),
+  ];
 
   return (
-    <div className="mc-root">
-      <header className="mc-header">
-        <h1 className="mc-titulo">Memoria de cálculo hidráulico</h1>
-        <div className="mc-resumen-general">
-          <span><strong>Volumen:</strong> {resumen.vol} m³</span>
-          <span><strong>Flujo vol.:</strong> {resumen.flujoVol} gpm</span>
-          {parseFloat(resumen.flujoInf) > 0 && <span><strong>Flujo infinity:</strong> {resumen.flujoInf} gpm</span>}
-          <span><strong>Flujo máximo:</strong> {resumen.flujoMax} gpm</span>
-          <span><strong>Tubería succión:</strong> {resumen.tubSuccion}</span>
-          <span><strong>Tubería descarga:</strong> {resumen.tubDescarga}</span>
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Segoe UI',system-ui,sans-serif", background:"#0f172a", color:"#e2e8f0" }}>
+      {/* Header */}
+      <div style={{ background:"#1e293b", borderBottom:"1px solid #334155", padding:"14px 24px" }}>
+        <h1 style={{ fontSize:"1.1rem", fontWeight:700, color:"#60a5fa", marginBottom:"8px" }}>Memoria de cálculo hidráulico</h1>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"16px", fontSize:"0.8rem", color:"#94a3b8" }}>
+          <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>
+          <span><strong style={{ color:"#e2e8f0" }}>Flujo diseño:</strong> {resumen.flujoMax} GPM</span>
+          {resumen.bomba && <span><strong style={{ color:"#e2e8f0" }}>Bomba:</strong> {resumen.bomba} × {resumen.nBombas}</span>}
+          {resumen.flujoFinal && <span><strong style={{ color:"#38bdf8" }}>Flujo operación:</strong> {resumen.flujoFinal} GPM</span>}
+          {resumen.cdtFinal && <span><strong style={{ color:"#38bdf8" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
+          <span><strong style={{ color:"#e2e8f0" }}>Succ.:</strong> {resumen.tubSuccion}</span>
+          <span><strong style={{ color:"#e2e8f0" }}>Desc.:</strong> {resumen.tubDescarga}</span>
         </div>
-      </header>
+        {/* Leyenda */}
+        <div style={{ display:"flex", gap:"14px", marginTop:"8px", flexWrap:"wrap" }}>
+          {ITER_CONFIG.map(c => (
+            <span key={c.label} style={{ display:"flex", alignItems:"center", gap:"5px", fontSize:"0.73rem", color:"#94a3b8" }}>
+              <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:c.bg, border:`1px solid ${c.border}`, display:"inline-block" }} />
+              {c.label}
+            </span>
+          ))}
+        </div>
+      </div>
 
-      <nav className="mc-tabs">
+      {/* Tabs */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap:"2px", background:"#1e293b", borderBottom:"2px solid #334155", padding:"0 16px" }}>
         {tabs.map((tab, i) => (
-          <button key={i} className={`mc-tab ${tabActiva === i ? "mc-tab-activa" : ""}`} onClick={() => setTabActiva(i)}>
+          <button key={i} onClick={() => setTabActiva(i)}
+            style={{ padding:"8px 14px", border:"none", background:"transparent", color: tabActiva===i ? "#60a5fa" : "#94a3b8", fontSize:"0.8rem", fontWeight: tabActiva===i ? 700 : 500, cursor:"pointer", borderBottom: tabActiva===i ? "2px solid #60a5fa" : "2px solid transparent", marginBottom:"-2px", whiteSpace:"nowrap", transition:"color 0.15s" }}>
             {tab.label}
           </button>
         ))}
-      </nav>
+      </div>
 
-      <main className="mc-contenido">{tabs[tabActiva]?.comp}</main>
-
-      <style>{`
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-        .mc-root { min-height: 100vh; display: flex; flex-direction: column; }
-        .mc-header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; }
-        .mc-titulo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; margin-bottom: 10px; }
-        .mc-resumen-general { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.82rem; color: #94a3b8; }
-        .mc-resumen-general strong { color: #e2e8f0; }
-        .mc-tabs { display: flex; gap: 2px; flex-wrap: wrap; background: #1e293b; border-bottom: 2px solid #334155; padding: 0 16px; }
-        .mc-tab { padding: 8px 16px; border: none; background: transparent; color: #94a3b8; font-size: 0.82rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
-        .mc-tab:hover { color: #e2e8f0; }
-        .mc-tab-activa { color: #60a5fa; border-bottom-color: #60a5fa; }
-        .mc-contenido { flex: 1; padding: 20px 16px; overflow-x: auto; }
-        .mc-seccion { display: flex; flex-direction: column; gap: 20px; }
-        .mc-info-equipo { display: flex; flex-wrap: wrap; gap: 16px; padding: 10px 14px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; font-size: 0.82rem; color: #94a3b8; }
-        .mc-info-equipo strong { color: #e2e8f0; }
-        .mc-tabla-wrap { overflow-x: auto; }
-        .mc-tabla-titulo { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #60a5fa; background: #1e293b; border: 1px solid #334155; border-bottom: none; padding: 5px 12px; border-radius: 6px 6px 0 0; display: inline-block; }
-        .mc-tabla { width: 100%; border-collapse: collapse; font-size: 0.77rem; background: #1e293b; border: 1px solid #334155; border-radius: 0 6px 6px 6px; }
-        .mc-tabla th { background: #0f172a; color: #94a3b8; font-weight: 600; padding: 6px 8px; text-align: center; border: 1px solid #334155; white-space: nowrap; }
-        .mc-tabla td { padding: 4px 8px; text-align: center; border: 1px solid #1e3a5f; color: #cbd5e1; }
-        .mc-tabla tbody tr:hover { background: #0f2d4a; }
-        .mc-th-total, .mc-td-total { background: #0c2340 !important; color: #60a5fa !important; font-weight: 700 !important; }
-        .mc-tr-suma td { background: #1a3a5c; font-weight: 700; color: #93c5fd; }
-        .mc-tabla-resumen { width: auto; min-width: 260px; }
-        .mc-bottom-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
-        .mc-resumen-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-        .mc-sumatoria { min-width: 300px; }
-        .mc-tabla-sumatoria { width: 100%; }
-        .mc-sum-label { text-align: left !important; font-weight: 600; color: #94a3b8 !important; padding-right: 16px !important; }
-        .mc-tr-total td { background: #0c2340; color: #60a5fa !important; font-weight: 700; }
-        .mc-error, .mc-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 12px; color: #94a3b8; font-size: 0.9rem; }
-        .mc-error { color: #f87171; }
-      `}</style>
+      {/* Contenido */}
+      <div style={{ flex:1, padding:"20px 16px", overflowX:"auto" }}>
+        {tabs[tabActiva]?.comp}
+      </div>
     </div>
   );
 }
