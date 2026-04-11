@@ -219,7 +219,7 @@ function getEquipoData(reporte, key) {
 }
 
 /* ═══════════ TAB RESUMEN ═══════════ */
-function TabResumen({ reportes, calentamiento }) {
+function TabResumen({ reportes, calentamiento, resumen = {} }) {
   // Inferir si tiene desborde canal basándose en los datos
   const tieneDesbordeCanal = reportes.some(r => getEquipoData(r, "drenCanal") != null);
   const equiposOrden = ["retorno","desnatador","drenFondo","drenCanal","barredora","filtroArena","prefiltro","filtroCartucho","cloradorSalino","lamparaUV","cloradorAutomatico"];
@@ -278,44 +278,30 @@ function TabResumen({ reportes, calentamiento }) {
                 </tr>
               );
             })}
-            {/* Fila total — mismas reglas que App.jsx */}
+            {/* Filas de calentamiento — carga fija, igual en todas las iteraciones */}
+            {calentamiento?.length > 0 && calentamiento.map((c, ci) => (
+              <tr key={"cal-"+ci} style={{ background: ci%2===0?"rgba(251,191,36,0.04)":"rgba(251,191,36,0.02)", borderTop: ci===0?"1px solid rgba(251,191,36,0.15)":"none" }}>
+                <td style={{ ...td, textAlign:"left", color:"#fbbf24", fontWeight:500, padding:"6px 12px" }}>
+                  {c.label}
+                  <span style={{ fontSize:"0.65rem", color:"#92400e", marginLeft:"6px" }}>fijo</span>
+                </td>
+                {reportes.filter(Boolean).map((r, i) => (
+                  <td key={i} style={{ ...td, color:"#fbbf24", padding:"6px 12px" }}>{f2(c.cargaTotal)} ft</td>
+                ))}
+              </tr>
+            ))}
+            {/* Fila CDT Total — usa los valores reales del equilibrio hidráulico */}
             <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
               <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>CDT Total sistema</td>
-              {reportes.filter(Boolean).map((r, i) => {
-                // Barredora nunca suma
-                // Succión: solo la mayor entre desnatador/drenFondo o drenCanal/drenFondo gobierna
-                const succKeys = tieneDesbordeCanal
-                  ? ["drenCanal","drenFondo"]
-                  : ["desnatador","drenFondo"];
-                const succVals = succKeys.map(k => ({ k, v: getCDT(r, k) })).filter(x => x.v != null);
-                const succGobierna = succVals.length ? succVals.reduce((a,b) => parseFloat(b.v)>parseFloat(a.v)?b:a) : null;
-                const noSuma = new Set(["barredora", ...succVals.filter(x => x.k !== succGobierna?.k).map(x => x.k)]);
-                const total = equiposPresentes.reduce((s, k) => {
-                  if (noSuma.has(k)) return s;
-                  const v = getCDT(r, k);
-                  return s + (v ? parseFloat(v) : 0);
-                }, 0);
-                return <td key={i} style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{f2(total)} ft</td>;
-              })}
+              {[resumen.cdtDiseno, resumen.cdtIter1, resumen.cdtIter2].slice(0, reportes.filter(Boolean).length).map((cdt, i) => (
+                <td key={i} style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{cdt} ft</td>
+              ))}
             </tr>
           </tbody>
         </table>
       </div>
 
-      {/* Calentamiento */}
-      {calentamiento?.length > 0 && (
-        <div>
-          <p style={{ ...tituloStyle, marginTop:0 }}>Calentamiento (carga fija — todos los reportes)</p>
-          <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155" }}>
-            <thead><tr style={{ background:"#0f172a" }}>
-              {["Equipo","Flujo total","CDT (ft)","CDT (PSI)"].map(h=><th key={h} style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px" }}>{h}</th>)}
-            </tr></thead>
-            <tbody>{calentamiento.map((c,i)=>(
-              <tr key={i}><td style={{ ...td, textAlign:"left" }}>{c.label}</td><td style={td}>{f2(c.seleccion?.flujoTotal)} GPM</td><td style={{ ...td, color:"#60a5fa" }}>{f2(c.cargaTotal)} ft</td><td style={td}>{f2(c.cargaTotalPSI)} PSI</td></tr>
-            ))}</tbody>
-          </table>
-        </div>
-      )}
+
     </div>
   );
 }
@@ -355,7 +341,7 @@ export default function MemoriaCalculo() {
   ].filter(eq => reportes.some(r => getEquipoData(r, eq.key)));
 
   const tabs = [
-    { label:"📊 Resumen", comp: <TabResumen reportes={reportes} calentamiento={calentamiento} /> },
+    { label:"📊 Resumen", comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
     ...defEquipos.map(eq => ({
       label: eq.label,
       comp: <TabEquipo equipoKey={eq.key} reportes={reportes} tipoRender={eq.tipo} sufijoCM={eq.sufijoCM} tituloTramos={eq.tituloTramos} tituloDisparo={eq.tituloDisparo} />,

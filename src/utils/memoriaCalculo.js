@@ -156,17 +156,24 @@ function generarReporte({
   estados, datosEmpotrable, tieneDesbordeCanal,
   sistemasSeleccionadosFilt, sistemasSeleccionadosSanit,
   resultadoClorador, equilibrio,
-  equiposRecalcIter,   // null para diseño original, equiposRecalc de iter para iter1/iter2
+  equiposRecalcIter,
 }) {
   const est  = (k) => estados?.[k];
   const tipo = (k) => est(k)?.tipo ?? null;
 
+  // Para diseño original: cantidad del estado original
+  // Para iteraciones: cantidad recalculada de esa iteración
   const cantParaKey = (k) => {
     if (equiposRecalcIter) {
       return equiposRecalcIter[k]?.cantidad ?? est(k)?.cantidad ?? null;
     }
-    return equilibrio?.equipos?.[k]?.cantidad ?? est(k)?.cantidad ?? null;
+    return est(k)?.cantidad ?? null;
   };
+
+  // Flujo a usar en los fallbacks:
+  // - Diseño original: flujoDiseno (105.7 GPM)
+  // - Iteraciones: flujo de esa iteración, pero solo si no hay resultadoHidraulico
+  const flujoCalculo = equiposRecalcIter ? flujo : flujoDiseno;
 
   /* ── Empotrables ── */
   const empKeys = tieneDesbordeCanal
@@ -184,9 +191,8 @@ function generarReporte({
   const empotrables = {};
   for (const key of empKeys) {
     if (!est(key)?.selId) continue;
-    // Si tenemos resultado hidráulico completo de la iteración, usarlo directamente
     const resIter = equiposRecalcIter?.[key]?.resultadoHidraulico;
-    const res = resIter ?? fnsEmp[key](flujo, tipo(key), datosEmpotrable, cantParaKey(key));
+    const res = resIter ?? fnsEmp[key](flujoCalculo, tipo(key), datosEmpotrable, cantParaKey(key));
     const data = empacarEmpotrable(res, key);
     if (data) empotrables[key] = data;
   }
@@ -197,7 +203,7 @@ function generarReporte({
   if (sistemasSeleccionadosFilt?.filtroArena && est("filtroArena")?.selId) {
     const resIter = equiposRecalcIter?.filtroArena?.resultadoHidraulico;
     const eq = est("filtroArena");
-    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cantParaKey("filtroArena"));
+    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cantParaKey("filtroArena") ?? 1);
     const data = empacarFiltroRes(res, "Filtro de arena", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("filtroArena"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("filtroArena") });
     if (data) filtros.filtroArena = data;
   }
@@ -205,7 +211,7 @@ function generarReporte({
   if (sistemasSeleccionadosFilt?.prefiltro && est("prefiltro")?.selId) {
     const resIter = equiposRecalcIter?.prefiltro?.resultadoHidraulico;
     const eq = est("prefiltro");
-    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cantParaKey("prefiltro"));
+    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cantParaKey("prefiltro") ?? 1);
     const data = empacarFiltroRes(res, "Prefiltro", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("prefiltro"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("prefiltro") });
     if (data) filtros.prefiltro = data;
   }
@@ -213,7 +219,7 @@ function generarReporte({
   if (sistemasSeleccionadosFilt?.filtroCartucho && est("filtroCartucho")?.selId) {
     const resIter = equiposRecalcIter?.filtroCartucho?.resultadoHidraulico;
     const eq = est("filtroCartucho");
-    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cantParaKey("filtroCartucho"));
+    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cantParaKey("filtroCartucho") ?? 1);
     const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("filtroCartucho"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("filtroCartucho") });
     if (data) filtros.filtroCartucho = data;
   }
@@ -292,7 +298,8 @@ function empacarCalentamiento(key, label, calentamiento) {
    ================================================================ */
 export function generarMemoriaCalculo({
   estados, datosEmpotrable, tieneDesbordeCanal,
-  flujoMaxGlobal, tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, vol,
+  flujoMaxGlobal, cargaTotalGlobal,
+  tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, vol,
   estadoBomba, equilibrio,
   datosPorSistema,
   resultadoClorador,
@@ -319,6 +326,12 @@ export function generarMemoriaCalculo({
     nBombas:     estadoBomba?.nBombas ?? 1,
     flujoFinal:  f2(equilibrioFinal?.flujo ?? flujoMaxGlobal),
     cdtFinal:    f2(equilibrioFinal?.carga ?? 0),
+    // CDT totales reales de cada etapa (del equilibrio hidráulico, no recalculados)
+    cdtDiseno:   f2(cargaTotalGlobal ?? flujoMaxGlobal),
+    cdtIter1:    f2(iteraciones[0]?.cargaSalida ?? 0),
+    cdtIter2:    f2(iteraciones[1]?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
+    flujoIter1:  f2(iteraciones[0]?.flujoEquilibrio ?? 0),
+    flujoIter2:  f2(iteraciones[1]?.flujoEquilibrio ?? 0),
   };
 
   const ctx = {

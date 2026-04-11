@@ -1716,7 +1716,15 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     setTimeout(() => {
       try {
         const cargasBase = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
+        // Snapshot de cargas y CDT en el momento del calculo — antes de que "Confirmar" los modifique
+        const snapshotCargas = { ...cargasBase };
+        const snapshotCDT   = cargaTotalGlobal;
         const res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral });
+        // Guardar snapshot en el resultado para usarlo al generar la memoria
+        if (res && !res.error) {
+          res._snapshotCargas = snapshotCargas;
+          res._snapshotCDT    = snapshotCDT;
+        }
         setResultado(res);
       } catch (e) { setResultado({ error: e.message }); }
       setFase("listo");
@@ -1805,14 +1813,36 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                     }
                   }
                   const exceso = cargaBombaEnDis != null && cargaTotalGlobal != null && cargaBombaEnDis > cargaTotalGlobal;
+                  // Flujo que da la bomba en el CDT de diseño (= CDT sistema, no CDT bomba)
+                  const qBombaEnDis = (() => {
+                    const curvaB = resultado?.bomba?.curva;
+                    if (!curvaB || !cargaTotalGlobal) return null;
+                    if (cargaTotalGlobal > curvaB[0].carga_ft) return 0;
+                    if (cargaTotalGlobal < curvaB[curvaB.length-1].carga_ft) {
+                      const ult = curvaB[curvaB.length-1], pen = curvaB[curvaB.length-2];
+                      const t = (cargaTotalGlobal - pen.carga_ft) / (ult.carga_ft - pen.carga_ft);
+                      return Math.max(0, pen.flujo_gpm + t * (ult.flujo_gpm - pen.flujo_gpm));
+                    }
+                    for (let i = 0; i < curvaB.length-1; i++) {
+                      const p1 = curvaB[i], p2 = curvaB[i+1];
+                      if (cargaTotalGlobal <= p1.carga_ft && cargaTotalGlobal >= p2.carga_ft) {
+                        const t = (p1.carga_ft - cargaTotalGlobal) / (p1.carga_ft - p2.carga_ft);
+                        return p1.flujo_gpm + t * (p2.flujo_gpm - p1.flujo_gpm);
+                      }
+                    }
+                    return null;
+                  })();
                   return (
                     <div style={{ background: "rgba(100,116,139,0.07)", border: "1px solid rgba(100,116,139,0.18)", borderRadius: "6px", padding: "0.4rem 0.7rem", display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "center" }}>
                       <span style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, minWidth: "90px" }}>Diseño original</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q = <span style={{ color: "#94a3b8" }}>{parseFloat(flujoMaxGlobal ?? 0).toFixed(1)} GPM</span></span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q sistema = <span style={{ color: "#94a3b8" }}>{parseFloat(flujoMaxGlobal ?? 0).toFixed(1)} GPM</span></span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT sistema = <span style={{ color: "#94a3b8" }}>{parseFloat(cargaTotalGlobal ?? 0).toFixed(2)} ft</span></span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT bomba = <span style={{ color: exceso ? "#fbbf24" : "#94a3b8" }}>{cargaBombaEnDis != null ? parseFloat(cargaBombaEnDis).toFixed(2) + " ft" : "—"}</span>
                         {exceso && <span style={{ fontSize: "0.6rem", color: "#fbbf24", marginLeft: "0.3rem" }}>↑ exceso</span>}
                       </span>
+                      {qBombaEnDis != null && (
+                        <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q bomba @ CDT diseño = <span style={{ color: "#38bdf8" }}>{parseFloat(qBombaEnDis * (resultado?.nBombas ?? 1)).toFixed(1)} GPM total</span></span>
+                      )}
                     </div>
                   );
                 })()}
@@ -1823,7 +1853,7 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                   return (
                     <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px solid rgba(56,189,248,0.08)", borderRadius: "6px", padding: "0.4rem 0.7rem", display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "center" }}>
                       <span style={{ fontSize: "0.68rem", color: "#7dd3fc", fontWeight: 700, minWidth: "56px" }}>Iter. {it.iter ?? (i+1)}</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT entrada = <span style={{ color: "#e2e8f0" }}>{parseFloat(it.cargaEntrada ?? 0).toFixed(2)} ft</span></span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT entrada = <span style={{ color: "#e2e8f0" }}>{parseFloat(it.cargaEntrada ?? 0).toFixed(2)} ft</span>{it.shutOffSuperado && <span style={{ fontSize: "0.6rem", color: "#f97316", marginLeft: "0.3rem" }}>⚠ limitado a shut-off</span>}</span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q bomba = <span style={{ color: "#38bdf8" }}>{parseFloat(qBomba).toFixed(1)} GPM/bomba</span></span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q total = <span style={{ color: "#38bdf8" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span></span>
                       <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT salida = <span style={{ color: "#fbbf24" }}>{cargaSal.toFixed(2)} ft</span></span>
@@ -2129,6 +2159,8 @@ function ResumenEquiposConfirmacion({
                 datosEmpotrable,
                 tieneDesbordeCanal,
                 flujoMaxGlobal,
+                // Usar el CDT y cargas del momento del cálculo, no el estado actual (que puede haber sido modificado por "Confirmar")
+                cargaTotalGlobal: resultado?._snapshotCDT ?? cargaTotalGlobal,
                 tuberiaMaxGlobal: estadoBomba?.tubDescarga ?? null,
                 flujoVolumen:     flujoMaxGlobal,
                 flujoInfinityVal: null,
@@ -2139,7 +2171,7 @@ function ResumenEquiposConfirmacion({
                 resultadoClorador,
                 sistemasSeleccionadosSanit,
                 sistemasSeleccionadosFilt,
-                cargas,
+                cargas: resultado?._snapshotCargas ?? cargas,
               });
               window.open("/memoria-calculo", "_blank");
             } catch (e) {
