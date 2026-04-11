@@ -1848,15 +1848,30 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                 })()}
                 {/* Iteraciones */}
                 {resultado.iteraciones.map((it, i) => {
-                  const cargaSal = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
-                  const qBomba   = it.flujoPorBomba ?? parseFloat((it.flujoEquilibrio ?? 0) / (resultado?.nBombas ?? 1));
+                  const cargaSal  = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
+                  const qBomba    = it.flujoPorBomba ?? parseFloat((it.flujoEquilibrio ?? 0) / (resultado?.nBombas ?? 1));
+                  const esEq      = it.esEquilibrio === true;
+                  const cubrio    = parseFloat(it.cargaDispBomba ?? 0) >= cargaSal;
                   return (
-                    <div key={i} style={{ background: "rgba(15,23,42,0.4)", border: "1px solid rgba(56,189,248,0.08)", borderRadius: "6px", padding: "0.4rem 0.7rem", display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.68rem", color: "#7dd3fc", fontWeight: 700, minWidth: "56px" }}>Iter. {it.iter ?? (i+1)}</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT entrada = <span style={{ color: "#e2e8f0" }}>{parseFloat(it.cargaEntrada ?? 0).toFixed(2)} ft</span>{it.shutOffSuperado && <span style={{ fontSize: "0.6rem", color: "#f97316", marginLeft: "0.3rem" }}>⚠ limitado a shut-off</span>}</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q bomba = <span style={{ color: "#38bdf8" }}>{parseFloat(qBomba).toFixed(1)} GPM/bomba</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q total = <span style={{ color: "#38bdf8" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT salida = <span style={{ color: "#fbbf24" }}>{cargaSal.toFixed(2)} ft</span></span>
+                    <div key={i} style={{
+                      background: esEq ? "rgba(52,211,153,0.07)" : "rgba(15,23,42,0.4)",
+                      border: `1px solid ${esEq ? "rgba(52,211,153,0.3)" : "rgba(56,189,248,0.08)"}`,
+                      borderRadius: "6px", padding: "0.4rem 0.7rem",
+                      display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center"
+                    }}>
+                      <span style={{ fontSize: "0.68rem", color: esEq ? "#34d399" : "#7dd3fc", fontWeight: 700, minWidth: "30px" }}>
+                        {esEq ? "★" : `${it.iter ?? (i+1)}`}
+                      </span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                        Q = <span style={{ color: "#38bdf8" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span>
+                      </span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                        CDT sistema = <span style={{ color: cargaSal > parseFloat(it.cargaDispBomba ?? 999) ? "#f97316" : "#e2e8f0" }}>{cargaSal.toFixed(2)} ft</span>
+                      </span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                        CDT bomba = <span style={{ color: cubrio ? "#34d399" : "#f97316" }}>{parseFloat(it.cargaDispBomba ?? 0).toFixed(2)} ft</span>
+                      </span>
+                      {esEq && <span style={{ fontSize: "0.65rem", color: "#34d399", fontWeight: 600 }}>← equilibrio</span>}
                     </div>
                   );
                 })}

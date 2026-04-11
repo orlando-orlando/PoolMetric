@@ -17,7 +17,6 @@ import { calcularCargaPrefiltroManual }      from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual } from "./filtroCartucho";
 import { calcularCargaUVManual }             from "./generadorUV";
 
-// Dado un CDT objetivo, devuelve el flujo que entrega la bomba
 function flujoEnCurva(curva, cargaObjetivo) {
   if (!curva || curva.length === 0) return null;
   if (cargaObjetivo > curva[0].carga_ft) return 0;
@@ -40,7 +39,6 @@ function flujoEnCurva(curva, cargaObjetivo) {
   return null;
 }
 
-// Dado un flujo, devuelve el CDT que entrega la bomba (con extrapolacion)
 function cargaEnCurva(curva, flujo_gpm) {
   if (!curva || curva.length === 0) return null;
   if (flujo_gpm <= curva[0].flujo_gpm) return curva[0].carga_ft;
@@ -179,7 +177,7 @@ export function calcularEquilibrio({
     ? ["retorno", "barredora", "drenFondo", "drenCanal"]
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
-  // Cargas de referencia al flujo de diseno (calculadas frescas, no de cargasIniciales)
+  // Cargas de referencia al flujo de diseno
   function calcularCargasRef(flujoRef) {
     const ref = { ...cargasIniciales };
     for (const key of empKeys) {
@@ -199,9 +197,8 @@ export function calcularEquilibrio({
     return ref;
   }
 
-  // Recalcular todos los equipos a un flujo dado y obtener el nuevo CDT del sistema
-  // CDT nuevo = cargaInicial + delta(cargas_nuevo_flujo - cargas_flujo_diseno)
-  function recalcularYObtenerCDT(flujoNuevo, cargasRef) {
+  // Recalcular equipos y obtener CDT del sistema al flujo dado
+  function calcularCDTSistema(flujoNuevo, cargasRef) {
     const equiposRecalc = {};
     for (const key of empKeys) {
       const est = estados[key];
@@ -242,95 +239,127 @@ export function calcularEquilibrio({
       const cargaNueva = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
       deltaCargas += (cargaNueva - cargaRef);
     }
-    const cargaTotalNueva = Math.max(0.1, cargaInicial + deltaCargas);
-    return { equiposRecalc, cargaTotalNueva };
+    const cdt = Math.max(0.1, cargaInicial + deltaCargas);
+    return { equiposRecalc, cdt };
   }
 
-  // Referencia fresca al flujo de diseno
-  const cargasRef0 = calcularCargasRef(flujoInicial);
-
-  // CDT bomba en el punto de diseno (solo para mostrar el exceso)
+  const cargasRef0      = calcularCargasRef(flujoInicial);
   const cargaBombaEnDis = parseFloat((cargaEnCurva(curva, flujoInicial / nBombas) ?? cargaInicial).toFixed(2));
 
   /* ============================================================
-     ITERACION 1
-     CDT entrada = cargaInicial (CDT del SISTEMA en diseño, ej 65.5 ft)
-     Q bomba     = flujo que da la bomba a ese CDT
-     CDT salida  = sistema recalculado a ese Q
+     BUSQUEDA INCREMENTAL DEL PUNTO DE EQUILIBRIO
+
+     Partimos del flujo de diseño (flujoInicial) y avanzamos de
+     GPM en GPM (paso de 0.5 GPM) calculando en cada punto:
+       - CDT que da la bomba a ese flujo
+       - CDT que requiere el sistema a ese flujo
+
+     El equilibrio es donde CDT_bomba cruza CDT_sistema.
+     Después de encontrar el equilibrio, continuamos 10 pasos más
+     para ver cómo se comporta el sistema cerca del punto de operación.
   ============================================================ */
-  const cdtEntrada_1    = parseFloat(cargaInicial.toFixed(2));
-  const flujoPorBomba_1 = flujoEnCurva(curva, cdtEntrada_1);
-  if (flujoPorBomba_1 == null || flujoPorBomba_1 <= 0) {
-    return { error: "No se puede determinar el flujo de la bomba en el CDT de diseno." };
+  const PASO = 0.5; // GPM por paso
+  const PASOS_POST_EQ = 10; // pasos a mostrar después del equilibrio
+  const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.3;
+
+  let flujoEq    = null;
+  let cdtEq      = null;
+  let equiposEq  = {};
+
+  const pasos = []; // todos los pasos evaluados
+
+  let cdtBombaAnterior = null;
+  let cdtSistAnterior  = null;
+  let flujoAnterior    = null;
+  let idxEquilibrio    = null; // índice en pasos donde ocurrió el cruce
+
+  // Fase 1: buscar el equilibrio avanzando de PASO en PASO
+  for (let q = flujoInicial; q <= qMaxBusqueda; q += PASO) {
+    const qRound     = parseFloat(q.toFixed(2));
+    const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
+    if (cdtBomba_q == null) break;
+
+    const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
+    pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
+
+    if (cdtBombaAnterior !== null && cdtSistAnterior !== null) {
+      if (cdtBombaAnterior >= cdtSistAnterior && cdtBomba_q <= cdtSist_q) {
+        // Interpolacion del cruce exacto
+        const diffAnterior = cdtBombaAnterior - cdtSistAnterior;
+        const diffActual   = cdtBomba_q - cdtSist_q;
+        const t = diffAnterior / (diffAnterior - diffActual);
+        flujoEq = parseFloat((flujoAnterior + t * (qRound - flujoAnterior)).toFixed(2));
+        cdtEq   = parseFloat((cdtSistAnterior + t * (cdtSist_q - cdtSistAnterior)).toFixed(2));
+        const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
+        equiposEq  = eqFinal;
+        idxEquilibrio = pasos.length; // después de este índice van los post-eq
+        // Insertar el punto interpolado de equilibrio
+        pasos.push({
+          flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq,
+          equipos: eqFinal, esEquilibrio: true,
+        });
+        break;
+      }
+    }
+
+    cdtBombaAnterior = cdtBomba_q;
+    cdtSistAnterior  = cdtSist_q;
+    flujoAnterior    = qRound;
   }
-  const flujoTotal_1 = parseFloat((flujoPorBomba_1 * nBombas).toFixed(2));
-  const { equiposRecalc: equip1, cargaTotalNueva: cdt1 } =
-    recalcularYObtenerCDT(flujoTotal_1, cargasRef0);
 
-  /* ============================================================
-     ITERACION 2
-     CDT entrada = CDT salida iter 1
-     Q bomba     = flujo que da la bomba a ese CDT
-     CDT salida  = sistema recalculado a ese Q
-     Si CDT salida iter1 > shut-off: bomba subdimensionada, Q~0
-  ============================================================ */
-  const cdtEntrada_2    = parseFloat(cdt1.toFixed(2));
-  const flujoPorBomba_2raw = flujoEnCurva(curva, cdtEntrada_2);
-  // flujoEnCurva devuelve 0 si CDT > shut-off, null si error
-  const flujoPorBomba_2 = (flujoPorBomba_2raw != null && flujoPorBomba_2raw > 0)
-    ? flujoPorBomba_2raw
-    : 0;
-  const flujoTotal_2 = parseFloat((flujoPorBomba_2 * nBombas).toFixed(2));
+  // Si no hubo cruce
+  if (flujoEq === null) {
+    const ultimo = pasos[pasos.length - 1];
+    flujoEq   = ultimo?.flujo ?? flujoInicial;
+    cdtEq     = ultimo?.cdtSistema ?? cargaInicial;
+    const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
+    equiposEq = eqFinal;
+    pasos.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: eqFinal, esEquilibrio: true });
+    idxEquilibrio = pasos.length - 1;
+  }
 
-  // Si flujoTotal_2 = 0 la bomba no puede vencer el CDT del sistema
-  // Recalcular igual para mostrar las cargas al flujo minimo
-  const flujoParaRecalc2 = flujoTotal_2 > 0 ? flujoTotal_2 : flujoInicial * 0.1;
-  const { equiposRecalc: equip2, cargaTotalNueva: cdt2 } =
-    recalcularYObtenerCDT(flujoParaRecalc2, cargasRef0);
+  // Fase 2: continuar PASOS_POST_EQ iteraciones más allá del equilibrio
+  // En cada paso: el flujo es el que da la bomba al CDT del sistema del paso anterior
+  // (flujo real, no artificial)
+  let cdtSistPrevPost = cdtEq;
+  for (let p = 0; p < PASOS_POST_EQ; p++) {
+    // Flujo real que da la bomba al CDT del sistema anterior
+    const qReal = flujoEnCurva(curva, cdtSistPrevPost);
+    if (qReal == null || qReal <= 0) break; // bomba no puede dar ese CDT
+    const qRound     = parseFloat((qReal * nBombas).toFixed(2));
+    const cdtBomba_q = cargaEnCurva(curva, qReal);
+    if (cdtBomba_q == null) break;
+    const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
+    pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
+    cdtSistPrevPost = cdtSist_q;
+    // Si converge (diferencia < 0.1 ft) parar
+    if (Math.abs(cdtSist_q - cdtBomba_q) < 0.1) break;
+  }
 
-  /* ============================================================
-     PUNTO DE OPERACION
-     CDT = cdt2 (CDT salida iter 2)
-     Q   = flujo de la bomba a ese CDT
-  ============================================================ */
-  const flujoPorBomba_eq = flujoEnCurva(curva, cdt2);
-  const flujoFinal = (flujoPorBomba_eq != null && flujoPorBomba_eq > 0)
-    ? parseFloat((flujoPorBomba_eq * nBombas).toFixed(2))
-    : flujoTotal_2;
+  const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoEq / nBombas) ?? 0).toFixed(2));
 
-  const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoFinal / nBombas) ?? 0).toFixed(2));
-  const bombaSubdimensionada = cdt1 > cargaMaxBomba || cdt2 > cargaMaxBomba;
-
-  const iteraciones = [
-    {
-      iter:            1,
-      flujoEquilibrio: flujoTotal_1,
-      flujoPorBomba:   parseFloat(flujoPorBomba_1.toFixed(2)),
-      cargaEntrada:    cdtEntrada_1,    // CDT diseno del sistema
-      cargaSalida:     parseFloat(cdt1.toFixed(2)),
-      cargaDispBomba:  cargaBombaEnDis, // CDT que da la bomba en diseno (para referencia)
-      equiposRecalc:   equip1,
-    },
-    {
-      iter:            2,
-      flujoEquilibrio: flujoTotal_2,
-      flujoPorBomba:   parseFloat(flujoPorBomba_2.toFixed(2)),
-      cargaEntrada:    cdtEntrada_2,    // CDT salida iter 1
-      cargaSalida:     parseFloat(cdt2.toFixed(2)),
-      cargaDispBomba:  cdtEntrada_2,
-      shutOffSuperado: bombaSubdimensionada,
-      equiposRecalc:   equip2,
-    },
-  ];
+  // Construir iteraciones desde todos los pasos
+  const iteraciones = pasos.map((p, i) => ({
+    iter:            i + 1,
+    flujoEquilibrio: parseFloat(p.flujo.toFixed(2)),
+    flujoPorBomba:   parseFloat((p.flujo / nBombas).toFixed(2)),
+    cargaEntrada:    i === 0
+      ? parseFloat(cargaInicial.toFixed(2))
+      : parseFloat(pasos[i-1].cdtSistema.toFixed(2)),
+    cargaSalida:     parseFloat(p.cdtSistema.toFixed(2)),
+    cargaDispBomba:  parseFloat(p.cdtBomba.toFixed(2)),
+    equiposRecalc:   p.equipos,
+    esEquilibrio:    p.esEquilibrio === true,
+  }));
 
   return {
     iteraciones,
     equilibrio: {
-      flujo:           flujoFinal,
-      carga:           parseFloat(cdt2.toFixed(2)),
+      flujo:           parseFloat(flujoEq.toFixed(2)),
+      carga:           parseFloat(cdtEq.toFixed(2)),
       cargaDisponible: cargaDispFinal,
-      cubre:           !bombaSubdimensionada && cargaDispFinal >= cdt2,
-      equipos:         equip2,
+      cubre:           cargaDispFinal >= cdtEq,
+      equipos:         equiposEq,
     },
     cargasIniciales,
     bomba,

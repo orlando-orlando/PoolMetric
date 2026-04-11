@@ -26,7 +26,7 @@ function cargaEnCurva(curva, flujo_gpm) {
    de margen sobre el CDT requerido para que el punto de equilibrio
    no supere la curva en las iteraciones.
    ================================================================ */
-const MARGEN_SHUTOFF   = 0.15;  // shut-off debe ser >= CDT * (1 + margen)
+const MARGEN_SHUTOFF   = 0.10;  // shut-off debe ser >= CDT * (1 + margen)
 const FLUJO_MIN_FACTOR = 0.15;  // flujo por bomba >= flujoMax_curva * factor
 const FLUJO_MAX_FACTOR = 0.85;  // flujo por bomba <= flujoMax_curva * factor
 
@@ -73,10 +73,11 @@ export function puntoOperacion(bomba, flujoMaximo, n) {
 
 /* ================================================================
    SELECCION RECOMENDADA
-   Criterio primario: zona de operacion segura (margen shut-off + flujo medio)
-   Si ninguna bomba cumple zona segura, relajar el criterio de flujo
-   pero mantener el margen de shut-off.
-   Criterio de desempate: menor cantidad de bombas -> menor potencia total.
+   Criterio:
+     1. Debe cubrir: cargaDisponible >= cargaRequerida con margen >= 15%
+     2. Entre las que cubren: la que opera MAS CERCANA al punto de diseño
+        = menor exceso de CDT relativo (cargaDisp - cargaReq) / cargaReq
+        desempatando por menor cantidad de bombas, luego menor potencia total.
    ================================================================ */
 export function seleccionarMotobomba(flujoMaximo, cargaRequerida) {
   if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) {
@@ -84,20 +85,41 @@ export function seleccionarMotobomba(flujoMaximo, cargaRequerida) {
   }
 
   const catalogo = motobombas1v.filter(b => b.curva && b.curva.length > 0);
+  const candidatos = [];
 
-  // Intentar primero con criterio completo (shut-off + zona flujo)
-  let mejor = buscarMejor(catalogo, flujoMaximo, cargaRequerida, true);
+  for (const bomba of catalogo) {
+    const shutOff = bomba.curva[0].carga_ft;
 
-  // Si no hay ninguna en zona segura, relajar el criterio de flujo
-  // pero mantener el margen de shut-off (lo mas critico)
-  if (!mejor) {
-    mejor = buscarMejor(catalogo, flujoMaximo, cargaRequerida, false);
+    // El shut-off debe superar la CDT requerida con margen del 15%
+    if (shutOff < cargaRequerida * (1 + MARGEN_SHUTOFF)) continue;
+
+    const n = cantidadMinima(bomba, flujoMaximo, cargaRequerida);
+    if (n == null) continue;
+
+    const op = puntoOperacion(bomba, flujoMaximo, n);
+    if (!op) continue;
+
+    const enZona = zonaSegura(bomba, op.flujoPorBomba, cargaRequerida);
+    // Exceso relativo de CDT: 0.0 = exacto, 0.1 = 10% sobre lo requerido
+    const excesoCDT = (op.cargaDisponible - cargaRequerida) / cargaRequerida;
+
+    candidatos.push({ bomba, ...op, enZonaSegura: enZona, excesoCDT });
   }
 
-  if (!mejor) {
-    return { error: "Ninguna motobomba del catalogo puede cubrir el requerimiento de flujo y CDT." };
+  if (candidatos.length === 0) {
+    // Sin margen de shut-off: intentar sin ese requisito
+    return buscarSinMargen(catalogo, flujoMaximo, cargaRequerida);
   }
 
+  // Ordenar: primero zona segura, luego menor exceso de CDT, luego menos bombas, luego menos potencia
+  candidatos.sort((a, b) => {
+    if (a.enZonaSegura !== b.enZonaSegura) return a.enZonaSegura ? -1 : 1;
+    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
+    if (a.n !== b.n) return a.n - b.n;
+    return a.potenciaTotal - b.potenciaTotal;
+  });
+
+  const mejor = candidatos[0];
   return {
     bomba:           mejor.bomba,
     cantidad:        mejor.n,
@@ -110,42 +132,33 @@ export function seleccionarMotobomba(flujoMaximo, cargaRequerida) {
   };
 }
 
-function buscarMejor(catalogo, flujoMaximo, cargaRequerida, exigirZonaFlujo) {
-  let mejor = null;
-
+function buscarSinMargen(catalogo, flujoMaximo, cargaRequerida) {
+  const candidatos = [];
   for (const bomba of catalogo) {
-    const shutOff = bomba.curva[0].carga_ft;
-
-    // Siempre exigir margen de shut-off
-    if (shutOff < cargaRequerida * (1 + MARGEN_SHUTOFF)) continue;
-
     const n = cantidadMinima(bomba, flujoMaximo, cargaRequerida);
     if (n == null) continue;
-
     const op = puntoOperacion(bomba, flujoMaximo, n);
     if (!op) continue;
-
-    const enZona = zonaSegura(bomba, op.flujoPorBomba, cargaRequerida);
-    if (exigirZonaFlujo && !enZona) continue;
-
-    const candidato = { bomba, ...op, enZonaSegura: enZona };
-
-    if (!mejor) {
-      mejor = candidato;
-      continue;
-    }
-
-    // Desempate: menos bombas -> menos potencia total -> menos HP unitario
-    if (n < mejor.n) {
-      mejor = candidato;
-    } else if (n === mejor.n) {
-      if (op.potenciaTotal < mejor.potenciaTotal) {
-        mejor = candidato;
-      } else if (op.potenciaTotal === mejor.potenciaTotal && bomba.potencia_hp < mejor.bomba.potencia_hp) {
-        mejor = candidato;
-      }
-    }
+    const excesoCDT = (op.cargaDisponible - cargaRequerida) / cargaRequerida;
+    candidatos.push({ bomba, ...op, enZonaSegura: false, excesoCDT });
   }
-
-  return mejor;
+  if (candidatos.length === 0) {
+    return { error: "Ninguna motobomba del catalogo puede cubrir el requerimiento de flujo y CDT." };
+  }
+  candidatos.sort((a, b) => {
+    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
+    if (a.n !== b.n) return a.n - b.n;
+    return a.potenciaTotal - b.potenciaTotal;
+  });
+  const mejor = candidatos[0];
+  return {
+    bomba:           mejor.bomba,
+    cantidad:        mejor.n,
+    flujoPorBomba:   mejor.flujoPorBomba,
+    cargaDisponible: mejor.cargaDisponible,
+    potenciaTotal:   mejor.potenciaTotal,
+    flujoMaximo:     parseFloat(flujoMaximo.toFixed(2)),
+    cargaRequerida:  parseFloat(cargaRequerida.toFixed(2)),
+    enZonaSegura:    false,
+  };
 }
