@@ -69,28 +69,30 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 
   let cantMinNueva;
   if (key === "barredora") {
-    const area = parseFloat(datosEmpotrable?.area) || 0;
-    const manguera = parseFloat(datosEmpotrable?.mangueraBarredora) || 7.5;
-    const largoFinal = manguera - manguera * 0.05;
-    const areaSemiCirculo = (Math.PI * largoFinal * largoFinal) / 2;
-    const numA = area / areaSemiCirculo;
-    const numB = Math.sqrt(area) / (largoFinal * 2);
-    const numGeom = largoFinal > Math.sqrt(area) ? numB : numA;
-    cantMinNueva = Math.max(2, Math.ceil(numGeom));
+    // Barredora: cantidad fija por geometria, NO cambia con el flujo
+    cantMinNueva = estado.cantidad ?? 1;
   } else if (key === "desnatador") {
     const area       = parseFloat(datosEmpotrable?.area) || 0;
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
-    const numPorArea  = area > 0 ? Math.ceil(area / 40) : 2;
-    const numPorFlujo = flujoPorEq > 0 ? Math.max(2, Math.ceil(flujoNuevo / flujoPorEq)) : 2;
-    cantMinNueva = Math.max(numPorArea, numPorFlujo, 2);
-  } else if (key === "drenFondo" || key === "drenCanal") {
+    const numPorArea  = area > 0 ? Math.ceil(area / 40) : 1;
+    const numPorFlujo = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : 1;
+    cantMinNueva = Math.max(numPorArea, numPorFlujo, 1);
+  } else if (key === "drenFondo") {
+    // Drenes de fondo: minimo 2 por norma antiatrapamiento
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
     if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(2, num);
-  } else {
+  } else if (key === "drenCanal") {
+    // Drenes de canal: minimo 1
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
-    cantMinNueva = flujoPorEq > 0 ? Math.max(2, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
+    let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
+    if (num % 2 !== 0) num++;
+    cantMinNueva = Math.max(1, num);
+  } else {
+    // Retorno y otros: minimo 1, no forzar 2
+    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    cantMinNueva = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
   }
 
   const cantFinal = Math.max(cantMinNueva, estado.cantidad ?? 1);
@@ -318,48 +320,97 @@ export function calcularEquilibrio({
     idxEquilibrio = pasos.length - 1;
   }
 
-  // Fase 2: continuar PASOS_POST_EQ iteraciones más allá del equilibrio
-  // En cada paso: el flujo es el que da la bomba al CDT del sistema del paso anterior
-  // (flujo real, no artificial)
-  let cdtSistPrevPost = cdtEq;
-  for (let p = 0; p < PASOS_POST_EQ; p++) {
-    // Flujo real que da la bomba al CDT del sistema anterior
-    const qReal = flujoEnCurva(curva, cdtSistPrevPost);
-    if (qReal == null || qReal <= 0) break; // bomba no puede dar ese CDT
-    const qRound     = parseFloat((qReal * nBombas).toFixed(2));
-    const cdtBomba_q = cargaEnCurva(curva, qReal);
+  // Fase 2: segunda iteracion
+  // Misma logica que iter 1, misma referencia de cargas (cargasRef0),
+  // partiendo desde flujoEq de iter 1.
+  // Si el primer paso ya supera la bomba, el sistema convergio — no buscar mas.
+  let flujoEq2   = flujoEq;
+  let cdtEq2     = cdtEq;
+  let equiposEq2 = equiposEq;
+  const pasosIter2 = [];
+
+  let cdtBombaAnt2 = null;
+  let cdtSistAnt2  = null;
+  let flujoAnt2    = null;
+  let encontradoIter2 = false;
+
+  // Limite de pasos para iter 2: suficiente para ver la tendencia
+  const MAX_PASOS_ITER2 = 20;
+  let contPasosIter2 = 0;
+
+  for (let q = flujoEq; q <= qMaxBusqueda; q += PASO) {
+    const qRound     = parseFloat(q.toFixed(2));
+    const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
     if (cdtBomba_q == null) break;
+
     const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
-    pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
-    cdtSistPrevPost = cdtSist_q;
-    // Si converge (diferencia < 0.1 ft) parar
-    if (Math.abs(cdtSist_q - cdtBomba_q) < 0.1) break;
+    pasosIter2.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
+    contPasosIter2++;
+
+    if (cdtBombaAnt2 !== null && cdtSistAnt2 !== null) {
+      if (cdtBombaAnt2 >= cdtSistAnt2 && cdtBomba_q <= cdtSist_q) {
+        const diffAnt = cdtBombaAnt2 - cdtSistAnt2;
+        const diffAct = cdtBomba_q - cdtSist_q;
+        const t = diffAnt / (diffAnt - diffAct);
+        flujoEq2 = parseFloat((flujoAnt2 + t * (qRound - flujoAnt2)).toFixed(2));
+        cdtEq2   = parseFloat((cdtSistAnt2 + t * (cdtSist_q - cdtSistAnt2)).toFixed(2));
+        const { equiposRecalc: eqFinal2 } = calcularCDTSistema(flujoEq2, cargasRef0);
+        equiposEq2 = eqFinal2;
+        pasosIter2.push({ flujo: flujoEq2, cdtBomba: cdtEq2, cdtSistema: cdtEq2, equipos: eqFinal2, esEquilibrio: true });
+        encontradoIter2 = true;
+        break;
+      }
+    }
+
+    // Si el sistema ya supera la bomba desde el primer paso -> convergido
+    if (contPasosIter2 === 1 && cdtBomba_q < cdtSist_q) {
+      // La bomba no puede desde el inicio de iter 2 -> equilibrio es el de iter 1
+      pasosIter2.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
+      encontradoIter2 = true;
+      break;
+    }
+
+    // Limitar pasos de iter 2
+    if (contPasosIter2 >= MAX_PASOS_ITER2) break;
+
+    cdtBombaAnt2 = cdtBomba_q;
+    cdtSistAnt2  = cdtSist_q;
+    flujoAnt2    = qRound;
   }
 
-  const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoEq / nBombas) ?? 0).toFixed(2));
+  if (!encontradoIter2) {
+    pasosIter2.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
+  }
 
-  // Construir iteraciones desde todos los pasos
-  const iteraciones = pasos.map((p, i) => ({
-    iter:            i + 1,
-    flujoEquilibrio: parseFloat(p.flujo.toFixed(2)),
-    flujoPorBomba:   parseFloat((p.flujo / nBombas).toFixed(2)),
-    cargaEntrada:    i === 0
-      ? parseFloat(cargaInicial.toFixed(2))
-      : parseFloat(pasos[i-1].cdtSistema.toFixed(2)),
-    cargaSalida:     parseFloat(p.cdtSistema.toFixed(2)),
-    cargaDispBomba:  parseFloat(p.cdtBomba.toFixed(2)),
-    equiposRecalc:   p.equipos,
-    esEquilibrio:    p.esEquilibrio === true,
-  }));
+  pasos.push({ separador: true, label: "── Iteración 2 ──" });
+  pasos.push(...pasosIter2);
+
+  const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoEq2 / nBombas) ?? 0).toFixed(2));
+
+  // Construir iteraciones desde todos los pasos (incluye separador entre iter1 e iter2)
+  let iterCount = 0;
+  const iteraciones = pasos.map((p) => {
+    if (p.separador) return { separador: true, label: p.label };
+    iterCount++;
+    return {
+      iter:            iterCount,
+      flujoEquilibrio: parseFloat(p.flujo.toFixed(2)),
+      flujoPorBomba:   parseFloat((p.flujo / nBombas).toFixed(2)),
+      cargaSalida:     parseFloat(p.cdtSistema.toFixed(2)),
+      cargaDispBomba:  parseFloat(p.cdtBomba.toFixed(2)),
+      equiposRecalc:   p.equipos,
+      esEquilibrio:    p.esEquilibrio === true,
+    };
+  });
 
   return {
     iteraciones,
     equilibrio: {
-      flujo:           parseFloat(flujoEq.toFixed(2)),
-      carga:           parseFloat(cdtEq.toFixed(2)),
+      flujo:           parseFloat(flujoEq2.toFixed(2)),
+      carga:           parseFloat(cdtEq2.toFixed(2)),
       cargaDisponible: cargaDispFinal,
-      cubre:           cargaDispFinal >= cdtEq,
-      equipos:         equiposEq,
+      cubre:           cargaDispFinal >= cdtEq2,
+      equipos:         equiposEq2,
     },
     cargasIniciales,
     bomba,

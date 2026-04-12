@@ -102,10 +102,10 @@ function cantMinDesnatador(flujoMaximo, datos, capacidadFlujoPorEquipo) {
   const numPorArea  = area > 0 ? Math.ceil(area / 40) : 2;
   // Criterio 2: flujo total / capacidad por equipo
   const numPorFlujo = capacidadFlujoPorEquipo > 0
-    ? Math.max(2, Math.ceil(flujoMaximo / capacidadFlujoPorEquipo))
-    : 2;
+    ? Math.max(1, Math.ceil(flujoMaximo / capacidadFlujoPorEquipo))
+    : 1;
   // El más restrictivo (mayor número) manda
-  return Math.max(numPorArea, numPorFlujo, 2);
+  return Math.max(numPorArea, numPorFlujo, 1);
 }
 
 /* Calcula la cantidad mínima de drenes de fondo:
@@ -120,15 +120,16 @@ function cantMinDrenFondo(flujoMaximo, datos, capacidadDren) {
 /* Calcula la cantidad mínima de barredoras por geometría del área
    (misma lógica que barredora.js) para usarla en BloqueEmpotrable */
 function cantMinBarredora(flujoMaximo, datos) {
+  // La cantidad de barredoras NO depende del flujo — solo de la geometría del área
   const area = parseFloat(datos?.area) || 0;
-  if (area <= 0) return 2;
+  if (area <= 0) return 1;
   const manguera = parseFloat(datos?.mangueraBarredora) || 7.5;
   const largoFinal = manguera - manguera * 0.05;
   const areaSemiCirculo = (Math.PI * largoFinal * largoFinal) / 2;
   const numA = area / areaSemiCirculo;
   const numB = Math.sqrt(area) / (largoFinal * 2);
   const num = largoFinal > Math.sqrt(area) ? numB : numA;
-  return Math.max(2, Math.ceil(num));
+  return Math.max(1, Math.ceil(num));
 }
 
 function recomendarBarredora(flujoMaximo, datos) {
@@ -507,7 +508,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
     if (flujoEq <= 0) return 2;
     let num = Math.ceil((flujoMaximo * cantMinMultiplier) / flujoEq);
     if (cantMinMultiplier > 1 && num % 2 !== 0) num++;
-    return Math.max(2, num);
+    return Math.max(1, num);  // mínimo 1, no forzar 2
   };
   const cantMinima = calcMin();
 
@@ -1848,14 +1849,18 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                 })()}
                 {/* Iteraciones */}
                 {resultado.iteraciones.map((it, i) => {
+                  if (it.separador) return (
+                    <div key={i} style={{ fontSize: "0.65rem", color: "#475569", padding: "0.3rem 0.7rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", borderTop: "1px solid rgba(56,189,248,0.1)", marginTop: "0.2rem" }}>
+                      {it.label}
+                    </div>
+                  );
                   const cargaSal  = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
-                  const qBomba    = it.flujoPorBomba ?? parseFloat((it.flujoEquilibrio ?? 0) / (resultado?.nBombas ?? 1));
                   const esEq      = it.esEquilibrio === true;
                   const cubrio    = parseFloat(it.cargaDispBomba ?? 0) >= cargaSal;
                   return (
                     <div key={i} style={{
                       background: esEq ? "rgba(52,211,153,0.07)" : "rgba(15,23,42,0.4)",
-                      border: `1px solid ${esEq ? "rgba(52,211,153,0.3)" : "rgba(56,189,248,0.08)"}`,
+                      border: `1px solid ${esEq ? "rgba(52,211,153,0.3)" : cubrio ? "rgba(56,189,248,0.08)" : "rgba(249,115,22,0.15)"}`,
                       borderRadius: "6px", padding: "0.4rem 0.7rem",
                       display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center"
                     }}>
