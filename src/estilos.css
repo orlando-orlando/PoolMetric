@@ -1593,10 +1593,6 @@ select option:hover { background-color: #d1d5db; }
   opacity: 1;
 }
 
-.eq-tab-label {
-  /* se oculta en pantallas muy pequeñas si fuera necesario */
-}
-
 /* Badge de conteo / estado */
 .eq-tab-badge {
   display: inline-flex;
