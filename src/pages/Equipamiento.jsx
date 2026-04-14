@@ -535,7 +535,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   const cargaActivaFt = infoActiva?.res?.sumaFinal != null
     ? parseFloat(infoActiva.res.sumaFinal) + 1.5
     : null;
-  const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null } : null;
+  const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null, marca: infoActiva.equipo?.marca ?? null, modelo: infoActiva.equipo?.modelo ?? null } : null;
 
   // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
   useEffect(() => {
@@ -1334,7 +1334,7 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
   const cargaCAFt = infoActiva?.cargaTotal != null ? (parseFloat(infoActiva.cargaTotal) || null) : null;
   useEffect(() => { if (onCargaChange) onCargaChange(cargaCAFt); }, [cargaCAFt]);
   useEffect(() => {
-    if (onEstadoChange) onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal } : null);
+    if (onEstadoChange) onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal } : null);
   }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
 
   const labelInst = (i) => i === "enLinea" ? "En línea" : "Fuera de línea";

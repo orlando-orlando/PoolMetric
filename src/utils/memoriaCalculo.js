@@ -1,6 +1,8 @@
 /* ================================================================
-   memoriaCalculo.js — v4
-   Genera 3 reportes: diseño original, iter 1, iter 2
+   memoriaCalculo.js — v4 fixed
+   Genera 3 reportes: diseño original, iter 1 (★), iter 2 (★)
+   Los puntos de iteración corresponden exactamente a los puntos
+   de equilibrio encontrados, con sus equipos recalculados.
    ================================================================ */
 
 import { retorno }    from "./retorno";
@@ -16,7 +18,6 @@ import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
 
 const f2 = (v) => (parseFloat(v) || 0).toFixed(2);
 
-/* ── Extrae disparo del primer elemento ── */
 function extraerDisparo(filas) {
   if (!filas?.length) return null;
   const r = filas[0];
@@ -77,35 +78,21 @@ function cdtTotal(sumaTramos, tabDist, disparo, sufijo) {
   return parseFloat(sumaTramos) + cm + disparo + 1.5;
 }
 
-/* ── Empaca un resultado de retorno/desnatador/barredora/drenFondo/drenCanal ── */
 function empacarEmpotrable(res, tipo) {
   if (!res) return null;
   const resultados = {
-    retorno:    res.resultadoR,
-    desnatador: res.resultadoD,
-    barredora:  res.resultadoB,
-    drenFondo:  res.resultadoDF,
-    drenCanal:  res.resultadoDC,
+    retorno: res.resultadoR, desnatador: res.resultadoD,
+    barredora: res.resultadoB, drenFondo: res.resultadoDF, drenCanal: res.resultadoDC,
   };
   const tablasCM = {
-    retorno:    { tabla: res.tablaDistanciaCM,  sufijo: "CM"   },
-    desnatador: { tabla: res.tablaDistanciaCMD, sufijo: "CMD"  },
-    barredora:  { tabla: res.tablaDistanciaCMB, sufijo: "CMB"  },
+    retorno:    { tabla: res.tablaDistanciaCM,   sufijo: "CM"   },
+    desnatador: { tabla: res.tablaDistanciaCMD,  sufijo: "CMD"  },
+    barredora:  { tabla: res.tablaDistanciaCMB,  sufijo: "CMB"  },
     drenFondo:  { tabla: res.tablaDistanciaCMDF, sufijo: "CMDF" },
     drenCanal:  { tabla: res.tablaDistanciaCMDC, sufijo: "CMDC" },
   };
-  const resumenesTramos = {
-    retorno:    res.resumenTramosR,
-    desnatador: res.resumenTramosD,
-    barredora:  res.resumenTramosB,
-    drenFondo:  res.resumenTramosDF,
-    drenCanal:  res.resumenTramosDC,
-  };
-  const resumenesDisparos = {
-    retorno:    res.resumenDisparosR,
-    desnatador: res.resumenDisparosD,
-    barredora:  res.resumenDisparosB,
-  };
+  const resumenesTramos   = { retorno: res.resumenTramosR, desnatador: res.resumenTramosD, barredora: res.resumenTramosB, drenFondo: res.resumenTramosDF, drenCanal: res.resumenTramosDC };
+  const resumenesDisparos = { retorno: res.resumenDisparosR, desnatador: res.resumenDisparosD, barredora: res.resumenDisparosB };
 
   const filas = resultados[tipo];
   if (!filas?.length) return null;
@@ -117,65 +104,41 @@ function empacarEmpotrable(res, tipo) {
   const st = parseFloat(res.sumaFinal) - parseFloat(disparo?.cargaDisparoTotal ?? 0) - cm;
 
   return {
-    resultado:          normEmp(filas),
-    sumaTramos:         f2(st),
-    disparo,
-    cargaDisparoTotal:  parseFloat(disparo?.cargaDisparoTotal ?? 0),
-    tablaDistanciaCM:   tabDist,
+    resultado: normEmp(filas), sumaTramos: f2(st), disparo,
+    cargaDisparoTotal: parseFloat(disparo?.cargaDisparoTotal ?? 0),
+    tablaDistanciaCM: tabDist,
     cargaDinamicaTotal: cdtTotal(st, tabDist, parseFloat(disparo?.cargaDisparoTotal ?? 0), sufijo),
-    resumenTramos:      resumenesTramos[tipo],
-    resumenDisparos:    resumenesDisparos[tipo] ?? null,
+    resumenTramos: resumenesTramos[tipo],
+    resumenDisparos: resumenesDisparos[tipo] ?? null,
+    // seleccion: se agrega en generarReporte con datos del estado
   };
 }
 
-/* ── Empaca filtro/UV desde resultado hidráulico ── */
 function empacarFiltroRes(res, label, seleccion) {
   if (!res || res.error || !res.tablaTramos?.length) return null;
   return {
-    label,
-    seleccion:         seleccion ?? res.seleccion ?? null,
-    tablaTramos:       normEquipo(res.tablaTramos),
-    cargaTramos:       res.cargaTramos,
-    cargaFija:         res.cargaFija_ft,
-    cargaTotal:        res.cargaTotal,
-    cargaTotalPSI:     res.cargaTotalPSI,
+    label, seleccion: seleccion ?? res.seleccion ?? null,
+    tablaTramos: normEquipo(res.tablaTramos),
+    cargaTramos: res.cargaTramos, cargaFija: res.cargaFija_ft,
+    cargaTotal: res.cargaTotal, cargaTotalPSI: res.cargaTotalPSI,
     resumenMateriales: arrAObj(res.resumenMateriales),
-    kgDiaNecesario:    res.kgDiaNecesario ?? null,
-    modoCloro:         res.modoCloro ?? null,
+    kgDiaNecesario: res.kgDiaNecesario ?? null, modoCloro: res.modoCloro ?? null,
   };
 }
 
-/* ================================================================
-   GENERAR UN REPORTE (diseño original, iter1, iter2)
-   flujo: flujo total del sistema para este reporte
-   equiposRecalc: resultados de calcularEquilibrio (null para diseño original)
-   estados, tieneDesbordeCanal, datosEmpotrable: contexto del sistema
-   ================================================================ */
-function generarReporte({
-  label, flujo, flujoDiseno,
-  estados, datosEmpotrable, tieneDesbordeCanal,
-  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit,
-  resultadoClorador, equilibrio,
-  equiposRecalcIter,
-}) {
+function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, tieneDesbordeCanal,
+  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador, equiposRecalcIter }) {
   const est  = (k) => estados?.[k];
   const tipo = (k) => est(k)?.tipo ?? null;
 
-  // Para diseño original: cantidad del estado original
-  // Para iteraciones: cantidad recalculada de esa iteración
   const cantParaKey = (k) => {
-    if (equiposRecalcIter) {
-      return equiposRecalcIter[k]?.cantidad ?? est(k)?.cantidad ?? null;
-    }
+    if (equiposRecalcIter) return equiposRecalcIter[k]?.cantidad ?? est(k)?.cantidad ?? null;
     return est(k)?.cantidad ?? null;
   };
 
-  // Flujo a usar en los fallbacks:
-  // - Diseño original: flujoDiseno (105.7 GPM)
-  // - Iteraciones: flujo de esa iteración, pero solo si no hay resultadoHidraulico
+  // Para diseño original usar flujoDiseno, para iteraciones usar flujo del equilibrio
   const flujoCalculo = equiposRecalcIter ? flujo : flujoDiseno;
 
-  /* ── Empotrables ── */
   const empKeys = tieneDesbordeCanal
     ? ["retorno", "barredora", "drenFondo", "drenCanal"]
     : ["retorno", "desnatador", "barredora", "drenFondo"];
@@ -194,37 +157,53 @@ function generarReporte({
     const resIter = equiposRecalcIter?.[key]?.resultadoHidraulico;
     const res = resIter ?? fnsEmp[key](flujoCalculo, tipo(key), datosEmpotrable, cantParaKey(key));
     const data = empacarEmpotrable(res, key);
-    if (data) empotrables[key] = data;
+    if (data) {
+      // Agregar info de seleccion para el tab de equipos
+      // marca/modelo vienen de equiposRecalcIter (tiene los datos del catalogo)
+      // o del estado si el diseño original no los tiene
+      const recKey = equiposRecalcIter?.[key];
+      const cant   = cantParaKey(key) ?? est(key)?.cantidad ?? 1;
+      data.seleccion = {
+        marca:      recKey?.marca      ?? est(key)?.marca    ?? "—",
+        modelo:     recKey?.modelo     ?? est(key)?.modelo   ?? "—",
+        cantidad:   cant,
+        flujoTotal: data.resultado?.[0]?.flujo != null
+          ? f2(parseFloat(data.resultado[0].flujo) * cant)
+          : null,
+      };
+      empotrables[key] = data;
+    }
   }
 
-  /* ── Filtros ── */
   const filtros = {};
 
   if (sistemasSeleccionadosFilt?.filtroArena && est("filtroArena")?.selId) {
     const resIter = equiposRecalcIter?.filtroArena?.resultadoHidraulico;
     const eq = est("filtroArena");
-    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cantParaKey("filtroArena") ?? 1);
-    const data = empacarFiltroRes(res, "Filtro de arena", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("filtroArena"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("filtroArena") });
+    const cant = cantParaKey("filtroArena") ?? 1;
+    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cant);
+    const data = empacarFiltroRes(res, "Filtro de arena", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroArena = data;
   }
 
   if (sistemasSeleccionadosFilt?.prefiltro && est("prefiltro")?.selId) {
     const resIter = equiposRecalcIter?.prefiltro?.resultadoHidraulico;
     const eq = est("prefiltro");
-    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cantParaKey("prefiltro") ?? 1);
-    const data = empacarFiltroRes(res, "Prefiltro", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("prefiltro"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("prefiltro") });
+    const cant = cantParaKey("prefiltro") ?? 1;
+    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cant);
+    const data = empacarFiltroRes(res, "Prefiltro", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.prefiltro = data;
   }
 
   if (sistemasSeleccionadosFilt?.filtroCartucho && est("filtroCartucho")?.selId) {
     const resIter = equiposRecalcIter?.filtroCartucho?.resultadoHidraulico;
     const eq = est("filtroCartucho");
-    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cantParaKey("filtroCartucho") ?? 1);
-    const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: eq.marca, modelo: eq.modelo, cantidad: cantParaKey("filtroCartucho"), flujoTotal: (eq.flujoEf ?? 0) * cantParaKey("filtroCartucho") });
+    const cant = cantParaKey("filtroCartucho") ?? 1;
+    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cant);
+    const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroCartucho = data;
   }
 
-  /* ── Sanitización (UV en línea con flujo principal) ── */
   const sanitizacion = {};
 
   if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
@@ -232,29 +211,51 @@ function generarReporte({
     if (data) sanitizacion.cloradorSalino = data;
   }
 
-  if (sistemasSeleccionadosSanit?.lamparaUV && est("lamparaUV")?.selId) {
-    const resIter = equiposRecalcIter?.lamparaUV?.resultadoHidraulico;
+  if (sistemasSeleccionadosSanit?.lamparaUV) {
     const eqUV = est("lamparaUV");
-    const cant = cantParaKey("lamparaUV") ?? 1;
-    const flujoPorUV = flujo / cant;
-    const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant);
-    const data = empacarFiltroRes(res, "Lámpara UV", { marca: eqUV.marca, modelo: eqUV.modelo, cantidad: cant, flujoTotal: flujo });
-    if (data) sanitizacion.lamparaUV = data;
+    // lamparaUV no usa selId — verifica que tenga datos validos
+    if (eqUV?.marca || eqUV?.modelo || eqUV?.cantidad) {
+      const resIter = equiposRecalcIter?.lamparaUV?.resultadoHidraulico;
+      const cant = eqUV?.cantidad ?? cantParaKey("lamparaUV") ?? 1;
+      // flujoTotal del estado UV (flujo por equipo × cantidad)
+      const flujoTotalUV = eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo;
+      const flujoPorUV = cant > 0 ? flujoTotalUV / cant : flujoCalculo;
+      const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant);
+      const data = empacarFiltroRes(res, "Lampara UV", { marca: eqUV?.marca, modelo: eqUV?.modelo, cantidad: cant, flujoTotal: flujoTotalUV });
+      if (data) sanitizacion.lamparaUV = data;
+    }
   }
 
-  if (sistemasSeleccionadosSanit?.cloradorAutomatico && est("cloradorAutomatico")?.selId) {
+  if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
     const eqCA = est("cloradorAutomatico");
-    const cant = cantParaKey("cloradorAutomatico") ?? 1;
-    const flujoPorCA = (eqCA.flujoTotal ?? flujo) / cant;
-    const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, "enLinea");
-    const data = empacarFiltroRes(res, "Clorador automático", { marca: eqCA.marca, modelo: eqCA.modelo, cantidad: cant, flujoTotal: eqCA.flujoTotal ?? flujo });
-    if (data) sanitizacion.cloradorAutomatico = data;
+    // cloradorAutomatico puede no tener selId — verificar datos minimos
+    const tieneCA = eqCA?.selId || eqCA?.marca || eqCA?.modelo || eqCA?.cantidad;
+    if (tieneCA) {
+      const cant = eqCA?.cantidad ?? cantParaKey("cloradorAutomatico") ?? 1;
+      const flujoTotalCA = eqCA?.flujoTotal ? parseFloat(eqCA.flujoTotal) : flujoCalculo;
+      const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
+      const instalacion = eqCA?.instalacion ?? "enLinea";
+      const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, instalacion);
+      const data = empacarFiltroRes(res, "Clorador automatico", { marca: eqCA?.marca, modelo: eqCA?.modelo, cantidad: cant, flujoTotal: flujoTotalCA });
+      if (data) sanitizacion.cloradorAutomatico = data;
+    }
   }
 
   return { label, flujo: f2(flujo), empotrables, filtros, sanitizacion };
 }
 
-/* ── Empaca calentamiento (igual para todos los reportes) ── */
+/* ── Genera las tablas de calentamiento para un reporte (carga fija, no cambia) ── */
+function generarCalentamientoReporte(calentamiento) {
+  if (!calentamiento) return [];
+  const calSistemas = calentamiento?.sistemasSeleccionados ?? {};
+  const result = [];
+  if (calSistemas.bombaCalor)          { const d = empacarCalentamiento("bombaCalor",          "Bomba de calor",        calentamiento); if (d) result.push(d); }
+  if (calSistemas.panelSolar)          { const d = empacarCalentamiento("panelSolar",           "Panel solar",           calentamiento); if (d) result.push(d); }
+  if (calSistemas.caldera)             { const d = empacarCalentamiento("caldera",              "Caldera de gas",        calentamiento); if (d) result.push(d); }
+  if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico",  "Calentador electrico",  calentamiento); if (d) result.push(d); }
+  return result;
+}
+
 function empacarCalentamiento(key, label, calentamiento) {
   if (!calentamiento) return null;
   let res = null;
@@ -277,45 +278,55 @@ function empacarCalentamiento(key, label, calentamiento) {
   if (!res || res.error || !res.tablaTramos?.length) return null;
   return {
     key, label,
-    seleccion:         res.seleccion ?? null,
-    tablaTramos:       normEquipo(res.tablaTramos),
-    tablaDistancia:    res.tablaDistancia ?? null,
-    tablaAltura:       res.tablaAltura ?? null,
-    cargaTramos:       res.cargaTramos,
-    cargaDistanciaIda: res.cargaDistanciaIda,
-    cargaDistanciaReg: res.cargaDistanciaReg,
-    cargaEstatica:     res.cargaEstatica,
-    cargaFriccion:     res.cargaFriccionAltura,
-    cargaFija:         res.cargaFija_ft,
-    cargaTotal:        res.cargaTotal,
-    cargaTotalPSI:     res.cargaTotalPSI,
+    seleccion: res.seleccion ?? null,
+    tablaTramos: normEquipo(res.tablaTramos),
+    tablaDistancia: res.tablaDistancia ?? null,
+    tablaAltura: res.tablaAltura ?? null,
+    cargaTramos: res.cargaTramos, cargaDistanciaIda: res.cargaDistanciaIda,
+    cargaDistanciaReg: res.cargaDistanciaReg, cargaEstatica: res.cargaEstatica,
+    cargaFriccion: res.cargaFriccionAltura, cargaFija: res.cargaFija_ft,
+    cargaTotal: res.cargaTotal, cargaTotalPSI: res.cargaTotalPSI,
     resumenMateriales: arrAObj(res.resumenMateriales),
   };
 }
 
 /* ================================================================
-   FUNCIÓN PRINCIPAL
+   FUNCION PRINCIPAL
    ================================================================ */
 export function generarMemoriaCalculo({
   estados, datosEmpotrable, tieneDesbordeCanal,
   flujoMaxGlobal, cargaTotalGlobal,
   tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, vol,
   estadoBomba, equilibrio,
-  datosPorSistema,
-  resultadoClorador,
-  sistemasSeleccionadosSanit,
-  sistemasSeleccionadosFilt,
+  datosPorSistema, resultadoClorador,
+  sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas,
 }) {
   if (!datosEmpotrable || !flujoMaxGlobal)
-    throw new Error("Faltan datos de empotrable o flujo máximo.");
+    throw new Error("Faltan datos de empotrable o flujo maximo.");
 
-  const calentamiento = datosPorSistema?.calentamiento;
-  const iteraciones   = equilibrio?.iteraciones ?? [];
+  const calentamiento   = datosPorSistema?.calentamiento;
+  const iteraciones     = equilibrio?.iteraciones ?? [];
   const equilibrioFinal = equilibrio?.equilibrio ?? null;
+
+  /* ── Buscar puntos de equilibrio ★ en iter1 e iter2
+     El array tiene: [pasos iter1...] [★ iter1] [separador] [pasos iter2...] [★ iter2]
+  ── */
+  let eqIter1 = null;
+  let eqIter2 = null;
+  let pasadoSeparador = false;
+  for (const it of iteraciones) {
+    if (it.separador) { pasadoSeparador = true; continue; }
+    if (it.esEquilibrio) {
+      if (!pasadoSeparador && !eqIter1) eqIter1 = it;
+      else if (pasadoSeparador && !eqIter2) eqIter2 = it;
+    }
+  }
+  if (!eqIter2) eqIter2 = eqIter1; // fallback: iter2 mismo punto que iter1
 
   /* ── Resumen general ── */
   const resumen = {
+    area:        f2(datosEmpotrable?.area ?? 0),
     vol:         f2(vol ?? 0),
     flujoVol:    f2(flujoVolumen ?? 0),
     flujoInf:    f2(flujoInfinityVal ?? 0),
@@ -326,71 +337,60 @@ export function generarMemoriaCalculo({
     nBombas:     estadoBomba?.nBombas ?? 1,
     flujoFinal:  f2(equilibrioFinal?.flujo ?? flujoMaxGlobal),
     cdtFinal:    f2(equilibrioFinal?.carga ?? 0),
-    // CDT totales reales de cada etapa (del equilibrio hidráulico, no recalculados)
-    cdtDiseno:   f2(cargaTotalGlobal ?? flujoMaxGlobal),
-    cdtIter1:    f2(iteraciones[0]?.cargaSalida ?? 0),
-    cdtIter2:    f2(iteraciones[1]?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
-    flujoIter1:  f2(iteraciones[0]?.flujoEquilibrio ?? 0),
-    flujoIter2:  f2(iteraciones[1]?.flujoEquilibrio ?? 0),
+    cdtDiseno:   f2(cargaTotalGlobal ?? 0),
+    cdtIter1:    f2(eqIter1?.cargaSalida ?? 0),
+    cdtIter2:    f2(eqIter2?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
+    flujoIter1:  f2(eqIter1?.flujoEquilibrio ?? 0),
+    flujoIter2:  f2(eqIter2?.flujoEquilibrio ?? 0),
   };
 
   const ctx = {
     estados, datosEmpotrable, tieneDesbordeCanal,
-    sistemasSeleccionadosFilt, sistemasSeleccionadosSanit,
-    resultadoClorador,
+    sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador,
   };
 
   /* ── 3 Reportes ── */
   const reporteDiseno = generarReporte({
-    ...ctx,
-    label: "Diseño original",
-    flujo: flujoMaxGlobal,
-    flujoDiseno: flujoMaxGlobal,
-    equilibrio: equilibrioFinal,
+    ...ctx, label: "Diseno original",
+    flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: null,
   });
 
-  const reporteIter1 = iteraciones[0] ? generarReporte({
-    ...ctx,
-    label: `Iter. 1 — ${f2(iteraciones[0].flujoEquilibrio)} GPM @ ${f2(iteraciones[0].cargaEntrada)} ft`,
-    flujo: iteraciones[0].flujoEquilibrio,
-    flujoDiseno: flujoMaxGlobal,
-    equilibrio: equilibrioFinal,
-    equiposRecalcIter: iteraciones[0].equiposRecalc,
+  // Iter 1: equipos exactamente en el punto ★ de iter 1
+  const reporteIter1 = eqIter1 ? generarReporte({
+    ...ctx, label: `Iter. 1 — ${f2(eqIter1.flujoEquilibrio)} GPM`,
+    flujo: eqIter1.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
+    equiposRecalcIter: eqIter1.equiposRecalc,
   }) : null;
 
-  const reporteIter2 = iteraciones[1] ? generarReporte({
-    ...ctx,
-    label: `Iter. 2 — ${f2(iteraciones[1].flujoEquilibrio)} GPM @ ${f2(iteraciones[1].cargaEntrada)} ft`,
-    flujo: iteraciones[1].flujoEquilibrio,
-    flujoDiseno: flujoMaxGlobal,
-    equilibrio: equilibrioFinal,
-    equiposRecalcIter: iteraciones[1].equiposRecalc,
+  // Iter 2: equipos exactamente en el punto ★ de iter 2 (punto final)
+  const reporteIter2 = (eqIter2 && eqIter2 !== eqIter1) ? generarReporte({
+    ...ctx, label: `Iter. 2 — ${f2(eqIter2.flujoEquilibrio)} GPM`,
+    flujo: eqIter2.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
+    equiposRecalcIter: eqIter2.equiposRecalc,
   }) : null;
 
   /* ── Calentamiento (igual en los 3 reportes) ── */
   const calentamientoData = [];
-  if (calentamiento?.sistemasSeleccionados?.bombaCalor) {
-    const d = empacarCalentamiento("bombaCalor", "Bomba de calor", calentamiento);
-    if (d) calentamientoData.push(d);
-  }
-  if (calentamiento?.sistemasSeleccionados?.panelSolar) {
-    const d = empacarCalentamiento("panelSolar", "Panel solar", calentamiento);
-    if (d) calentamientoData.push(d);
-  }
-  if (calentamiento?.sistemasSeleccionados?.caldera) {
-    const d = empacarCalentamiento("caldera", "Caldera de gas", calentamiento);
-    if (d) calentamientoData.push(d);
-  }
-  if (calentamiento?.sistemasSeleccionados?.calentadorElectrico) {
-    const d = empacarCalentamiento("calentadorElectrico", "Calentador eléctrico", calentamiento);
-    if (d) calentamientoData.push(d);
-  }
+  const calSistemas = calentamiento?.sistemasSeleccionados ?? {};
+  if (calSistemas.bombaCalor)        { const d = empacarCalentamiento("bombaCalor",         "Bomba de calor",       calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.panelSolar)        { const d = empacarCalentamiento("panelSolar",          "Panel solar",          calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.caldera)           { const d = empacarCalentamiento("caldera",             "Caldera de gas",       calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico","Calentador electrico", calentamiento); if (d) calentamientoData.push(d); }
+
+  // Calentamiento para el resumen (cargaTotal para la tabla comparativa)
+  // Las tablas completas van en cada reporte para que aparezcan en todas las iteraciones
+  const calentamientoReporte = generarCalentamientoReporte(calentamiento);
+
+  // Agregar calentamiento a cada reporte para que aparezca en sus tabs
+  if (reporteDiseno)  reporteDiseno.calentamiento  = calentamientoReporte;
+  if (reporteIter1)   reporteIter1.calentamiento   = calentamientoReporte;
+  if (reporteIter2)   reporteIter2.calentamiento   = calentamientoReporte;
 
   const memoria = {
     resumen,
     reportes: [reporteDiseno, reporteIter1, reporteIter2].filter(Boolean),
-    calentamiento: calentamientoData,
+    calentamiento: calentamientoData,  // para la tabla comparativa del resumen
   };
 
   try {

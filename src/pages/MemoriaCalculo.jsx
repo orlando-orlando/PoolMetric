@@ -105,7 +105,7 @@ function TablaResumen({ resumen, titulo }) {
 }
 
 /* ═══════════ ESTILOS COMPARTIDOS ═══════════ */
-const td = { padding:"4px 7px", textAlign:"center", border:"1px solid #1e3a5f", color:"#cbd5e1" };
+const td = { padding:"4px 7px", textAlign:"center", border:"1px solid #1e3a5f", color:"#cbd5e1", verticalAlign:"middle", whiteSpace:"nowrap" };
 const tituloStyle = { fontSize:"0.7rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#60a5fa", background:"#1e293b", border:"1px solid #334155", borderBottom:"none", padding:"4px 10px", borderRadius:"6px 6px 0 0", display:"inline-block", marginTop:"0.75rem" };
 
 /* ═══════════ ENCABEZADO DE ITERACIÓN ═══════════ */
@@ -189,6 +189,40 @@ function ContenidoFiltro({ data }) {
   );
 }
 
+/* ═══════════ CALENTAMIENTO ═══════════ */
+function ContenidoCalentamiento({ data }) {
+  if (!data) return <p style={{ color:"#475569", fontSize:"0.75rem", padding:"0.75rem" }}>Sin datos para esta iteracion.</p>;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
+      {data.seleccion && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"1rem", padding:"0.5rem 0.75rem", background:"rgba(15,23,42,0.4)", border:"1px solid #1e3a5f", borderRadius:"6px", fontSize:"0.78rem", color:"#94a3b8" }}>
+          {data.seleccion.marca && <span><strong style={{ color:"#e2e8f0" }}>Modelo:</strong> {data.seleccion.marca} {data.seleccion.modelo}</span>}
+          {data.seleccion.cantidad && <span><strong style={{ color:"#e2e8f0" }}>Cantidad:</strong> {data.seleccion.cantidad}</span>}
+          {data.seleccion.flujoTotal && <span><strong style={{ color:"#e2e8f0" }}>Flujo total:</strong> {f2(data.seleccion.flujoTotal)} GPM</span>}
+        </div>
+      )}
+      <TablaTramos resultado={data.tablaTramos} titulo="Tramos hidraulicos" />
+      <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", alignItems:"flex-start" }}>
+        <TablaResumen resumen={data.resumenMateriales} titulo="Resumen materiales" />
+        <div>
+          <p style={tituloStyle}>Sumatoria</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
+            <tbody>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(data.cargaTramos)} ft</td></tr>
+              {data.cargaDistanciaIda != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Distancia ida (ft):</td><td style={td}>{f2(data.cargaDistanciaIda)} ft</td></tr>}
+              {data.cargaDistanciaReg != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Distancia reg. (ft):</td><td style={td}>{f2(data.cargaDistanciaReg)} ft</td></tr>}
+              {data.cargaEstatica     != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga estatica (ft):</td><td style={td}>{f2(data.cargaEstatica)} ft</td></tr>}
+              {data.cargaFija        != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>}
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(data.cargaTotalPSI)} PSI</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════ TAB DE EQUIPO: 3 bloques uno bajo otro ═══════════ */
 function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, tituloDisparo }) {
   return (
@@ -203,6 +237,8 @@ function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, ti
             <div style={{ padding:"1rem", background:"rgba(15,23,42,0.5)" }}>
               {tipoRender === "empotrable"
                 ? <ContenidoEmpotrable data={data} tituloTramos={tituloTramos} sufijoCM={sufijoCM} tituloDisparo={tituloDisparo} />
+                : tipoRender === "calentamiento"
+                ? <ContenidoCalentamiento data={data} />
                 : <ContenidoFiltro data={data} />
               }
             </div>
@@ -215,7 +251,9 @@ function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, ti
 
 function getEquipoData(reporte, key) {
   if (!reporte) return null;
-  return reporte.empotrables?.[key] ?? reporte.filtros?.[key] ?? reporte.sanitizacion?.[key] ?? null;
+  // Buscar en empotrables, filtros, sanitizacion, y calentamiento
+  const cal = reporte.calentamiento?.find(c => c.key === key);
+  return reporte.empotrables?.[key] ?? reporte.filtros?.[key] ?? reporte.sanitizacion?.[key] ?? cal ?? null;
 }
 
 /* ═══════════ TAB RESUMEN ═══════════ */
@@ -237,12 +275,12 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
     <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
       {/* Tabla comparativa de CDT */}
       <div>
-        <p style={{ ...tituloStyle, marginTop:0 }}>Comparativa de cargas por equipo (ft)</p>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Relación de cargas por equipo (ft)</p>
         <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
           <thead><tr style={{ background:"#0f172a" }}>
-            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px" }}>Equipo</th>
+            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"130px" }}>Equipo</th>
             {reportes.filter(Boolean).map((r, i) => (
-              <th key={i} style={{ ...td, color: ITER_CONFIG[i].textColor, fontWeight:700, padding:"7px 12px" }}>{ITER_CONFIG[i].label}<br/><span style={{ fontSize:"0.68rem", color:"#64748b", fontWeight:400 }}>{f2(r.flujo)} GPM</span></th>
+              <th key={i} style={{ ...td, color: ITER_CONFIG[i].textColor, fontWeight:700, padding:"7px 12px", width:"110px" }}>{ITER_CONFIG[i].label}<br/><span style={{ fontSize:"0.68rem", color:"#64748b", fontWeight:400 }}>{f2(r.flujo)} GPM</span></th>
             ))}
           </tr></thead>
           <tbody>
@@ -269,10 +307,12 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                       }
                     }
                     const noSuma = esBarredora || (esSuccion && !gobierna);
-                    return <td key={i} style={{ ...td, color: v==null?"#334155":noSuma?"#475569":"#60a5fa", padding:"6px 12px" }}>
-                      {v!=null ? f2(v)+" ft" : "—"}
-                      {v!=null && noSuma && <span style={{ fontSize:"0.62rem", color:"#475569", display:"block" }}>no suma</span>}
-                      {v!=null && esSuccion && gobierna && <span style={{ fontSize:"0.62rem", color:"#34d399", display:"block" }}>↑ gobierna</span>}
+                    return <td key={i} style={{ ...td, color: v==null?"#334155":noSuma?"#475569":"#60a5fa", padding:"6px 12px", textAlign:"center" }}>
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", justifyContent:"center" }}>
+                        <span>{v!=null ? f2(v)+" ft" : "—"}</span>
+                        {v!=null && noSuma && <span style={{ fontSize:"0.58rem", color:"#475569" }}>no suma</span>}
+                        {v!=null && esSuccion && gobierna && <span style={{ fontSize:"0.58rem", color:"#34d399" }}>↑</span>}
+                      </span>
                     </td>;
                   })}
                 </tr>
@@ -286,7 +326,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                   <span style={{ fontSize:"0.65rem", color:"#92400e", marginLeft:"6px" }}>fijo</span>
                 </td>
                 {reportes.filter(Boolean).map((r, i) => (
-                  <td key={i} style={{ ...td, color:"#fbbf24", padding:"6px 12px" }}>{f2(c.cargaTotal)} ft</td>
+                  <td key={i} style={{ ...td, color:"#fbbf24", padding:"6px 12px", textAlign:"center" }}>{f2(c.cargaTotal)} ft</td>
                 ))}
               </tr>
             ))}
@@ -302,6 +342,179 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
       </div>
 
 
+    </div>
+  );
+}
+
+/* ═══════════ TAB EQUIPOS — formato cotización ═══════════ */
+function TabEquiposConsiderar({ reportes, calentamiento }) {
+  const r = reportes[0];
+  if (!r) return null;
+
+  const secciones = [
+    { titulo: "Empotrables e Hidráulica",  keys: ["retorno","desnatador","barredora","drenFondo","drenCanal"] },
+    { titulo: "Filtración",                keys: ["filtroArena","prefiltro","filtroCartucho"] },
+    { titulo: "Sanitización",              keys: ["cloradorSalino","lamparaUV","cloradorAutomatico"] },
+    { titulo: "Calentamiento",             keys: ["bombaCalor","panelSolar","caldera","calentadorElectrico"] },
+  ];
+
+  const colores = {
+    "Empotrables e Hidráulica": "#3b82f6",
+    "Filtración":               "#8b5cf6",
+    "Sanitización":             "#10b981",
+    "Calentamiento":            "#f59e0b",
+  };
+
+  const nombres = {
+    retorno:"Retornos", desnatador:"Desnatadores", barredora:"Barredoras",
+    drenFondo:"Drenes de fondo", drenCanal:"Drenes de canal",
+    filtroArena:"Filtro de arena", prefiltro:"Prefiltro", filtroCartucho:"Filtro de cartucho",
+    cloradorSalino:"Generador de cloro salino", lamparaUV:"Lámpara UV",
+    cloradorAutomatico:"Clorador automático",
+    bombaCalor:"Bomba de calor", panelSolar:"Panel solar",
+    caldera:"Caldera de gas", calentadorElectrico:"Calentador eléctrico",
+  };
+
+  // Para empotrables: extraer marca/modelo del resumenTramos o del resultado
+  const getInfoEmpotrable = (key, data) => {
+    // Los empotrables no tienen seleccion directa — extraer de resumenTramos o de la data
+    const sel = data?.seleccion;
+    // Buscar en el resultado hidráulico
+    const res = data?.resultado?.[0]; // primera fila tiene info del tramo
+    return {
+      marca:    sel?.marca    ?? "—",
+      modelo:   sel?.modelo   ?? "—",
+      cantidad: sel?.cantidad ?? "—",
+      flujo:    sel?.flujoTotal != null ? f2(sel.flujoTotal) + " GPM"
+              : res?.flujo != null ? f2(res.flujo) + " GPM" : "—",
+      cdt:      data?.cargaDinamicaTotal != null ? f2(data.cargaDinamicaTotal) + " ft" : "—",
+    };
+  };
+
+  const getInfo = (key) => {
+    const data = getEquipoData(r, key);
+    if (!data) return null;
+    const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
+    if (isEmp) return getInfoEmpotrable(key, data);
+    const sel = data.seleccion ?? {};
+    return {
+      marca:    sel.marca    ?? "—",
+      modelo:   sel.modelo   ?? "—",
+      cantidad: sel.cantidad ?? "—",
+      flujo:    sel.flujoTotal != null ? f2(sel.flujoTotal) + " GPM" : "—",
+      cdt:      data.cargaDinamicaTotal != null ? f2(data.cargaDinamicaTotal) + " ft"
+              : data.cargaTotal          != null ? f2(data.cargaTotal)          + " ft" : "—",
+    };
+  };
+
+  let itemNum = 0;
+
+  return (
+    <div style={{ background:"#fff", color:"#111", padding:"2rem", borderRadius:"8px", fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+      {/* Encabezado cotización */}
+      <div style={{ borderBottom:"3px solid #1e3a8a", paddingBottom:"1rem", marginBottom:"1.5rem", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+        <div>
+          <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"#1e3a8a", margin:0 }}>Relación de equipos</h2>
+          <p style={{ fontSize:"0.8rem", color:"#64748b", margin:"4px 0 0" }}>Memoria de cálculo hidráulico — PoolMetric</p>
+        </div>
+        <div style={{ textAlign:"right", fontSize:"0.78rem", color:"#64748b" }}>
+          <div>Flujo máximo: <strong style={{ color:"#1e3a8a" }}>{reportes[0]?.flujo} GPM</strong></div>
+        </div>
+      </div>
+
+      {secciones.map(sec => {
+        const filas = sec.keys.map(k => ({ key: k, info: getInfo(k) })).filter(x => x.info);
+        if (!filas.length) return null;
+        const color = colores[sec.titulo];
+        return (
+          <div key={sec.titulo} style={{ marginBottom:"2rem" }}>
+            {/* Header de sección */}
+            <div style={{ background:color, color:"#fff", padding:"6px 14px", borderRadius:"4px", fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0" }}>
+              {sec.titulo}
+            </div>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.82rem" }}>
+              <thead>
+                <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"40px", borderRight:"1px solid #e2e8f0" }}>#</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Descripción</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Marca</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Modelo</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0", width:"70px" }}>Cant.</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0", width:"90px" }}>Flujo total</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"80px" }}>CDT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map(({ key, info }, i) => {
+                  itemNum++;
+                  return (
+                    <tr key={key} style={{ borderBottom:"1px solid #e2e8f0", background: i%2===0?"#fff":"#f8fafc" }}>
+                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, fontSize:"0.75rem", borderRight:"1px solid #e2e8f0" }}>{itemNum}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>{nombres[key]}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.marca}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#1e293b", fontWeight:700, borderRight:"1px solid #e2e8f0" }}>{info.cantidad}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.flujo}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"center", color:color,     fontWeight:700 }}>{info.cdt}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+
+      <div style={{ borderTop:"2px solid #e2e8f0", paddingTop:"0.75rem", marginTop:"0.5rem", fontSize:"0.72rem", color:"#94a3b8", textAlign:"center" }}>
+        Generado por PoolMetric · Los valores de CDT corresponden al diseño original del sistema
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════ TAB EXPLOSIÓN DE MATERIALES — todas las tablas juntas ═══════════ */
+function TabExplosionMateriales({ reportes }) {
+  // Usar el reporte de diseño original para la explosión
+  const r = reportes[0];
+  if (!r) return null;
+
+  const equipos = [
+    { key:"retorno",            label:"Retornos",          tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"    },
+    { key:"desnatador",         label:"Desnatadores",      tipo:"empotrable", sufijoCM:"CMD",  tituloTramos:"Tramos desnatadores", tituloDisparo:"Disparo al desnatador" },
+    { key:"barredora",          label:"Barredoras",        tipo:"empotrable", sufijoCM:"CMB",  tituloTramos:"Tramos barredoras",   tituloDisparo:"Disparo a barredora"   },
+    { key:"drenFondo",          label:"Drenes fondo",      tipo:"empotrable", sufijoCM:"CMDF", tituloTramos:"Tramos drenes fondo", tituloDisparo:null                    },
+    { key:"drenCanal",          label:"Drenes canal",      tipo:"empotrable", sufijoCM:"CMDC", tituloTramos:"Tramos drenes canal", tituloDisparo:null                    },
+    { key:"filtroArena",        label:"Filtro arena",      tipo:"filtro" },
+    { key:"prefiltro",          label:"Prefiltro",         tipo:"filtro" },
+    { key:"filtroCartucho",     label:"F. cartucho",       tipo:"filtro" },
+    { key:"cloradorSalino",     label:"Cloro salino",      tipo:"filtro" },
+    { key:"lamparaUV",          label:"Lámpara UV",        tipo:"filtro" },
+    { key:"cloradorAutomatico", label:"Clorador automático", tipo:"filtro" },
+    { key:"bombaCalor",         label:"Bomba de calor",    tipo:"calentamiento" },
+    { key:"panelSolar",         label:"Panel solar",       tipo:"calentamiento" },
+    { key:"caldera",            label:"Caldera de gas",    tipo:"calentamiento" },
+    { key:"calentadorElectrico",label:"Calent. eléctrico", tipo:"calentamiento" },
+  ].filter(eq => getEquipoData(r, eq.key));
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"2.5rem" }}>
+      {equipos.map(eq => {
+        const data = getEquipoData(r, eq.key);
+        if (!data) return null;
+        return (
+          <div key={eq.key}>
+            <h3 style={{ fontSize:"0.85rem", fontWeight:700, color:"#60a5fa", marginBottom:"0.5rem", textTransform:"uppercase", letterSpacing:"0.05em", borderBottom:"1px solid #1e3a5f", paddingBottom:"0.3rem" }}>
+              {eq.label}
+            </h3>
+            {eq.tipo === "empotrable"
+              ? <ContenidoEmpotrable data={data} tituloTramos={eq.tituloTramos} sufijoCM={eq.sufijoCM} tituloDisparo={eq.tituloDisparo} />
+              : eq.tipo === "calentamiento"
+              ? <ContenidoCalentamiento data={data} />
+              : <ContenidoFiltro data={data} />
+            }
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -338,10 +551,17 @@ export default function MemoriaCalculo() {
     { key:"cloradorSalino",     label:"Cloro salino",     tipo:"filtro" },
     { key:"lamparaUV",          label:"Lámpara UV",       tipo:"filtro" },
     { key:"cloradorAutomatico", label:"Clorador auto",    tipo:"filtro" },
+    // Calentamiento — aparece en todas las iteraciones
+    { key:"bombaCalor",         label:"Bomba de calor",   tipo:"calentamiento" },
+    { key:"panelSolar",         label:"Panel solar",      tipo:"calentamiento" },
+    { key:"caldera",            label:"Caldera de gas",   tipo:"calentamiento" },
+    { key:"calentadorElectrico",label:"Calent. eléctrico",tipo:"calentamiento" },
   ].filter(eq => reportes.some(r => getEquipoData(r, eq.key)));
 
   const tabs = [
-    { label:"📊 Resumen", comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
+    { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
+    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} /> },
+    { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
     ...defEquipos.map(eq => ({
       label: eq.label,
       comp: <TabEquipo equipoKey={eq.key} reportes={reportes} tipoRender={eq.tipo} sufijoCM={eq.sufijoCM} tituloTramos={eq.tituloTramos} tituloDisparo={eq.tituloDisparo} />,
@@ -354,13 +574,14 @@ export default function MemoriaCalculo() {
       <div style={{ background:"#1e293b", borderBottom:"1px solid #334155", padding:"14px 24px" }}>
         <h1 style={{ fontSize:"1.1rem", fontWeight:700, color:"#60a5fa", marginBottom:"8px" }}>Memoria de cálculo hidráulico</h1>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"16px", fontSize:"0.8rem", color:"#94a3b8" }}>
-          <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>
-          <span><strong style={{ color:"#e2e8f0" }}>Flujo diseño:</strong> {resumen.flujoMax} GPM</span>
-          {resumen.bomba && <span><strong style={{ color:"#e2e8f0" }}>Bomba:</strong> {resumen.bomba} × {resumen.nBombas}</span>}
-          {resumen.flujoFinal && <span><strong style={{ color:"#38bdf8" }}>Flujo operación:</strong> {resumen.flujoFinal} GPM</span>}
-          {resumen.cdtFinal && <span><strong style={{ color:"#38bdf8" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
-          <span><strong style={{ color:"#e2e8f0" }}>Succ.:</strong> {resumen.tubSuccion}</span>
-          <span><strong style={{ color:"#e2e8f0" }}>Desc.:</strong> {resumen.tubDescarga}</span>
+          {resumen.area   && <span><strong style={{ color:"#e2e8f0" }}>Área:</strong> {resumen.area} m²</span>}
+          {resumen.vol && parseFloat(resumen.vol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
+          {resumen.flujoVol && parseFloat(resumen.flujoVol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Flujo recirculación:</strong> {resumen.flujoVol} GPM</span>}
+          {resumen.flujoInf && parseFloat(resumen.flujoInf) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Flujo Infinity:</strong> {resumen.flujoInf} GPM</span>}
+          {resumen.vol && parseFloat(resumen.vol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
+          <span><strong style={{ color:"#38bdf8" }}>Flujo máximo:</strong> {resumen.flujoMax} GPM</span>
+          {resumen.flujoFinal && <span><strong style={{ color:"#34d399" }}>Flujo operación:</strong> {resumen.flujoFinal} GPM</span>}
+          {resumen.cdtFinal && <span><strong style={{ color:"#34d399" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
         </div>
         {/* Leyenda */}
         <div style={{ display:"flex", gap:"14px", marginTop:"8px", flexWrap:"wrap" }}>
