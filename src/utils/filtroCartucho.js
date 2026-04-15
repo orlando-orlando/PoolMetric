@@ -54,41 +54,26 @@ function cargaTramo(longMetros, cargaBase) {
   return (longMetros * 3.28084 * cargaBase) / 100;
 }
 
-/* ================================================================
-   HIDRÁULICA — usa flujoRealSistema para los tramos de tubería.
-   La selección del equipo (cantidad de filtros) sigue basándose en
-   flujoMaximo/capacidad. La hidráulica de tuberías refleja el flujo
-   real que circula por el sistema.
-   ================================================================ */
-function calcularHidraulicaCartucho({ flujoPorFiltro, cantidad, flujoRealSistema, modo = "auto" }) {
+function calcularHidraulicaCartucho({ flujoPorFiltro, cantidad, flujoRealSistema }) {
   const LONG_TRAMO_M  = 1.0;
   const CARGA_FIJA_FT = 7;
+  const flujoRealPorUnidad = flujoRealSistema ? flujoRealSistema / cantidad : flujoPorFiltro;
 
-  // Flujo real por tramo — el sistema circula flujoRealSistema en total,
-  // distribuido entre los filtros en paralelo.
-  // Si no se provee flujoRealSistema, usar flujoPorFiltro (comportamiento anterior).
-  const flujoRealPorUnidad = flujoRealSistema
-    ? flujoRealSistema / cantidad
-    : flujoPorFiltro;
-
-  const tablaTramos          = [];
-  let   cargaAcumuladaTramos = 0;
-  const resumen              = {};
+  const tablaTramos = [];
+  let cargaAcumuladaTramos = 0;
+  const resumen = {};
   const addDiam = (d) => {
     if (!resumen[d]) resumen[d] = { tuberia_m: 0, tees: 0, codos: 0, reducciones: 0 };
   };
-
   let tubAnterior = null;
 
   if (cantidad === 1) {
-    // Un solo filtro — el flujo real es flujoRealSistema completo
     const flujoCalculo = flujoRealSistema ?? flujoPorFiltro;
     const { tuberia, velocidad, cargaBase } = seleccionarDiametro(flujoCalculo);
-    const longEqCodo     = CODO[tuberia] ?? CODO["tuberia 18.00"];
-    const cargaTramoCL   = cargaTramo(LONG_TRAMO_M, cargaBase);
-    const cargaCodos     = (2 * longEqCodo * cargaBase) / 100;
+    const longEqCodo   = CODO[tuberia] ?? CODO["tuberia 18.00"];
+    const cargaTramoCL = cargaTramo(LONG_TRAMO_M, cargaBase);
+    const cargaCodos   = (2 * longEqCodo * cargaBase) / 100;
     const cargaFilaTotal = cargaTramoCL + cargaCodos;
-
     cargaAcumuladaTramos += cargaFilaTotal;
     tablaTramos.push({
       tramo: 1, flujo: fix2(flujoCalculo), tuberia,
@@ -101,38 +86,28 @@ function calcularHidraulicaCartucho({ flujoPorFiltro, cantidad, flujoRealSistema
     });
     addDiam(tuberia);
     resumen[tuberia].tuberia_m += LONG_TRAMO_M;
-    resumen[tuberia].codos     += 2;
+    resumen[tuberia].codos += 2;
     tubAnterior = tuberia;
-
   } else {
-    // Varios filtros en paralelo — cada tramo acumula el flujo real de los filtros
-    // que aún no han sido derivados. El flujo en cada tramo es:
-    //   tramo i: (cantidad - i) × flujoRealPorUnidad
     for (let i = 0; i < cantidad; i++) {
       const flujoActual = (cantidad - i) * flujoRealPorUnidad;
       const esUltimo    = i === cantidad - 1;
       const { tuberia, velocidad, cargaBase } = seleccionarDiametro(flujoActual);
-
       const cargaTramoCL = cargaTramo(LONG_TRAMO_M, cargaBase);
-      const cantTees     = esUltimo ? 0 : 2;
-      const cantCodos    = esUltimo ? 2 : 0;
-
+      const cantTees  = esUltimo ? 0 : 2;
+      const cantCodos = esUltimo ? 2 : 0;
       const longEqTee  = TEE_LINEA[tuberia] ?? TEE_LINEA["tuberia 18.00"];
       const longEqCodo = CODO[tuberia]      ?? CODO["tuberia 18.00"];
-
       const cargaTees  = (cantTees  * longEqTee  * cargaBase) / 100;
       const cargaCodos = (cantCodos * longEqCodo * cargaBase) / 100;
-
       let cargaRed = 0, longEqRed = 0, cantRed = 0;
       if (tubAnterior && tubAnterior !== tuberia) {
         longEqRed = REDUCCION[tuberia] ?? REDUCCION["tuberia 18.00"];
         cargaRed  = (longEqRed * cargaBase) / 100;
         cantRed   = 1;
       }
-
       const cargaFilaTotal = cargaTramoCL + cargaTees + cargaCodos + cargaRed;
       cargaAcumuladaTramos += cargaFilaTotal;
-
       tablaTramos.push({
         tramo: i + 1, flujo: fix2(flujoActual), tuberia,
         velocidad: fix2(velocidad), longitud_m: fix2(LONG_TRAMO_M),
@@ -142,7 +117,6 @@ function calcularHidraulicaCartucho({ flujoPorFiltro, cantidad, flujoRealSistema
         cantRed,   longEqRed:  fix2(longEqRed), cargaRed: fix2(cargaRed),
         cargaTotal: fix2(cargaFilaTotal),
       });
-
       addDiam(tuberia);
       resumen[tuberia].tuberia_m   += LONG_TRAMO_M;
       resumen[tuberia].tees        += cantTees;
@@ -154,23 +128,11 @@ function calcularHidraulicaCartucho({ flujoPorFiltro, cantidad, flujoRealSistema
 
   const cargaTotal    = cargaAcumuladaTramos + CARGA_FIJA_FT;
   const cargaTotalPSI = cargaTotal * 0.43353;
-
   const resumenMateriales = Object.entries(resumen).map(([diam, vals]) => ({
-    tuberia:     diam,
-    tuberia_m:   fix2(vals.tuberia_m),
-    tees:        vals.tees,
-    codos:       vals.codos,
-    reducciones: vals.reducciones,
+    tuberia: diam, tuberia_m: fix2(vals.tuberia_m),
+    tees: vals.tees, codos: vals.codos, reducciones: vals.reducciones,
   }));
-
-  return {
-    tablaTramos,
-    cargaFija_ft:  CARGA_FIJA_FT,
-    cargaTramos:   fix2(cargaAcumuladaTramos),
-    cargaTotal:    fix2(cargaTotal),
-    cargaTotalPSI: fix2(cargaTotalPSI),
-    resumenMateriales,
-  };
+  return { tablaTramos, cargaFija_ft: CARGA_FIJA_FT, cargaTramos: fix2(cargaAcumuladaTramos), cargaTotal: fix2(cargaTotal), cargaTotalPSI: fix2(cargaTotalPSI), resumenMateriales };
 }
 
 function seleccionarFiltroCartucho(flujoMaximo, usoGeneral) {
@@ -187,71 +149,34 @@ function seleccionarFiltroCartucho(flujoMaximo, usoGeneral) {
     if (cantidad < mejor.cantidad) {
       mejor = { filtro, flujoEf, cantidad, flujoTotal, exceso };
     } else if (cantidad === mejor.cantidad) {
-      if (exceso < mejor.exceso) {
-        mejor = { filtro, flujoEf, cantidad, flujoTotal, exceso };
-      } else if (exceso === mejor.exceso && flujoEf < mejor.flujoEf) {
-        mejor = { filtro, flujoEf, cantidad, flujoTotal, exceso };
-      }
+      if (exceso < mejor.exceso) { mejor = { filtro, flujoEf, cantidad, flujoTotal, exceso }; }
+      else if (exceso === mejor.exceso && flujoEf < mejor.flujoEf) { mejor = { filtro, flujoEf, cantidad, flujoTotal, exceso }; }
     }
   }
   return mejor;
 }
 
-/* ================================================================
-   FUNCIÓN PRINCIPAL — ahora recibe flujoRealSistema opcional.
-   Si no se pasa, flujoMaximo actúa como flujoRealSistema (backward compat).
-   ================================================================ */
-export function filtroArena(flujoMaximo, flujoRealSistema = null) {
-  if (!flujoMaximo || flujoMaximo <= 0) {
-    return { error: "Flujo máximo inválido o no disponible." };
-  }
-
-  const seleccion = seleccionarFiltroArena(flujoMaximo);
-  if (!seleccion) {
-    return { error: "Catálogo de filtros de arena vacío o sin equipos activos." };
-  }
-
-  const { filtro, cantidad } = seleccion;
-  const flujoPorFiltro = filtro.specs.maxFlow;
-  // flujoReal para hidráulica: si se pasa usa ese, si no usa flujoMaximo
+export function filtroCartucho(flujoMaximo, usoGeneral = "comercial", flujoRealSistema = null) {
+  if (!flujoMaximo || flujoMaximo <= 0) return { error: "Flujo máximo inválido o no disponible." };
+  const seleccion = seleccionarFiltroCartucho(flujoMaximo, usoGeneral);
+  if (!seleccion) return { error: "Sin filtros de cartucho disponibles para este uso." };
+  const { filtro, flujoEf, cantidad } = seleccion;
   const flujoReal = flujoRealSistema ?? flujoMaximo;
-
-  const hidraulica = calcularHidraulicaCartucho({
-    flujoPorFiltro,
-    cantidad,
-    flujoRealSistema: flujoReal,
-    modo: "auto",
-  });
-
+  const hidraulica = calcularHidraulicaCartucho({ flujoPorFiltro: flujoEf, cantidad, flujoRealSistema: flujoReal });
   return {
     seleccion: {
-      marca:          filtro.marca,
-      modelo:         filtro.modelo,
-      cantidad,
-      flujoPorFiltro: fix2(flujoPorFiltro),
-      flujoTotal:     fix2(cantidad * flujoPorFiltro),
-      flujoReal:      fix2(flujoReal),
-      exceso:         fix2(seleccion.exceso),
-      diameter:       filtro.specs.diameter,
-      filtrationArea: filtro.specs.filtrationArea,
-      arena:          filtro.specs.arena,
-      grava:          filtro.specs.grava,
+      marca: filtro.marca, modelo: filtro.modelo, cantidad,
+      flujoEfectivo: fix2(flujoEf), flujoTotal: fix2(cantidad * flujoEf),
+      flujoReal: fix2(flujoReal), exceso: fix2(seleccion.exceso),
+      filtrationArea: filtro.specs.filtrationArea, usoGeneral,
     },
     ...hidraulica,
   };
 }
 
-/* ================================================================
-   FUNCIÓN MANUAL — también recibe flujoRealSistema
-   ================================================================ */
-export function calcularCargaFiltroArenaManual(flujoPorFiltro, cantidad, flujoRealSistema = null) {
-  if (!flujoPorFiltro || flujoPorFiltro <= 0 || !cantidad || cantidad <= 0) {
+export function calcularCargaFiltroCartuchoManual(flujoEf, cantidad, flujoRealSistema = null) {
+  if (!flujoEf || flujoEf <= 0 || !cantidad || cantidad <= 0) {
     return { error: "Flujo o cantidad inválidos para cálculo manual." };
   }
-  return calcularHidraulicaCartucho({
-    flujoPorFiltro,
-    cantidad,
-    flujoRealSistema: flujoRealSistema ?? flujoPorFiltro,
-    modo: "manual",
-  });
+  return calcularHidraulicaCartucho({ flujoPorFiltro: flujoEf, cantidad, flujoRealSistema: flujoRealSistema ?? flujoEf });
 }
