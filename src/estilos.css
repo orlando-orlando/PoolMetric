@@ -1828,3 +1828,37 @@ select option:hover { background-color: #d1d5db; }
   .eq-header { padding: 0.75rem 1rem 0.6rem; }
   .eq-contenido { padding: 1rem 1rem 2rem; }
 }
+
+/* ── Punto de operación (equilibrio hidráulico confirmado) ── */
+.resultado-total-btn--equilibrio {
+  color: #34d399 !important;
+  border-top: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.06);
+}
+.resultado-total-btn--equilibrio .resultado-total-btn-titulo {
+  color: #34d399 !important;
+}
+.resultado-total-btn--equilibrio:hover {
+  background: rgba(52, 211, 153, 0.1);
+}
+.resultado-total-btn-valor--equilibrio {
+  color: #34d399 !important;
+  font-weight: 700;
+}
+.resultado-totales-desglose--equilibrio {
+  border-left: 2px solid rgba(52, 211, 153, 0.3);
+  margin-left: 2px;
+  background: rgba(52, 211, 153, 0.03);
+}
+.resultado-totales-desglose--equilibrio .desglose-label {
+  color: #1e293b;
+}
+.tema-oscuro .resultado-totales-desglose--equilibrio .desglose-label {
+  color: #94a3b8;
+}
+.resultado-totales-desglose--equilibrio .desglose-valor {
+  color: #1e293b;
+}
+.tema-oscuro .resultado-totales-desglose--equilibrio .desglose-valor {
+  color: #cbd5e1;
+}

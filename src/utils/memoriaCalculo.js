@@ -181,7 +181,7 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
     const resIter = equiposRecalcIter?.filtroArena?.resultadoHidraulico;
     const eq = est("filtroArena");
     const cant = cantParaKey("filtroArena") ?? 1;
-    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cant);
+    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cant, flujoCalculo);
     const data = empacarFiltroRes(res, "Filtro de arena", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroArena = data;
   }
@@ -190,7 +190,7 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
     const resIter = equiposRecalcIter?.prefiltro?.resultadoHidraulico;
     const eq = est("prefiltro");
     const cant = cantParaKey("prefiltro") ?? 1;
-    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cant);
+    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cant, flujoCalculo);
     const data = empacarFiltroRes(res, "Prefiltro", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.prefiltro = data;
   }
@@ -199,7 +199,7 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
     const resIter = equiposRecalcIter?.filtroCartucho?.resultadoHidraulico;
     const eq = est("filtroCartucho");
     const cant = cantParaKey("filtroCartucho") ?? 1;
-    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cant);
+    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cant, flujoCalculo);
     const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroCartucho = data;
   }
@@ -296,7 +296,7 @@ function empacarCalentamiento(key, label, calentamiento) {
 export function generarMemoriaCalculo({
   estados, datosEmpotrable, tieneDesbordeCanal,
   flujoMaxGlobal, cargaTotalGlobal,
-  tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, vol,
+  tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, flujoFiltradoVal, vol,
   estadoBomba, equilibrio,
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
@@ -328,7 +328,7 @@ export function generarMemoriaCalculo({
   const resumen = {
     area:        f2(datosEmpotrable?.area ?? 0),
     vol:         f2(vol ?? 0),
-    flujoVol:    f2(flujoVolumen ?? 0),
+    flujoVol:    f2(flujoFiltradoVal ?? flujoVolumen ?? 0),
     flujoInf:    f2(flujoInfinityVal ?? 0),
     flujoMax:    f2(flujoMaxGlobal),
     tubSuccion:  estadoBomba?.tubSuccion  ?? "—",

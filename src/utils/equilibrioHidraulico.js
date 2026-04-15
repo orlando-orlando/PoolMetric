@@ -133,7 +133,9 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   const cantMin   = Math.max(1, Math.ceil(flujoNuevo / flujoEf));
   const cantFinal = Math.max(cantMin, cantOriginal);
   try {
-    const res = fnManual(flujoEf, cantFinal);
+    // Pasar flujoNuevo como flujoRealSistema para que la hidráulica de tuberías
+    // use el flujo real del sistema, no la capacidad instalada del filtro
+    const res = fnManual(flujoEf, cantFinal, flujoNuevo);
     return {
       cantidad: cantFinal, cantOriginal,
       cambio: cantFinal !== cantOriginal,
@@ -225,6 +227,7 @@ export function calcularEquilibrio({
           equiposRecalc.lamparaUV = {
             cantidad: cantOriginal, cantOriginal, cambio: false,
             cargaTotal: res.cargaTotal, sumaFinal: res.cargaTotal,
+            resultadoHidraulico: res,  // necesario para la memoria de calculo
           };
         }
       } catch { /* sin cambio */ }

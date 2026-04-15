@@ -258,7 +258,6 @@ function getEquipoData(reporte, key) {
 
 /* ═══════════ TAB RESUMEN ═══════════ */
 function TabResumen({ reportes, calentamiento, resumen = {} }) {
-  // Inferir si tiene desborde canal basándose en los datos
   const tieneDesbordeCanal = reportes.some(r => getEquipoData(r, "drenCanal") != null);
   const equiposOrden = ["retorno","desnatador","drenFondo","drenCanal","barredora","filtroArena","prefiltro","filtroCartucho","cloradorSalino","lamparaUV","cloradorAutomatico"];
   const nombresEq = { retorno:"Retornos", desnatador:"Desnatadores", drenFondo:"Drenes fondo", drenCanal:"Drenes canal", barredora:"Barredoras", filtroArena:"Filtro arena", prefiltro:"Prefiltro", filtroCartucho:"F. cartucho", cloradorSalino:"Cloro salino", lamparaUV:"Lámpara UV", cloradorAutomatico:"Clorador auto" };
@@ -269,11 +268,109 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
     return d.cargaDinamicaTotal ?? d.cargaTotal ?? null;
   };
 
+  const getFlujo = (reporte, key) => {
+    const d = getEquipoData(reporte, key);
+    if (!d) return null;
+    return d.seleccion?.flujoTotal ?? null;
+  };
+
   const equiposPresentes = equiposOrden.filter(k => reportes.some(r => getEquipoData(r, k)));
+  // Para flujos solo mostramos el reporte de diseño (reportes[0])
+  const rDis = reportes[0];
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
-      {/* Tabla comparativa de CDT */}
+
+      {/* ── Diagrama de progresión Diseño → Iter1 → Iter2 ── */}
+      {resumen.flujoIter1 && parseFloat(resumen.flujoIter1) > 0 && (
+      <div>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Progresión del punto de operación</p>
+        <div style={{ display:"flex", alignItems:"stretch", gap:0, background:"rgba(15,23,42,0.5)", border:"1px solid #1e3a5f", borderRadius:"8px", overflow:"hidden" }}>
+          {/* Diseño original */}
+          <div style={{ flex:1, padding:"1rem", borderRight:"1px solid #1e3a5f" }}>
+            <div style={{ fontSize:"0.65rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Diseño original</div>
+            <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#cbd5e1" }}>{resumen.flujoMax} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
+            <div style={{ fontSize:"0.78rem", color:"#64748b", marginTop:"2px" }}>{resumen.cdtDiseno} ft CDT</div>
+          </div>
+          {/* Flecha */}
+          <div style={{ display:"flex", alignItems:"center", padding:"0 0.5rem", color:"#334155", fontSize:"1.2rem" }}>→</div>
+          {/* Iter 1 */}
+          <div style={{ flex:1, padding:"1rem", borderRight:"1px solid #1e3a5f", background:"rgba(14,116,144,0.08)" }}>
+            <div style={{ fontSize:"0.65rem", color:"#67e8f9", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Iteración 1</div>
+            <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#67e8f9" }}>{resumen.flujoIter1} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
+            <div style={{ fontSize:"0.78rem", color:"#0891b2", marginTop:"2px" }}>{resumen.cdtIter1} ft CDT</div>
+          </div>
+          {/* Flecha */}
+          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && resumen.flujoIter2 !== resumen.flujoIter1 && (
+          <div style={{ display:"flex", alignItems:"center", padding:"0 0.5rem", color:"#334155", fontSize:"1.2rem" }}>→</div>
+          )}
+          {/* Iter 2 */}
+          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && resumen.flujoIter2 !== resumen.flujoIter1 && (
+          <div style={{ flex:1, padding:"1rem", background:"rgba(21,128,61,0.08)" }}>
+            <div style={{ fontSize:"0.65rem", color:"#86efac", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Iteración 2</div>
+            <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#86efac" }}>{resumen.flujoIter2} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
+            <div style={{ fontSize:"0.78rem", color:"#16a34a", marginTop:"2px" }}>{resumen.cdtIter2} ft CDT</div>
+          </div>
+          )}
+        </div>
+      </div>
+      )}
+
+      {/* ── Tabla de flujos por equipo ── */}
+      {rDis && (
+      <div>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Relación de flujos por equipo (GPM)</p>
+        <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+          <thead><tr style={{ background:"#0f172a" }}>
+            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"160px" }}>Equipo</th>
+            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"110px" }}>Flujo total</th>
+            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"90px" }}>En diseño</th>
+          </tr></thead>
+          <tbody>
+            {equiposPresentes.map((key, ri) => {
+              const v = getFlujo(rDis, key);
+              const esBarredora = key === "barredora";
+              const succKeys = tieneDesbordeCanal ? ["drenCanal","drenFondo"] : ["desnatador","drenFondo"];
+              const esSuccion = succKeys.includes(key);
+              const cdtVals = esSuccion ? succKeys.map(k=>({k,v:getCDT(rDis,k)})).filter(x=>x.v!=null) : [];
+              const gobierna = !esSuccion || cdtVals.length < 2 || cdtVals.reduce((a,b)=>parseFloat(b.v)>parseFloat(a.v)?b:a).k === key;
+              const noSuma = esBarredora || (esSuccion && !gobierna);
+              return (
+                <tr key={key} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
+                  <td style={{ ...td, textAlign:"left", color: noSuma?"#64748b":"#e2e8f0", fontWeight:500, padding:"6px 12px" }}>{nombresEq[key]}</td>
+                  <td style={{ ...td, color: noSuma?"#475569":"#38bdf8", padding:"6px 12px" }}>
+                    {v != null ? f2(v)+" GPM" : resumen.flujoMax+" GPM"}
+                  </td>
+                  <td style={{ ...td, padding:"6px 12px", fontSize:"0.68rem" }}>
+                    {esBarredora
+                      ? <span style={{color:"#475569"}}>informativo</span>
+                      : esSuccion && gobierna
+                      ? <span style={{color:"#34d399"}}>↑ activa</span>
+                      : esSuccion
+                      ? <span style={{color:"#475569"}}>no suma</span>
+                      : <span style={{color:"#34d399"}}>✓</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {calentamiento?.length > 0 && calentamiento.map((c, ci) => (
+              <tr key={"calf-"+ci} style={{ background:"rgba(251,191,36,0.04)" }}>
+                <td style={{ ...td, textAlign:"left", color:"#fbbf24", fontWeight:500, padding:"6px 12px" }}>{c.label}</td>
+                <td style={{ ...td, color:"#fbbf24", padding:"6px 12px" }}>{f2(c.seleccion?.flujoTotal)} GPM</td>
+                <td style={{ ...td, padding:"6px 12px", fontSize:"0.68rem", color:"#92400e" }}>fijo</td>
+              </tr>
+            ))}
+            <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+              <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>Flujo máximo diseño</td>
+              <td style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{resumen.flujoMax} GPM</td>
+              <td style={{ ...td, padding:"8px 12px" }}></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      )}
+
+      {/* ── Tabla comparativa de CDT ── */}
       <div>
         <p style={{ ...tituloStyle, marginTop:0 }}>Relación de cargas por equipo (ft)</p>
         <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
@@ -347,11 +444,12 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
 }
 
 /* ═══════════ TAB EQUIPOS — formato cotización ═══════════ */
-function TabEquiposConsiderar({ reportes, calentamiento }) {
+function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
   const r = reportes[0];
   if (!r) return null;
 
   const secciones = [
+    { titulo: "Motobomba",                 keys: ["motobomba"] },
     { titulo: "Empotrables e Hidráulica",  keys: ["retorno","desnatador","barredora","drenFondo","drenCanal"] },
     { titulo: "Filtración",                keys: ["filtroArena","prefiltro","filtroCartucho"] },
     { titulo: "Sanitización",              keys: ["cloradorSalino","lamparaUV","cloradorAutomatico"] },
@@ -366,6 +464,7 @@ function TabEquiposConsiderar({ reportes, calentamiento }) {
   };
 
   const nombres = {
+    motobomba:"Motobomba",
     retorno:"Retornos", desnatador:"Desnatadores", barredora:"Barredoras",
     drenFondo:"Drenes de fondo", drenCanal:"Drenes de canal",
     filtroArena:"Filtro de arena", prefiltro:"Prefiltro", filtroCartucho:"Filtro de cartucho",
@@ -392,6 +491,16 @@ function TabEquiposConsiderar({ reportes, calentamiento }) {
   };
 
   const getInfo = (key) => {
+    if (key === "motobomba") {
+      if (!resumen?.bomba || resumen.bomba === "—") return null;
+      return {
+        marca:    resumen.bomba?.split(" ")?.[0] ?? "—",
+        modelo:   resumen.bomba?.split(" ")?.slice(1).join(" ") ?? "—",
+        cantidad: resumen.nBombas ?? 1,
+        flujo:    resumen.flujoMax ? resumen.flujoMax + " GPM" : "—",
+        cdt:      resumen.cdtDiseno ? resumen.cdtDiseno + " ft" : "—",
+      };
+    }
     const data = getEquipoData(r, key);
     if (!data) return null;
     const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
@@ -560,7 +669,7 @@ export default function MemoriaCalculo() {
 
   const tabs = [
     { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
-    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} /> },
+    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
     { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
     ...defEquipos.map(eq => ({
       label: eq.label,
@@ -573,15 +682,12 @@ export default function MemoriaCalculo() {
       {/* Header */}
       <div style={{ background:"#1e293b", borderBottom:"1px solid #334155", padding:"14px 24px" }}>
         <h1 style={{ fontSize:"1.1rem", fontWeight:700, color:"#60a5fa", marginBottom:"8px" }}>Memoria de cálculo hidráulico</h1>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:"16px", fontSize:"0.8rem", color:"#94a3b8" }}>
-          {resumen.area   && <span><strong style={{ color:"#e2e8f0" }}>Área:</strong> {resumen.area} m²</span>}
-          {resumen.vol && parseFloat(resumen.vol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
-          {resumen.flujoVol && parseFloat(resumen.flujoVol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Flujo recirculación:</strong> {resumen.flujoVol} GPM</span>}
-          {resumen.flujoInf && parseFloat(resumen.flujoInf) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Flujo Infinity:</strong> {resumen.flujoInf} GPM</span>}
-          {resumen.vol && parseFloat(resumen.vol) > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"20px", fontSize:"0.8rem", color:"#94a3b8", alignItems:"center" }}>
+          {resumen.area   && parseFloat(resumen.area)   > 0 && <span><strong style={{ color:"#e2e8f0" }}>Área:</strong> {resumen.area} m²</span>}
+          {resumen.vol    && parseFloat(resumen.vol)    > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
           <span><strong style={{ color:"#38bdf8" }}>Flujo máximo:</strong> {resumen.flujoMax} GPM</span>
           {resumen.flujoFinal && <span><strong style={{ color:"#34d399" }}>Flujo operación:</strong> {resumen.flujoFinal} GPM</span>}
-          {resumen.cdtFinal && <span><strong style={{ color:"#34d399" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
+          {resumen.cdtFinal   && <span><strong style={{ color:"#34d399" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
         </div>
         {/* Leyenda */}
         <div style={{ display:"flex", gap:"14px", marginTop:"8px", flexWrap:"wrap" }}>

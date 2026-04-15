@@ -676,7 +676,7 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
 
   const rec = useMemo(() => {
     if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = prefiltro(flujoMaximo); return r?.error ? null : r; }
+    try { const r = prefiltro(flujoMaximo, flujoMaximo); return r?.error ? null : r; }
     catch { return null; }
   }, [flujoMaximo]);
 
@@ -838,7 +838,7 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
 
   const rec = useMemo(() => {
     if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = filtroCartucho(flujoMaximo, usoGeneral); return r?.error ? null : r; }
+    try { const r = filtroCartucho(flujoMaximo, usoGeneral, flujoMaximo); return r?.error ? null : r; }
     catch { return null; }
   }, [flujoMaximo, usoGeneral]);
 
@@ -1007,7 +1007,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
 
   const rec = useMemo(() => {
     if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = filtroArena(flujoMaximo); return r?.error ? null : r; }
+    try { const r = filtroArena(flujoMaximo, flujoMaximo); return r?.error ? null : r; }
     catch { return null; }
   }, [flujoMaximo]);
 
@@ -1690,7 +1690,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null })
 /* =====================================================
    BLOQUE VERIFICACIÓN DEL DISEÑO
 ===================================================== */
-function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null }) {
+function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null }) {
   const [fase, setFase]           = useState("idle");
   const [checks, setChecks]       = useState([]);
   const [resultado, setResultado] = useState(null);
@@ -1928,6 +1928,9 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
             sistemasSeleccionadosSanit={sistemasSanitizacion}
             sistemasSeleccionadosFilt={sistemasFiltracion}
             onAjustarCargas={onAjustarCargas}
+            flujoInfinityVal={flujoInfinityVal ?? null}
+            flujoFiltradoVal={flujoFiltradoVal ?? null}
+            volumenTotalVal={volumenTotalVal ?? null}
           />
 
         </>)}
@@ -1953,6 +1956,9 @@ function ResumenEquiposConfirmacion({
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   onAjustarCargas,
+  flujoInfinityVal = null,
+  flujoFiltradoVal = null,
+  volumenTotalVal  = null,
 }) {
   const [confirmado, setConfirmado] = useState(false);
 
@@ -2152,7 +2158,11 @@ function ResumenEquiposConfirmacion({
               className="btn-primario"
               style={{ whiteSpace: "nowrap", fontSize: "0.75rem", padding: "0.45rem 1rem", background: "linear-gradient(135deg, #9a3412, #7c2d12)", borderColor: "rgba(249,115,22,0.4)" }}
               onClick={() => {
-                if (onAjustarCargas) onAjustarCargas(equiposRecalc);
+                if (onAjustarCargas) onAjustarCargas({
+                  equipos: equiposRecalc,
+                  flujo:   resultado?.equilibrio?.flujo ?? null,
+                  cdt:     resultado?.equilibrio?.carga ?? null,
+                });
                 setConfirmado(true);
               }}
             >
@@ -2183,8 +2193,9 @@ function ResumenEquiposConfirmacion({
                 cargaTotalGlobal: resultado?._snapshotCDT ?? cargaTotalGlobal,
                 tuberiaMaxGlobal: estadoBomba?.tubDescarga ?? null,
                 flujoVolumen:     flujoMaxGlobal,
-                flujoInfinityVal: null,
-                vol:              null,
+                flujoInfinityVal: flujoInfinityVal ?? null,
+                flujoFiltradoVal: flujoFiltradoVal ?? null,
+                vol:              volumenTotalVal ?? null,
                 estadoBomba,
                 equilibrio:       resultado ?? null,
                 datosPorSistema,
@@ -2256,6 +2267,9 @@ export default function Equipamiento({
   setDatosPorSistema, configBombas, resultadoClorador,
   flujoMaxGlobal, cargaTotalGlobal,
   onSanitizacionChange,
+  flujoInfinityVal = null,
+  flujoFiltradoVal = null,
+  volumenTotalVal  = null,
 }) {
   const [tabActiva, setTabActiva] = useState("sanitizacion");
 
@@ -2666,17 +2680,26 @@ export default function Equipamiento({
                   }}
                   datosPorSistema={datosPorSistema}
                   resultadoClorador={resultadoClorador}
-                  onAjustarCargas={(ajustes) => {
-                    // ajustes = { key: { cantidad, sumaFinal/cargaTotal } }
-                    // Actualizar cargas y estados directamente
-                    Object.entries(ajustes).forEach(([key, eq]) => {
-                      const carga = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0) || null;
-                      if (carga) setCarga(key, carga);
-                      if (estados[key]) {
-                        setEstado(key, { ...estados[key], cantidad: eq.cantidad });
-                      }
-                    });
+                  onAjustarCargas={(payload) => {
+                    // payload = { equipos, flujo, cdt }
+                    // NO se modifican las cargas de diseño en App.
+                    // Se guarda el punto de operación para mostrarlo como toggle separado.
+                    setDatosPorSistema(ps => ({
+                      ...ps,
+                      equipamiento: {
+                        ...(ps.equipamiento ?? {}),
+                        puntoOperacion: {
+                          equipos:   payload.equipos ?? payload,
+                          flujo:     payload.flujo   ?? null,
+                          cdt:       payload.cdt     ?? null,
+                          timestamp: Date.now(),
+                        },
+                      },
+                    }));
                   }}
+                  flujoInfinityVal={flujoInfinityVal ?? null}
+                  flujoFiltradoVal={flujoFiltradoVal ?? null}
+                  volumenTotalVal={volumenTotalVal ?? null}
                 />
               </div>
             )}
