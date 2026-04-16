@@ -220,7 +220,7 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
       // flujoTotal del estado UV (flujo por equipo × cantidad)
       const flujoTotalUV = eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo;
       const flujoPorUV = cant > 0 ? flujoTotalUV / cant : flujoCalculo;
-      const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant);
+      const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant, flujoCalculo);
       const data = empacarFiltroRes(res, "Lampara UV", { marca: eqUV?.marca, modelo: eqUV?.modelo, cantidad: cant, flujoTotal: flujoTotalUV });
       if (data) sanitizacion.lamparaUV = data;
     }
@@ -342,6 +342,12 @@ export function generarMemoriaCalculo({
     cdtIter2:    f2(eqIter2?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
     flujoIter1:  f2(eqIter1?.flujoEquilibrio ?? 0),
     flujoIter2:  f2(eqIter2?.flujoEquilibrio ?? 0),
+    // Flujos por sistema/proceso — para tabla de requerimientos
+    flujosRequeridos: [
+      flujoFiltradoVal > 0   ? { label: "Filtrado",             valor: flujoFiltradoVal }  : null,
+      flujoInfinityVal > 0   ? { label: "Infinity",             valor: flujoInfinityVal }  : null,
+      // Calentamiento — se agrega después de construir calentamientoData
+    ].filter(Boolean),
   };
 
   const ctx = {
@@ -363,8 +369,8 @@ export function generarMemoriaCalculo({
     equiposRecalcIter: eqIter1.equiposRecalc,
   }) : null;
 
-  // Iter 2: equipos exactamente en el punto ★ de iter 2 (punto final)
-  const reporteIter2 = (eqIter2 && eqIter2 !== eqIter1) ? generarReporte({
+  // Iter 2: siempre se genera si existe eqIter2 (aunque converja al mismo flujo que iter1)
+  const reporteIter2 = eqIter2 ? generarReporte({
     ...ctx, label: `Iter. 2 — ${f2(eqIter2.flujoEquilibrio)} GPM`,
     flujo: eqIter2.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: eqIter2.equiposRecalc,
@@ -373,10 +379,25 @@ export function generarMemoriaCalculo({
   /* ── Calentamiento (igual en los 3 reportes) ── */
   const calentamientoData = [];
   const calSistemas = calentamiento?.sistemasSeleccionados ?? {};
-  if (calSistemas.bombaCalor)        { const d = empacarCalentamiento("bombaCalor",         "Bomba de calor",       calentamiento); if (d) calentamientoData.push(d); }
-  if (calSistemas.panelSolar)        { const d = empacarCalentamiento("panelSolar",          "Panel solar",          calentamiento); if (d) calentamientoData.push(d); }
-  if (calSistemas.caldera)           { const d = empacarCalentamiento("caldera",             "Caldera de gas",       calentamiento); if (d) calentamientoData.push(d); }
-  if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico","Calentador electrico", calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.bombaCalor)          { const d = empacarCalentamiento("bombaCalor",          "Bomba de calor",       calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.panelSolar)          { const d = empacarCalentamiento("panelSolar",           "Panel solar",          calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.caldera)             { const d = empacarCalentamiento("caldera",              "Caldera de gas",       calentamiento); if (d) calentamientoData.push(d); }
+  if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico",  "Calentador electrico", calentamiento); if (d) calentamientoData.push(d); }
+
+  // Agregar flujos de calentamiento y sanitizacion a flujosRequeridos
+  for (const c of calentamientoData) {
+    const flujoC = parseFloat(c.seleccion?.flujoTotal ?? 0);
+    if (flujoC > 0) resumen.flujosRequeridos.push({ label: c.label, valor: flujoC });
+  }
+  // Sanitizacion — clorador salino
+  if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
+    const flujoCS = parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
+    if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Cloro salino", valor: flujoCS });
+  }
+  // UV y clorador automático — usan flujoMaxGlobal, no tienen flujo propio
+  // Los incluimos para que se vea que están en el sistema
+  if (sistemasSeleccionadosSanit?.lamparaUV)          resumen.flujosRequeridos.push({ label: "Lámpara UV",         valor: null });
+  if (sistemasSeleccionadosSanit?.cloradorAutomatico) resumen.flujosRequeridos.push({ label: "Clorador automático", valor: null });
 
   // Calentamiento para el resumen (cargaTotal para la tabla comparativa)
   // Las tablas completas van en cada reporte para que aparezcan en todas las iteraciones

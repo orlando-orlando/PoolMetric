@@ -222,7 +222,8 @@ export function calcularEquilibrio({
       const est = estados.lamparaUV;
       const cantOriginal = est.cantidad ?? 1;
       try {
-        const res = calcularCargaUVManual(flujoNuevo / cantOriginal, cantOriginal);
+        // flujoPorEquipo = capacidad unitaria, flujoRealSistema = flujo real del sistema
+        const res = calcularCargaUVManual(flujoNuevo / cantOriginal, cantOriginal, flujoNuevo);
         if (res && !res.error) {
           equiposRecalc.lamparaUV = {
             cantidad: cantOriginal, cantOriginal, cambio: false,

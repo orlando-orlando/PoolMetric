@@ -1862,3 +1862,48 @@ select option:hover { background-color: #d1d5db; }
 .tema-oscuro .resultado-totales-desglose--equilibrio .desglose-valor {
   color: #cbd5e1;
 }
+
+/* ── Punto de operación (equilibrio hidráulico confirmado) ── */
+.resultado-total-btn--equilibrio {
+  color: #34d399 !important;
+  border-top: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.06);
+}
+.resultado-total-btn--equilibrio .resultado-total-btn-titulo {
+  color: #34d399 !important;
+}
+.resultado-total-btn--equilibrio:hover {
+  background: rgba(52, 211, 153, 0.1);
+}
+.resultado-total-btn-valor--equilibrio {
+  color: #34d399 !important;
+  font-weight: 700;
+}
+.resultado-totales-desglose--equilibrio {
+  border-left: 2px solid rgba(52, 211, 153, 0.3);
+  margin-left: 2px;
+  background: rgba(52, 211, 153, 0.03);
+}
+.resultado-totales-desglose--equilibrio .desglose-label {
+  color: #1e293b;
+}
+.tema-oscuro .resultado-totales-desglose--equilibrio .desglose-label {
+  color: #94a3b8;
+}
+.resultado-totales-desglose--equilibrio .desglose-valor {
+  color: #1e293b;
+}
+.tema-oscuro .resultado-totales-desglose--equilibrio .desglose-valor {
+  color: #cbd5e1;
+}
+
+/* ── Terminal de verificación hidráulica ── */
+@keyframes fadeInLine {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+

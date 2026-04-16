@@ -1443,7 +1443,7 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
 
   const rec = useMemo(() => {
     if (!flujoMaxSistema || flujoMaxSistema <= 0) return null;
-    try { const r = generadorUV(flujoMaxSistema); return r?.error ? null : r; }
+    try { const r = generadorUV(flujoMaxSistema, flujoMaxSistema); return r?.error ? null : r; }
     catch { return null; }
   }, [flujoMaxSistema]);
 
@@ -1692,47 +1692,119 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null })
 ===================================================== */
 function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null }) {
   const [fase, setFase]           = useState("idle");
-  const [checks, setChecks]       = useState([]);
+  const [lineasTerminal, setLineasTerminal] = useState([]);
   const [resultado, setResultado] = useState(null);
+  const contenedorRef             = useRef(null);
+  const terminalRef               = useRef(null);
 
   const puedeVerificar = flujoMaxGlobal && cargaTotalGlobal && bombaId;
 
-  const CHECKS_LISTA = [
-    "Validando velocidades en tuberías",
-    "Verificando capacidad de empotrables",
-    "Confirmando bomba dentro de curva",
-    "Calculando equilibrio — iteración 1",
-    "Recalculando empotrables y filtros",
-    "Calculando equilibrio — iteración 2",
-    "Verificando CDT equilibrado",
-    "Generando resumen del diseño",
-  ];
+  // Convierte los pasos reales del algoritmo en líneas para el terminal
+  const construirLineasTerminal = (res) => {
+    const lineas = [];
+    const f2 = (v) => parseFloat(v ?? 0).toFixed(2);
+    const f1 = (v) => parseFloat(v ?? 0).toFixed(1);
+
+    lineas.push({ tipo: "titulo",  texto: "▶ Iniciando análisis hidráulico..." });
+    lineas.push({ tipo: "info",    texto: `  Sistema: ${f1(flujoMaxGlobal)} GPM  |  CDT diseño: ${f2(cargaTotalGlobal)} ft` });
+    lineas.push({ tipo: "info",    texto: `  Motobomba: ${res?.bomba?.marca ?? ""} ${res?.bomba?.modelo ?? ""}  ×${nBombas}` });
+    lineas.push({ tipo: "sep",     texto: "" });
+    lineas.push({ tipo: "titulo",  texto: "▶ Analizando curva de la motobomba..." });
+
+    // Shut-off y zona segura
+    const curva = res?.bomba?.curva ?? [];
+    if (curva.length > 0) {
+      lineas.push({ tipo: "ok",    texto: `  Shut-off: ${f2(curva[0]?.carga_ft)} ft  |  Q máx: ${f1(curva[curva.length-1]?.flujo_gpm)} GPM` });
+    }
+    lineas.push({ tipo: "sep",     texto: "" });
+
+    // Iteraciones reales
+    const iters = res?.iteraciones ?? [];
+    let enIter2 = false;
+    let nPasoIter1 = 0, nPasoIter2 = 0;
+    for (const it of iters) {
+      if (it.separador) {
+        lineas.push({ tipo: "sep",    texto: "" });
+        lineas.push({ tipo: "titulo", texto: "▶ Iteración 2 — recalculando con equipos ajustados..." });
+        enIter2 = true;
+        continue;
+      }
+      if (!enIter2 && nPasoIter1 === 0) {
+        lineas.push({ tipo: "titulo", texto: "▶ Iteración 1 — buscando punto de equilibrio..." });
+      }
+      const q     = parseFloat(it.flujo ?? it.flujoActual ?? 0).toFixed(1);
+      const cdtS  = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0).toFixed(2);
+      const cdtB  = parseFloat(it.cargaDispBomba ?? 0).toFixed(2);
+      if (it.esEquilibrio) {
+        lineas.push({ tipo: "eq", texto: `  ★ Equilibrio → Q = ${q} GPM  |  CDT sistema = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
+      } else {
+        const paso = enIter2 ? ++nPasoIter2 : ++nPasoIter1;
+        const cubre = parseFloat(it.cargaDispBomba ?? 0) >= parseFloat(it.cargaSalida ?? 0);
+        lineas.push({ tipo: cubre ? "paso" : "paso_baja", texto: `  ${enIter2 ? "②" : "①"}.${paso}  Q = ${q} GPM  |  CDT sist = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
+      }
+    }
+
+    lineas.push({ tipo: "sep",    texto: "" });
+    const flujoFin = parseFloat(res?.equilibrio?.flujoEquilibrio ?? res?.equilibrio?.flujo ?? 0);
+    const cdtFin   = parseFloat(res?.equilibrio?.cargaEquilibrio ?? res?.equilibrio?.carga ?? 0);
+    const deltaPct = flujoMaxGlobal > 0 ? ((flujoFin - flujoMaxGlobal) / flujoMaxGlobal * 100) : 0;
+    lineas.push({ tipo: "titulo", texto: "▶ Análisis completo." });
+    lineas.push({ tipo: "ok",    texto: `  Punto de operación: ${flujoFin.toFixed(1)} GPM  @  ${cdtFin.toFixed(2)} ft` });
+    lineas.push({ tipo: "ok",    texto: `  Δ vs diseño: ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` });
+    return lineas;
+  };
 
   const iniciarVerificacion = () => {
     if (!puedeVerificar) return;
-    setFase("verificando"); setChecks([]); setResultado(null);
-    CHECKS_LISTA.forEach((msg, i) => {
-      setTimeout(() => setChecks(prev => [...prev, msg]), 250 + i * 340);
-    });
+    setFase("verificando"); setLineasTerminal([]); setResultado(null);
+
+    // Scroll al contenedor
     setTimeout(() => {
-      try {
-        const cargasBase = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
-        // Snapshot de cargas y CDT en el momento del calculo — antes de que "Confirmar" los modifique
-        const snapshotCargas = { ...cargasBase };
-        const snapshotCDT   = cargaTotalGlobal;
-        const res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral });
-        // Guardar snapshot en el resultado para usarlo al generar la memoria
-        if (res && !res.error) {
-          res._snapshotCargas = snapshotCargas;
-          res._snapshotCDT    = snapshotCDT;
-        }
-        setResultado(res);
-      } catch (e) { setResultado({ error: e.message }); }
-      setFase("listo");
-    }, 250 + CHECKS_LISTA.length * 340 + 300);
+      contenedorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+
+    // Calcular primero
+    let res = null;
+    try {
+      const cargasBase     = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
+      const snapshotCargas = { ...cargasBase };
+      const snapshotCDT    = cargaTotalGlobal;
+      res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral });
+      if (res && !res.error) { res._snapshotCargas = snapshotCargas; res._snapshotCDT = snapshotCDT; }
+    } catch (e) { res = { error: e.message }; }
+
+    // Construir líneas a partir del resultado real
+    const lineas = res?.error
+      ? [{ tipo: "error", texto: `⚠ ${res.error}` }]
+      : construirLineasTerminal(res);
+
+    // Reproducir línea a línea con delay
+    const DELAY_BASE = 120;
+    const delays = lineas.map((l, i) => {
+      if (l.tipo === "sep")    return 40;
+      if (l.tipo === "titulo") return 200;
+      if (l.tipo === "eq")     return 350;
+      return DELAY_BASE;
+    });
+    let acum = 0;
+    lineas.forEach((linea, i) => {
+      acum += delays[i] + (i > 0 ? delays[i-1] * 0.3 : 0);
+      const t = acum;
+      setTimeout(() => {
+        setLineasTerminal(prev => [...prev, linea]);
+        // Auto-scroll del terminal
+        setTimeout(() => {
+          terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight, behavior: "smooth" });
+        }, 30);
+      }, t);
+    });
+
+    // Mostrar resultado completo al terminar
+    const totalDelay = acum + 400;
+    setTimeout(() => { setResultado(res); setFase("listo"); }, totalDelay);
   };
 
-  const resetear = () => { setFase("idle"); setChecks([]); setResultado(null); };
+  const resetear = () => { setFase("idle"); setLineasTerminal([]); setResultado(null); };
 
   if (!puedeVerificar) return null;
 
@@ -1745,8 +1817,11 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       }
     : null;
 
+  // Colores por tipo de línea del terminal
+  const colorLinea = { titulo:"#60a5fa", info:"#94a3b8", ok:"#34d399", eq:"#34d399", paso:"#7dd3fc", paso_baja:"#f97316", sep:"#1e3a5f", error:"#f87171" };
+
   return (
-    <div style={{ marginTop: "1.5rem" }}>
+    <div ref={contenedorRef} style={{ marginTop: "1.5rem", scrollMarginTop: "1rem" }}>
       <div className="selector-subtitulo" style={{ marginBottom: "0.75rem" }}>
         🔍 Verificación del diseño
         <span className="selector-subtitulo-hint">Punto de equilibrio hidráulico del sistema</span>
@@ -1761,22 +1836,45 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
             <button className="btn-primario" style={{ whiteSpace: "nowrap", marginLeft: "1rem" }} onClick={iniciarVerificacion}>Verificar diseño →</button>
           </div>
         )}
+
+        {/* ── Terminal animado ── */}
         {(fase === "verificando" || fase === "listo") && (
           <div style={{ marginBottom: fase === "listo" ? "1.25rem" : 0 }}>
-            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: "0.6rem", fontWeight: 500 }}>{fase === "verificando" ? "Verificando..." : "Verificación completada"}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-              {CHECKS_LISTA.map((msg, i) => {
-                const visible = i < checks.length;
-                const activo  = fase === "verificando" && i === checks.length;
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: visible ? 1 : activo ? 0.5 : 0.18, transition: "opacity 0.3s" }}>
-                    <span style={{ fontSize: "0.72rem", color: visible ? "#34d399" : activo ? "#94a3b8" : "#64748b", fontWeight: 700, width: "14px" }}>{visible ? "✓" : activo ? "…" : "○"}</span>
-                    <span style={{ fontSize: "0.72rem", color: visible ? "#e2e8f0" : "#94a3b8" }}>{msg}</span>
-                  </div>
-                );
-              })}
+            {/* Header terminal */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"0.5rem" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"0.5rem" }}>
+                <span style={{ fontSize:"0.65rem", fontWeight:700, color: fase==="verificando"?"#fbbf24":"#34d399", textTransform:"uppercase", letterSpacing:"0.07em" }}>
+                  {fase === "verificando" ? "● Analizando..." : "● Análisis completo"}
+                </span>
+              </div>
+              {fase === "listo" && (
+                <button className="btn-secundario" style={{ fontSize: "0.65rem", padding: "0.2rem 0.6rem" }} onClick={resetear}>↺ Reverificar</button>
+              )}
             </div>
-            {fase === "listo" && <button className="btn-secundario" style={{ marginTop: "0.75rem", fontSize: "0.7rem", padding: "0.25rem 0.7rem" }} onClick={resetear}>↺ Reverificar</button>}
+            {/* Cuerpo terminal */}
+            <div ref={terminalRef} style={{
+              background:"#0a0f1a", border:"1px solid #1e3a5f", borderRadius:"6px",
+              padding:"0.75rem 1rem", fontFamily:"'Fira Code','Cascadia Code',monospace",
+              fontSize:"0.69rem", lineHeight:"1.7",
+              maxHeight:"280px", overflowY:"auto",
+              scrollbarWidth:"thin", scrollbarColor:"#1e3a5f #0a0f1a",
+            }}>
+              {lineasTerminal.map((linea, i) => (
+                linea.tipo === "sep"
+                  ? <div key={i} style={{ height:"1px", background:"#0f2040", margin:"0.3rem 0" }} />
+                  : <div key={i} style={{
+                      color: colorLinea[linea.tipo] ?? "#94a3b8",
+                      fontWeight: linea.tipo === "titulo" || linea.tipo === "eq" ? 700 : 400,
+                      animation: "fadeInLine 0.2s ease-out",
+                    }}>
+                      {linea.texto}
+                    </div>
+              ))}
+              {/* Cursor parpadeante */}
+              {fase === "verificando" && (
+                <span style={{ display:"inline-block", width:"8px", height:"13px", background:"#60a5fa", marginLeft:"2px", animation:"blink 1s step-end infinite", verticalAlign:"middle" }} />
+              )}
+            </div>
           </div>
         )}
         {fase === "listo" && resultado?.error && (

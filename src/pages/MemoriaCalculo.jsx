@@ -300,14 +300,16 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
             <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#67e8f9" }}>{resumen.flujoIter1} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
             <div style={{ fontSize:"0.78rem", color:"#0891b2", marginTop:"2px" }}>{resumen.cdtIter1} ft CDT</div>
           </div>
-          {/* Flecha */}
-          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && resumen.flujoIter2 !== resumen.flujoIter1 && (
+          {/* Flecha → Iter2 siempre si existe */}
+          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && (
           <div style={{ display:"flex", alignItems:"center", padding:"0 0.5rem", color:"#334155", fontSize:"1.2rem" }}>→</div>
           )}
-          {/* Iter 2 */}
-          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && resumen.flujoIter2 !== resumen.flujoIter1 && (
+          {/* Iter 2 — siempre visible si existe, aunque flujo == iter1 (convergencia) */}
+          {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && (
           <div style={{ flex:1, padding:"1rem", background:"rgba(21,128,61,0.08)" }}>
-            <div style={{ fontSize:"0.65rem", color:"#86efac", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Iteración 2</div>
+            <div style={{ fontSize:"0.65rem", color:"#86efac", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>
+              Iteración 2{resumen.flujoIter2 === resumen.flujoIter1 ? <span style={{ fontSize:"0.6rem", color:"#16a34a", marginLeft:"6px", fontWeight:400 }}>convergió</span> : null}
+            </div>
             <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#86efac" }}>{resumen.flujoIter2} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
             <div style={{ fontSize:"0.78rem", color:"#16a34a", marginTop:"2px" }}>{resumen.cdtIter2} ft CDT</div>
           </div>
@@ -316,54 +318,38 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
       </div>
       )}
 
-      {/* ── Tabla de flujos por equipo ── */}
-      {rDis && (
+      {/* ── Tabla de requerimientos de flujo por proceso/sistema ── */}
+      {resumen.flujosRequeridos?.length > 0 && (
       <div>
-        <p style={{ ...tituloStyle, marginTop:0 }}>Relación de flujos por equipo (GPM)</p>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Requerimientos de flujo por proceso (GPM)</p>
         <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
           <thead><tr style={{ background:"#0f172a" }}>
-            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"160px" }}>Equipo</th>
-            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"110px" }}>Flujo total</th>
-            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"90px" }}>En diseño</th>
+            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 14px" }}>Sistema / Proceso</th>
+            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 14px", width:"120px" }}>Flujo (GPM)</th>
+            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 14px", width:"90px" }}></th>
           </tr></thead>
           <tbody>
-            {equiposPresentes.map((key, ri) => {
-              const v = getFlujo(rDis, key);
-              const esBarredora = key === "barredora";
-              const succKeys = tieneDesbordeCanal ? ["drenCanal","drenFondo"] : ["desnatador","drenFondo"];
-              const esSuccion = succKeys.includes(key);
-              const cdtVals = esSuccion ? succKeys.map(k=>({k,v:getCDT(rDis,k)})).filter(x=>x.v!=null) : [];
-              const gobierna = !esSuccion || cdtVals.length < 2 || cdtVals.reduce((a,b)=>parseFloat(b.v)>parseFloat(a.v)?b:a).k === key;
-              const noSuma = esBarredora || (esSuccion && !gobierna);
+            {resumen.flujosRequeridos.map((item, ri) => {
+              const esMáx = item.valor != null && f2(item.valor) === resumen.flujoMax;
+              const esNull = item.valor == null;
               return (
-                <tr key={key} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
-                  <td style={{ ...td, textAlign:"left", color: noSuma?"#64748b":"#e2e8f0", fontWeight:500, padding:"6px 12px" }}>{nombresEq[key]}</td>
-                  <td style={{ ...td, color: noSuma?"#475569":"#38bdf8", padding:"6px 12px" }}>
-                    {v != null ? f2(v)+" GPM" : resumen.flujoMax+" GPM"}
+                <tr key={ri} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
+                  <td style={{ ...td, textAlign:"left", color: esMáx?"#60a5fa":"#e2e8f0", fontWeight: esMáx?700:500, padding:"6px 14px" }}>
+                    {item.label}
                   </td>
-                  <td style={{ ...td, padding:"6px 12px", fontSize:"0.68rem" }}>
-                    {esBarredora
-                      ? <span style={{color:"#475569"}}>informativo</span>
-                      : esSuccion && gobierna
-                      ? <span style={{color:"#34d399"}}>↑ activa</span>
-                      : esSuccion
-                      ? <span style={{color:"#475569"}}>no suma</span>
-                      : <span style={{color:"#34d399"}}>✓</span>}
+                  <td style={{ ...td, color: esNull?"#475569": esMáx?"#60a5fa":"#38bdf8", fontWeight: esMáx?700:400, padding:"6px 14px" }}>
+                    {esNull ? <span style={{fontSize:"0.7rem",color:"#475569"}}>usa flujo máx</span> : f2(item.valor)+" GPM"}
+                  </td>
+                  <td style={{ ...td, padding:"6px 14px", fontSize:"0.72rem" }}>
+                    {esMáx && <span style={{color:"#60a5fa",fontWeight:700}}>↑ máximo</span>}
                   </td>
                 </tr>
               );
             })}
-            {calentamiento?.length > 0 && calentamiento.map((c, ci) => (
-              <tr key={"calf-"+ci} style={{ background:"rgba(251,191,36,0.04)" }}>
-                <td style={{ ...td, textAlign:"left", color:"#fbbf24", fontWeight:500, padding:"6px 12px" }}>{c.label}</td>
-                <td style={{ ...td, color:"#fbbf24", padding:"6px 12px" }}>{f2(c.seleccion?.flujoTotal)} GPM</td>
-                <td style={{ ...td, padding:"6px 12px", fontSize:"0.68rem", color:"#92400e" }}>fijo</td>
-              </tr>
-            ))}
             <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
-              <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>Flujo máximo diseño</td>
-              <td style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{resumen.flujoMax} GPM</td>
-              <td style={{ ...td, padding:"8px 12px" }}></td>
+              <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 14px" }}>Flujo máximo global</td>
+              <td style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 14px" }}>{resumen.flujoMax} GPM</td>
+              <td style={{ ...td, padding:"8px 14px" }}></td>
             </tr>
           </tbody>
         </table>
