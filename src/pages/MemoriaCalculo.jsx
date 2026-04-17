@@ -192,6 +192,8 @@ function ContenidoFiltro({ data }) {
 /* ═══════════ CALENTAMIENTO ═══════════ */
 function ContenidoCalentamiento({ data }) {
   if (!data) return <p style={{ color:"#475569", fontSize:"0.75rem", padding:"0.75rem" }}>Sin datos para esta iteracion.</p>;
+  const d = data.tablaDistancia;
+  const a = data.tablaAltura;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"1rem" }}>
       {data.seleccion && (
@@ -201,7 +203,65 @@ function ContenidoCalentamiento({ data }) {
           {data.seleccion.flujoTotal && <span><strong style={{ color:"#e2e8f0" }}>Flujo total:</strong> {f2(data.seleccion.flujoTotal)} GPM</span>}
         </div>
       )}
-      <TablaTramos resultado={data.tablaTramos} titulo="Tramos hidraulicos" />
+
+      {/* Tramos entre equipos */}
+      <TablaTramos resultado={data.tablaTramos} titulo="Tramos hidráulicos" />
+
+      {/* Tramo cuarto de máquinas */}
+      {d && (
+        <div style={{ overflowX:"auto" }}>
+          <p style={tituloStyle}>Tramo cuarto de máquinas</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              {["Flujo","Tubería","Vel.","C.Base","Dist.(m)","C.Tub IDA","Codo","C.Codo IDA","Total IDA","C.Tub REG","C.Codo REG","Total REG","Total CM"].map(h => (
+                <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody><tr>
+              <td style={td}>{d.flujo}</td>
+              <td style={td}>{d.tuberia}</td>
+              <td style={td}>{d.velocidad}</td>
+              <td style={td}>{d.cargaBase}</td>
+              <td style={td}>{d.distancia_m} m</td>
+              <td style={td}>{d.cargaTuberiaIda}</td>
+              <td style={td}>{d.cantCodos ?? 1}</td>
+              <td style={td}>{d.cargaCodoIda}</td>
+              <td style={{ ...td, color:"#7dd3fc" }}>{d.cargaTotalIda}</td>
+              <td style={td}>{d.cargaTuberiaReg}</td>
+              <td style={td}>{d.cargaCodoReg}</td>
+              <td style={{ ...td, color:"#7dd3fc" }}>{d.cargaTotalReg}</td>
+              <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{d.cargaTotal}</td>
+            </tr></tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Altura vertical */}
+      {a && (
+        <div style={{ overflowX:"auto" }}>
+          <p style={tituloStyle}>Altura vertical al equipo</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              {["Altura eq.(m)","Altura máx.(m)","Lleva est.","Flujo","Tubería","C.Base","C.Estática","C.Fricción","Total"].map(h => (
+                <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody><tr>
+              <td style={td}>{a.alturaBDC_m ?? a.alturaEquipo_m ?? "—"} m</td>
+              <td style={td}>{a.alturaMaxSist_m ?? "—"} m</td>
+              <td style={{ ...td, color: a.bdcLlevaCargaEstatica ? "#34d399" : "#f97316" }}>{a.bdcLlevaCargaEstatica ? "Sí" : "No"}</td>
+              <td style={td}>{a.flujo} GPM</td>
+              <td style={td}>{a.tuberia}</td>
+              <td style={td}>{a.cargaBase}</td>
+              <td style={td}>{f2(a.cargaEstatica)} ft</td>
+              <td style={td}>{f2(a.cargaFriccion)} ft</td>
+              <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{f2(a.cargaTotal)} ft</td>
+            </tr></tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Resumen materiales + Sumatoria */}
       <div style={{ display:"flex", gap:"1.5rem", flexWrap:"wrap", alignItems:"flex-start" }}>
         <TablaResumen resumen={data.resumenMateriales} titulo="Resumen materiales" />
         <div>
@@ -209,10 +269,11 @@ function ContenidoCalentamiento({ data }) {
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
             <tbody>
               <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(data.cargaTramos)} ft</td></tr>
-              {data.cargaDistanciaIda != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Distancia ida (ft):</td><td style={td}>{f2(data.cargaDistanciaIda)} ft</td></tr>}
-              {data.cargaDistanciaReg != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Distancia reg. (ft):</td><td style={td}>{f2(data.cargaDistanciaReg)} ft</td></tr>}
-              {data.cargaEstatica     != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga estatica (ft):</td><td style={td}>{f2(data.cargaEstatica)} ft</td></tr>}
-              {data.cargaFija        != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>}
+              {data.cargaDistanciaIda  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. ida (ft):</td><td style={td}>{f2(data.cargaDistanciaIda)} ft</td></tr>}
+              {data.cargaDistanciaReg  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. reg. (ft):</td><td style={td}>{f2(data.cargaDistanciaReg)} ft</td></tr>}
+              {data.cargaEstatica      != null && parseFloat(data.cargaEstatica) > 0 && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga estática (ft):</td><td style={td}>{f2(data.cargaEstatica)} ft</td></tr>}
+              {data.cargaFriccion      != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Fricción altura (ft):</td><td style={td}>{f2(data.cargaFriccion)} ft</td></tr>}
+              {data.cargaFija          != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>}
               <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} ft</td></tr>
               <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(data.cargaTotalPSI)} PSI</td></tr>
             </tbody>
@@ -569,47 +630,192 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
 
 /* ═══════════ TAB EXPLOSIÓN DE MATERIALES — todas las tablas juntas ═══════════ */
 function TabExplosionMateriales({ reportes }) {
-  // Usar el reporte de diseño original para la explosión
-  const r = reportes[0];
+  const [expandidos, setExpandidos] = useState({});
+  const toggle = (key) => setExpandidos(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Usar siempre iteración 2 (índice 2) — punto de operación real
+  const r = reportes[2] ?? reportes[reportes.length - 1];
   if (!r) return null;
 
-  const equipos = [
-    { key:"retorno",            label:"Retornos",          tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"    },
-    { key:"desnatador",         label:"Desnatadores",      tipo:"empotrable", sufijoCM:"CMD",  tituloTramos:"Tramos desnatadores", tituloDisparo:"Disparo al desnatador" },
-    { key:"barredora",          label:"Barredoras",        tipo:"empotrable", sufijoCM:"CMB",  tituloTramos:"Tramos barredoras",   tituloDisparo:"Disparo a barredora"   },
-    { key:"drenFondo",          label:"Drenes fondo",      tipo:"empotrable", sufijoCM:"CMDF", tituloTramos:"Tramos drenes fondo", tituloDisparo:null                    },
-    { key:"drenCanal",          label:"Drenes canal",      tipo:"empotrable", sufijoCM:"CMDC", tituloTramos:"Tramos drenes canal", tituloDisparo:null                    },
-    { key:"filtroArena",        label:"Filtro arena",      tipo:"filtro" },
-    { key:"prefiltro",          label:"Prefiltro",         tipo:"filtro" },
-    { key:"filtroCartucho",     label:"F. cartucho",       tipo:"filtro" },
-    { key:"cloradorSalino",     label:"Cloro salino",      tipo:"filtro" },
-    { key:"lamparaUV",          label:"Lámpara UV",        tipo:"filtro" },
-    { key:"cloradorAutomatico", label:"Clorador automático", tipo:"filtro" },
-    { key:"bombaCalor",         label:"Bomba de calor",    tipo:"calentamiento" },
-    { key:"panelSolar",         label:"Panel solar",       tipo:"calentamiento" },
-    { key:"caldera",            label:"Caldera de gas",    tipo:"calentamiento" },
-    { key:"calentadorElectrico",label:"Calent. eléctrico", tipo:"calentamiento" },
-  ].filter(eq => getEquipoData(r, eq.key));
+  const definicion = [
+    { key:"retorno",             label:"Retornos"           },
+    { key:"desnatador",          label:"Desnatadores"       },
+    { key:"barredora",           label:"Barredoras"         },
+    { key:"drenFondo",           label:"Drenes de fondo"    },
+    { key:"drenCanal",           label:"Drenes de canal"    },
+    { key:"filtroArena",         label:"Filtro de arena"    },
+    { key:"prefiltro",           label:"Prefiltro"          },
+    { key:"filtroCartucho",      label:"Filtro de cartucho" },
+    { key:"cloradorSalino",      label:"Cloro salino"       },
+    { key:"lamparaUV",           label:"Lámpara UV"         },
+    { key:"cloradorAutomatico",  label:"Clorador automático"},
+    { key:"bombaCalor",          label:"Bomba de calor"     },
+    { key:"panelSolar",          label:"Panel solar"        },
+    { key:"caldera",             label:"Caldera de gas"     },
+    { key:"calentadorElectrico", label:"Calent. eléctrico"  },
+  ];
+
+  // Extraer resumen de materiales de cada equipo (solo tubería, tees, codos, reducciones)
+  const extraerMateriales = (key) => {
+    const data = getEquipoData(r, key);
+    if (!data) return null;
+    // Empotrables tienen resumenTramos + resumenDisparos + tablaDistanciaCM
+    // Filtros y calentamiento tienen resumenMateriales
+    const acum = {}; // { "tuberia X.XX": { tuberia_m, tees, codos, reducciones } }
+
+    const sumar = (obj) => {
+      if (!obj) return;
+      // resumenTramos es objeto { "tuberia X": {...} }
+      // resumenMateriales es array [{ tuberia, tuberia_m, tees, codos, reducciones }]
+      const entries = Array.isArray(obj)
+        ? obj.map(row => [row.tuberia, row])
+        : Object.entries(obj);
+      for (const [diam, vals] of entries) {
+        if (!acum[diam]) acum[diam] = { tuberia_m: 0, tees: 0, codos: 0, reducciones: 0 };
+        acum[diam].tuberia_m  += parseFloat(vals.tuberia_m  ?? 0);
+        acum[diam].tees       += parseInt(vals.tees         ?? 0);
+        acum[diam].codos      += parseInt(vals.codos        ?? 0);
+        acum[diam].reducciones+= parseInt(vals.reducciones  ?? 0);
+      }
+    };
+
+    // resumenTramos ya incluye el tramo de cuarto de máquinas (lo suma retorno.js internamente)
+    // resumenDisparos incluye los disparos al empotrable
+    sumar(data.resumenTramos);
+    sumar(data.resumenDisparos);
+    sumar(data.resumenMateriales);
+    return Object.keys(acum).length ? acum : null;
+  };
+
+  // Construir lista de equipos con sus materiales
+  const equiposConMat = definicion
+    .map(eq => ({ ...eq, mat: extraerMateriales(eq.key) }))
+    .filter(eq => eq.mat);
+
+  if (!equiposConMat.length) return <p style={{ color:"#475569", fontSize:"0.78rem", padding:"1rem" }}>Sin materiales disponibles.</p>;
+
+  // Acumulado global por diámetro
+  const globalAcum = {};
+  for (const eq of equiposConMat) {
+    for (const [diam, vals] of Object.entries(eq.mat)) {
+      if (!globalAcum[diam]) globalAcum[diam] = { tuberia_m: 0, tees: 0, codos: 0, reducciones: 0 };
+      globalAcum[diam].tuberia_m  += vals.tuberia_m;
+      globalAcum[diam].tees       += vals.tees;
+      globalAcum[diam].codos      += vals.codos;
+      globalAcum[diam].reducciones+= vals.reducciones;
+    }
+  }
+
+  const thStyle = { padding:"7px 12px", color:"#94a3b8", fontWeight:600, border:"1px solid #1e3a5f", fontSize:"0.73rem", whiteSpace:"nowrap" };
+  const tdM = (extra={}) => ({ ...td, ...extra });
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:"2.5rem" }}>
-      {equipos.map(eq => {
-        const data = getEquipoData(r, eq.key);
-        if (!data) return null;
-        return (
-          <div key={eq.key}>
-            <h3 style={{ fontSize:"0.85rem", fontWeight:700, color:"#60a5fa", marginBottom:"0.5rem", textTransform:"uppercase", letterSpacing:"0.05em", borderBottom:"1px solid #1e3a5f", paddingBottom:"0.3rem" }}>
-              {eq.label}
-            </h3>
-            {eq.tipo === "empotrable"
-              ? <ContenidoEmpotrable data={data} tituloTramos={eq.tituloTramos} sufijoCM={eq.sufijoCM} tituloDisparo={eq.tituloDisparo} />
-              : eq.tipo === "calentamiento"
-              ? <ContenidoCalentamiento data={data} />
-              : <ContenidoFiltro data={data} />
-            }
-          </div>
-        );
-      })}
+    <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
+
+      {/* ── Resumen global ── */}
+      <div>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Resumen global de materiales</p>
+        <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+          <thead><tr style={{ background:"#0f172a" }}>
+            <th style={{ ...thStyle, textAlign:"left" }}>Diámetro</th>
+            <th style={thStyle}>Tubería (m)</th>
+            <th style={thStyle}>Tees</th>
+            <th style={thStyle}>Codos</th>
+            <th style={thStyle}>Reducciones</th>
+          </tr></thead>
+          <tbody>
+            {Object.entries(globalAcum)
+              .sort((a,b) => parseFloat(a[0].replace("tuberia ","")) - parseFloat(b[0].replace("tuberia ","")))
+              .map(([diam, vals], i) => (
+              <tr key={diam} style={{ background: i%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
+                <td style={{ ...tdM({ textAlign:"left", color:"#e2e8f0", fontWeight:600 }) }}>{diam.replace("tuberia ","") + '"'}</td>
+                <td style={tdM()}>{f2(vals.tuberia_m)} m</td>
+                <td style={tdM({ color: vals.tees        > 0 ? "#38bdf8" : "#334155" })}>{vals.tees        || "—"}</td>
+                <td style={tdM({ color: vals.codos       > 0 ? "#38bdf8" : "#334155" })}>{vals.codos       || "—"}</td>
+                <td style={tdM({ color: vals.reducciones > 0 ? "#fbbf24" : "#334155" })}>{vals.reducciones || "—"}</td>
+              </tr>
+            ))}
+            {/* Fila total tubería */}
+            <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+              <td style={{ ...tdM({ textAlign:"left", color:"#60a5fa", fontWeight:700 }) }}>TOTAL</td>
+              <td style={{ ...tdM({ color:"#60a5fa", fontWeight:700 }) }}>
+                {f2(Object.values(globalAcum).reduce((a,v)=>a+v.tuberia_m,0))} m
+              </td>
+              <td style={{ ...tdM({ color:"#60a5fa", fontWeight:700 }) }}>
+                {Object.values(globalAcum).reduce((a,v)=>a+v.tees,0) || "—"}
+              </td>
+              <td style={{ ...tdM({ color:"#60a5fa", fontWeight:700 }) }}>
+                {Object.values(globalAcum).reduce((a,v)=>a+v.codos,0) || "—"}
+              </td>
+              <td style={{ ...tdM({ color:"#60a5fa", fontWeight:700 }) }}>
+                {Object.values(globalAcum).reduce((a,v)=>a+v.reducciones,0) || "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Desglose por equipo (colapsable) ── */}
+      <div>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Desglose por equipo</p>
+        <div style={{ display:"flex", flexDirection:"column", gap:"2px", border:"1px solid #1e3a5f", borderRadius:"6px", overflow:"hidden" }}>
+          {equiposConMat.map((eq, idx) => (
+            <div key={eq.key}>
+              {/* Header colapsable */}
+              <button
+                onClick={() => toggle(eq.key)}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"8px 14px", background: expandidos[eq.key]?"rgba(96,165,250,0.08)":"rgba(15,23,42,0.4)",
+                  border:"none", borderTop: idx>0?"1px solid #1e3a5f":"none",
+                  color: expandidos[eq.key]?"#60a5fa":"#e2e8f0", cursor:"pointer",
+                  fontSize:"0.78rem", fontWeight:600, transition:"background 0.15s",
+                }}>
+                <span>{eq.label}</span>
+                <span style={{ display:"flex", alignItems:"center", gap:"1rem", fontSize:"0.7rem", color:"#64748b" }}>
+                  {/* Mini resumen en la fila */}
+                  {Object.entries(eq.mat)
+                    .sort((a,b)=>parseFloat(a[0].replace("tuberia ",""))-parseFloat(b[0].replace("tuberia ","")))
+                    .map(([d,v])=>(
+                    <span key={d}>{d.replace("tuberia ","")+'"'}: {f2(v.tuberia_m)}m</span>
+                  ))}
+                  <span style={{ color: expandidos[eq.key]?"#60a5fa":"#475569", fontSize:"0.7rem" }}>
+                    {expandidos[eq.key] ? "▲" : "▼"}
+                  </span>
+                </span>
+              </button>
+              {/* Contenido expandido */}
+              {expandidos[eq.key] && (
+                <div style={{ background:"rgba(15,23,42,0.6)", padding:"0.5rem 1rem 0.75rem" }}>
+                  <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", width:"100%" }}>
+                    <thead><tr style={{ background:"#0f172a" }}>
+                      <th style={{ ...thStyle, textAlign:"left" }}>Diámetro</th>
+                      <th style={thStyle}>Tubería (m)</th>
+                      <th style={thStyle}>Tees</th>
+                      <th style={thStyle}>Codos</th>
+                      <th style={thStyle}>Reducciones</th>
+                    </tr></thead>
+                    <tbody>
+                      {Object.entries(eq.mat)
+                        .sort((a,b)=>parseFloat(a[0].replace("tuberia ",""))-parseFloat(b[0].replace("tuberia ","")))
+                        .map(([diam,vals],i)=>(
+                        <tr key={diam} style={{ background: i%2===0?"rgba(15,23,42,0.3)":"transparent" }}>
+                          <td style={{ ...tdM({ textAlign:"left", color:"#e2e8f0" }) }}>{diam.replace("tuberia ","")+'"'}</td>
+                          <td style={tdM()}>{f2(vals.tuberia_m)} m</td>
+                          <td style={tdM({ color: vals.tees        > 0?"#38bdf8":"#334155" })}>{vals.tees        || "—"}</td>
+                          <td style={tdM({ color: vals.codos       > 0?"#38bdf8":"#334155" })}>{vals.codos       || "—"}</td>
+                          <td style={tdM({ color: vals.reducciones > 0?"#fbbf24":"#334155" })}>{vals.reducciones || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }

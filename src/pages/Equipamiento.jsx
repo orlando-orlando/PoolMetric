@@ -1696,6 +1696,7 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
   const [resultado, setResultado] = useState(null);
   const contenedorRef             = useRef(null);
   const terminalRef               = useRef(null);
+  const autoScrollRef             = useRef(true);  // pausar auto-scroll si usuario sube
 
   const puedeVerificar = flujoMaxGlobal && cargaTotalGlobal && bombaId;
 
@@ -1705,23 +1706,20 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     const f2 = (v) => parseFloat(v ?? 0).toFixed(2);
     const f1 = (v) => parseFloat(v ?? 0).toFixed(1);
 
-    lineas.push({ tipo: "titulo",  texto: "▶ Iniciando análisis hidráulico..." });
-    lineas.push({ tipo: "info",    texto: `  Sistema: ${f1(flujoMaxGlobal)} GPM  |  CDT diseño: ${f2(cargaTotalGlobal)} ft` });
-    lineas.push({ tipo: "info",    texto: `  Motobomba: ${res?.bomba?.marca ?? ""} ${res?.bomba?.modelo ?? ""}  ×${nBombas}` });
-    lineas.push({ tipo: "sep",     texto: "" });
-    lineas.push({ tipo: "titulo",  texto: "▶ Analizando curva de la motobomba..." });
-
-    // Shut-off y zona segura
+    lineas.push({ tipo: "titulo", texto: "▶ Iniciando análisis hidráulico..." });
+    lineas.push({ tipo: "info",   texto: `  Sistema: ${f1(flujoMaxGlobal)} GPM  |  CDT diseño: ${f2(cargaTotalGlobal)} ft` });
+    lineas.push({ tipo: "info",   texto: `  Motobomba: ${res?.bomba?.marca ?? ""} ${res?.bomba?.modelo ?? ""}  ×${nBombas}` });
+    lineas.push({ tipo: "sep",    texto: "" });
+    lineas.push({ tipo: "titulo", texto: "▶ Analizando curva de la motobomba..." });
     const curva = res?.bomba?.curva ?? [];
     if (curva.length > 0) {
-      lineas.push({ tipo: "ok",    texto: `  Shut-off: ${f2(curva[0]?.carga_ft)} ft  |  Q máx: ${f1(curva[curva.length-1]?.flujo_gpm)} GPM` });
+      lineas.push({ tipo: "ok", texto: `  Shut-off: ${f2(curva[0]?.carga_ft)} ft  |  Q máx: ${f1(curva[curva.length-1]?.flujo_gpm)} GPM` });
     }
-    lineas.push({ tipo: "sep",     texto: "" });
+    lineas.push({ tipo: "sep", texto: "" });
 
-    // Iteraciones reales
+    // Iteraciones reales — campo correcto: flujoEquilibrio
     const iters = res?.iteraciones ?? [];
-    let enIter2 = false;
-    let nPasoIter1 = 0, nPasoIter2 = 0;
+    let enIter2 = false, nPasoIter1 = 0, nPasoIter2 = 0;
     for (const it of iters) {
       if (it.separador) {
         lineas.push({ tipo: "sep",    texto: "" });
@@ -1732,21 +1730,23 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       if (!enIter2 && nPasoIter1 === 0) {
         lineas.push({ tipo: "titulo", texto: "▶ Iteración 1 — buscando punto de equilibrio..." });
       }
-      const q     = parseFloat(it.flujo ?? it.flujoActual ?? 0).toFixed(1);
-      const cdtS  = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0).toFixed(2);
-      const cdtB  = parseFloat(it.cargaDispBomba ?? 0).toFixed(2);
+      // flujoEquilibrio es el campo correcto según equilibrioHidraulico.js
+      const q    = parseFloat(it.flujoEquilibrio ?? 0).toFixed(1);
+      const cdtS = parseFloat(it.cargaSalida     ?? 0).toFixed(2);
+      const cdtB = parseFloat(it.cargaDispBomba  ?? 0).toFixed(2);
       if (it.esEquilibrio) {
         lineas.push({ tipo: "eq", texto: `  ★ Equilibrio → Q = ${q} GPM  |  CDT sistema = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
       } else {
-        const paso = enIter2 ? ++nPasoIter2 : ++nPasoIter1;
-        const cubre = parseFloat(it.cargaDispBomba ?? 0) >= parseFloat(it.cargaSalida ?? 0);
-        lineas.push({ tipo: cubre ? "paso" : "paso_baja", texto: `  ${enIter2 ? "②" : "①"}.${paso}  Q = ${q} GPM  |  CDT sist = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
+        const paso  = enIter2 ? ++nPasoIter2 : ++nPasoIter1;
+        const cubre = parseFloat(cdtB) >= parseFloat(cdtS);
+        lineas.push({ tipo: cubre ? "paso" : "paso_baja",
+          texto: `  ${enIter2 ? "②" : "①"}.${paso}  Q = ${q} GPM  |  CDT sist = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
       }
     }
 
     lineas.push({ tipo: "sep",    texto: "" });
-    const flujoFin = parseFloat(res?.equilibrio?.flujoEquilibrio ?? res?.equilibrio?.flujo ?? 0);
-    const cdtFin   = parseFloat(res?.equilibrio?.cargaEquilibrio ?? res?.equilibrio?.carga ?? 0);
+    const flujoFin = parseFloat(res?.equilibrio?.flujo ?? 0);
+    const cdtFin   = parseFloat(res?.equilibrio?.carga ?? 0);
     const deltaPct = flujoMaxGlobal > 0 ? ((flujoFin - flujoMaxGlobal) / flujoMaxGlobal * 100) : 0;
     lineas.push({ tipo: "titulo", texto: "▶ Análisis completo." });
     lineas.push({ tipo: "ok",    texto: `  Punto de operación: ${flujoFin.toFixed(1)} GPM  @  ${cdtFin.toFixed(2)} ft` });
@@ -1758,11 +1758,45 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     if (!puedeVerificar) return;
     setFase("verificando"); setLineasTerminal([]); setResultado(null);
 
-    // Scroll al contenedor
+    // Scroll — buscar .selector-contenido o .eq-contenido que es el scrollable real
     setTimeout(() => {
-      contenedorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+      const el = contenedorRef.current;
+      if (!el) return;
+      // Buscar el contenedor con clase selector-contenido o eq-contenido
+      const scrollableClasses = ["selector-contenido", "eq-contenido", "panel-derecho-contenido"];
+      let scrollParent = null;
+      let parent = el.parentElement;
+      while (parent && parent !== document.body) {
+        for (const cls of scrollableClasses) {
+          if (parent.classList.contains(cls)) { scrollParent = parent; break; }
+        }
+        if (scrollParent) break;
+        parent = parent.parentElement;
+      }
+      // Fallback: buscar por overflow
+      if (!scrollParent) {
+        parent = el.parentElement;
+        while (parent && parent !== document.body) {
+          const style = window.getComputedStyle(parent);
+          if ((style.overflowY === "auto" || style.overflowY === "scroll") && parent.scrollHeight > parent.clientHeight) {
+            scrollParent = parent; break;
+          }
+          parent = parent.parentElement;
+        }
+      }
+      // selector-contenido es el contenedor correcto pero necesita tiempo
+      // para que el terminal crezca y genere scroll
+      // Buscar por clase directamente
+      const selectorContenido = document.querySelector(".selector-contenido");
+      if (selectorContenido && el) {
+        const elRect     = el.getBoundingClientRect();
+        const parentRect = selectorContenido.getBoundingClientRect();
+        const offsetTop  = elRect.top - parentRect.top + selectorContenido.scrollTop - 20;
+        selectorContenido.scrollTo({ top: offsetTop, behavior: "smooth" });
+      }
+    }, 80);
 
+    autoScrollRef.current = true;
     // Calcular primero
     let res = null;
     try {
@@ -1792,9 +1826,21 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       const t = acum;
       setTimeout(() => {
         setLineasTerminal(prev => [...prev, linea]);
-        // Auto-scroll del terminal
         setTimeout(() => {
-          terminalRef.current?.scrollTo({ top: terminalRef.current.scrollHeight, behavior: "smooth" });
+          // Auto-scroll del terminal — siempre hacia el fondo si autoScroll activo
+          if (autoScrollRef.current && terminalRef.current) {
+            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+          }
+          // Re-intentar scroll del contenedor padre en cada línea nueva
+          // para cuando el contenido crezca y genere scroll
+          const sc = document.querySelector(".selector-contenido");
+          const el2 = contenedorRef.current;
+          if (sc && el2 && sc.scrollHeight > sc.clientHeight) {
+            const elR  = el2.getBoundingClientRect();
+            const scR  = sc.getBoundingClientRect();
+            const top  = elR.top - scR.top + sc.scrollTop - 20;
+            sc.scrollTo({ top, behavior: "smooth" });
+          }
         }, 30);
       }, t);
     });
@@ -1852,13 +1898,21 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
               )}
             </div>
             {/* Cuerpo terminal */}
-            <div ref={terminalRef} style={{
-              background:"#0a0f1a", border:"1px solid #1e3a5f", borderRadius:"6px",
-              padding:"0.75rem 1rem", fontFamily:"'Fira Code','Cascadia Code',monospace",
-              fontSize:"0.69rem", lineHeight:"1.7",
-              maxHeight:"280px", overflowY:"auto",
-              scrollbarWidth:"thin", scrollbarColor:"#1e3a5f #0a0f1a",
-            }}>
+            <div ref={terminalRef}
+              onScroll={(e) => {
+                // Solo reaccionar si el scroll fue en el terminal mismo (no en un padre)
+                if (e.target !== terminalRef.current) return;
+                const el = e.currentTarget;
+                const alFondo = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+                autoScrollRef.current = alFondo;
+              }}
+              style={{
+                background:"#0a0f1a", border:"1px solid #1e3a5f", borderRadius:"6px",
+                padding:"0.75rem 1rem", fontFamily:"'Fira Code','Cascadia Code',monospace",
+                fontSize:"0.69rem", lineHeight:"1.7",
+                maxHeight:"320px", overflowY:"auto",
+                scrollbarWidth:"thin", scrollbarColor:"#1e3a5f #0a0f1a",
+              }}>
               {lineasTerminal.map((linea, i) => (
                 linea.tipo === "sep"
                   ? <div key={i} style={{ height:"1px", background:"#0f2040", margin:"0.3rem 0" }} />
@@ -1882,107 +1936,7 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
         )}
         {fase === "listo" && eq && eq.flujoEq != null && !resultado.error && (<>
 
-          {/* Iteraciones */}
-          {resultado.iteraciones?.length > 0 && (
-            <div style={{ marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Iteraciones de cálculo</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                {/* Diseño original */}
-                {(() => {
-                  const curvaB = resultado?.bomba?.curva;
-                  const nB     = resultado?.nBombas ?? 1;
-                  const qDis   = (flujoMaxGlobal ?? 0) / nB;
-                  let cargaBombaEnDis = null;
-                  if (curvaB?.length >= 2) {
-                    if (qDis <= curvaB[0].flujo_gpm) { cargaBombaEnDis = curvaB[0].carga_ft; }
-                    else {
-                      for (let i = 0; i < curvaB.length - 1; i++) {
-                        const p1 = curvaB[i], p2 = curvaB[i+1];
-                        if (qDis >= p1.flujo_gpm && qDis <= p2.flujo_gpm) {
-                          const t = (qDis - p1.flujo_gpm) / (p2.flujo_gpm - p1.flujo_gpm);
-                          cargaBombaEnDis = p1.carga_ft + t * (p2.carga_ft - p1.carga_ft);
-                          break;
-                        }
-                      }
-                      if (cargaBombaEnDis == null) {
-                        const ult = curvaB[curvaB.length-1], pen = curvaB[curvaB.length-2];
-                        const pend = (ult.carga_ft - pen.carga_ft) / (ult.flujo_gpm - pen.flujo_gpm);
-                        cargaBombaEnDis = Math.max(0, ult.carga_ft + pend * (qDis - ult.flujo_gpm));
-                      }
-                    }
-                  }
-                  const exceso = cargaBombaEnDis != null && cargaTotalGlobal != null && cargaBombaEnDis > cargaTotalGlobal;
-                  // Flujo que da la bomba en el CDT de diseño (= CDT sistema, no CDT bomba)
-                  const qBombaEnDis = (() => {
-                    const curvaB = resultado?.bomba?.curva;
-                    if (!curvaB || !cargaTotalGlobal) return null;
-                    if (cargaTotalGlobal > curvaB[0].carga_ft) return 0;
-                    if (cargaTotalGlobal < curvaB[curvaB.length-1].carga_ft) {
-                      const ult = curvaB[curvaB.length-1], pen = curvaB[curvaB.length-2];
-                      const t = (cargaTotalGlobal - pen.carga_ft) / (ult.carga_ft - pen.carga_ft);
-                      return Math.max(0, pen.flujo_gpm + t * (ult.flujo_gpm - pen.flujo_gpm));
-                    }
-                    for (let i = 0; i < curvaB.length-1; i++) {
-                      const p1 = curvaB[i], p2 = curvaB[i+1];
-                      if (cargaTotalGlobal <= p1.carga_ft && cargaTotalGlobal >= p2.carga_ft) {
-                        const t = (p1.carga_ft - cargaTotalGlobal) / (p1.carga_ft - p2.carga_ft);
-                        return p1.flujo_gpm + t * (p2.flujo_gpm - p1.flujo_gpm);
-                      }
-                    }
-                    return null;
-                  })();
-                  return (
-                    <div style={{ background: "rgba(100,116,139,0.07)", border: "1px solid rgba(100,116,139,0.18)", borderRadius: "6px", padding: "0.4rem 0.7rem", display: "flex", gap: "1.2rem", flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, minWidth: "90px" }}>Diseño original</span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q sistema = <span style={{ color: "#94a3b8" }}>{parseFloat(flujoMaxGlobal ?? 0).toFixed(1)} GPM</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT sistema = <span style={{ color: "#94a3b8" }}>{parseFloat(cargaTotalGlobal ?? 0).toFixed(2)} ft</span></span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>CDT bomba = <span style={{ color: exceso ? "#fbbf24" : "#94a3b8" }}>{cargaBombaEnDis != null ? parseFloat(cargaBombaEnDis).toFixed(2) + " ft" : "—"}</span>
-                        {exceso && <span style={{ fontSize: "0.6rem", color: "#fbbf24", marginLeft: "0.3rem" }}>↑ exceso</span>}
-                      </span>
-                      {qBombaEnDis != null && (
-                        <span style={{ fontSize: "0.68rem", color: "#64748b" }}>Q bomba @ CDT diseño = <span style={{ color: "#38bdf8" }}>{parseFloat(qBombaEnDis * (resultado?.nBombas ?? 1)).toFixed(1)} GPM total</span></span>
-                      )}
-                    </div>
-                  );
-                })()}
-                {/* Iteraciones */}
-                {resultado.iteraciones.map((it, i) => {
-                  if (it.separador) return (
-                    <div key={i} style={{ fontSize: "0.65rem", color: "#475569", padding: "0.3rem 0.7rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", borderTop: "1px solid rgba(56,189,248,0.1)", marginTop: "0.2rem" }}>
-                      {it.label}
-                    </div>
-                  );
-                  const cargaSal  = parseFloat(it.cargaSalida ?? it.cargaFinal ?? 0);
-                  const esEq      = it.esEquilibrio === true;
-                  const cubrio    = parseFloat(it.cargaDispBomba ?? 0) >= cargaSal;
-                  return (
-                    <div key={i} style={{
-                      background: esEq ? "rgba(52,211,153,0.07)" : "rgba(15,23,42,0.4)",
-                      border: `1px solid ${esEq ? "rgba(52,211,153,0.3)" : cubrio ? "rgba(56,189,248,0.08)" : "rgba(249,115,22,0.15)"}`,
-                      borderRadius: "6px", padding: "0.4rem 0.7rem",
-                      display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center"
-                    }}>
-                      <span style={{ fontSize: "0.68rem", color: esEq ? "#34d399" : "#7dd3fc", fontWeight: 700, minWidth: "30px" }}>
-                        {esEq ? "★" : `${it.iter ?? (i+1)}`}
-                      </span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
-                        Q = <span style={{ color: "#38bdf8" }}>{parseFloat(it.flujoEquilibrio ?? 0).toFixed(1)} GPM</span>
-                      </span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
-                        CDT sistema = <span style={{ color: cargaSal > parseFloat(it.cargaDispBomba ?? 999) ? "#f97316" : "#e2e8f0" }}>{cargaSal.toFixed(2)} ft</span>
-                      </span>
-                      <span style={{ fontSize: "0.68rem", color: "#64748b" }}>
-                        CDT bomba = <span style={{ color: cubrio ? "#34d399" : "#f97316" }}>{parseFloat(it.cargaDispBomba ?? 0).toFixed(2)} ft</span>
-                      </span>
-                      {esEq && <span style={{ fontSize: "0.65rem", color: "#34d399", fontWeight: 600 }}>← equilibrio</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Punto de operación — al final, resultado del proceso iterativo */}
+          {/* Punto de operación — resultado del proceso iterativo */}
           <div style={{ marginBottom: "0.75rem" }}>
             <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Punto de operación</div>
             <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
