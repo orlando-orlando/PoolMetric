@@ -207,49 +207,67 @@ function ContenidoCalentamiento({ data }) {
       {/* Tramos entre equipos */}
       <TablaTramos resultado={data.tablaTramos} titulo="Tramos hidráulicos" />
 
-      {/* Tramo cuarto de máquinas */}
+      {/* Tramo cuarto de máquinas — IDA y REGRESO en filas separadas */}
       {d && (
         <div style={{ overflowX:"auto" }}>
           <p style={tituloStyle}>Tramo cuarto de máquinas</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
             <thead><tr style={{ background:"#0f172a" }}>
-              {["Flujo","Tubería","Vel.","C.Base","Dist.(m)","C.Tub IDA","Codo","C.Codo IDA","Total IDA","C.Tub REG","C.Codo REG","Total REG","Total CM"].map(h => (
-                <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
+              {["","Flujo","Tubería","Vel.","C.Base","Dist.(m)","C.Tubería","Codos","C.Codos","Total"].map(h => (
+                <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
               ))}
             </tr></thead>
-            <tbody><tr>
-              <td style={td}>{d.flujo}</td>
-              <td style={td}>{d.tuberia}</td>
-              <td style={td}>{d.velocidad}</td>
-              <td style={td}>{d.cargaBase}</td>
-              <td style={td}>{d.distancia_m} m</td>
-              <td style={td}>{d.cargaTuberiaIda}</td>
-              <td style={td}>{d.cantCodos ?? 1}</td>
-              <td style={td}>{d.cargaCodoIda}</td>
-              <td style={{ ...td, color:"#7dd3fc" }}>{d.cargaTotalIda}</td>
-              <td style={td}>{d.cargaTuberiaReg}</td>
-              <td style={td}>{d.cargaCodoReg}</td>
-              <td style={{ ...td, color:"#7dd3fc" }}>{d.cargaTotalReg}</td>
-              <td style={{ ...td, background:"#0c2340", color:"#60a5fa", fontWeight:700 }}>{d.cargaTotal}</td>
-            </tr></tbody>
+            <tbody>
+              <tr>
+                <td style={{ ...td, color:"#7dd3fc", fontWeight:600, textAlign:"left", paddingLeft:"10px" }}>Ida</td>
+                <td style={td}>{d.flujo} GPM</td>
+                <td style={td}>{d.tuberia}</td>
+                <td style={td}>{d.velocidad} ft/s</td>
+                <td style={td}>{d.cargaBase}</td>
+                <td style={td}>{d.distancia_m} m</td>
+                <td style={td}>{d.cargaTuberiaIda} ft</td>
+                <td style={td}>1</td>
+                <td style={td}>{d.cargaCodoIda} ft</td>
+                <td style={{ ...td, color:"#7dd3fc", fontWeight:600 }}>{d.cargaTotalIda} ft</td>
+              </tr>
+              <tr style={{ background:"rgba(30,41,59,0.4)" }}>
+                <td style={{ ...td, color:"#7dd3fc", fontWeight:600, textAlign:"left", paddingLeft:"10px" }}>Regreso</td>
+                <td style={td}>{d.flujo} GPM</td>
+                <td style={td}>{d.tuberia}</td>
+                <td style={td}>{d.velocidad} ft/s</td>
+                <td style={td}>{d.cargaBase}</td>
+                <td style={td}>{d.distancia_m} m</td>
+                <td style={td}>{d.cargaTuberiaReg} ft</td>
+                <td style={td}>1</td>
+                <td style={td}>{d.cargaCodoReg} ft</td>
+                <td style={{ ...td, color:"#7dd3fc", fontWeight:600 }}>{d.cargaTotalReg} ft</td>
+              </tr>
+              <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+                <td colSpan={9} style={{ ...td, textAlign:"right", color:"#60a5fa", fontWeight:600 }}>Total cuarto de máquinas:</td>
+                <td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{d.cargaTotal} ft</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       )}
 
-      {/* Altura vertical */}
+      {/* Altura vertical al equipo */}
       {a && (
         <div style={{ overflowX:"auto" }}>
           <p style={tituloStyle}>Altura vertical al equipo</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
             <thead><tr style={{ background:"#0f172a" }}>
-              {["Altura eq.(m)","Altura máx.(m)","Lleva est.","Flujo","Tubería","C.Base","C.Estática","C.Fricción","Total"].map(h => (
+              {["Altura equipo (m)","Altura máx. sistema (m)","Carga estática","Flujo","Tubería","C.Base","C.Estática (ft)","C.Fricción (ft)","Total (ft)"].map(h => (
                 <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
               ))}
             </tr></thead>
             <tbody><tr>
-              <td style={td}>{a.alturaBDC_m ?? a.alturaEquipo_m ?? "—"} m</td>
-              <td style={td}>{a.alturaMaxSist_m ?? "—"} m</td>
-              <td style={{ ...td, color: a.bdcLlevaCargaEstatica ? "#34d399" : "#f97316" }}>{a.bdcLlevaCargaEstatica ? "Sí" : "No"}</td>
+              {/* Cubrir todos los nombres posibles del campo de altura según el equipo */}
+              <td style={td}>{f2(a.alturaBDC_m ?? a.alturaCE_m ?? a.alturaCaldera_m ?? a.alturaPS_m ?? a.alturaEquipo_m ?? 0)} m</td>
+              <td style={td}>{f2(a.alturaMaxSist_m ?? 0)} m</td>
+              <td style={{ ...td, color: (a.bdcLlevaCargaEstatica ?? a.ceLlevaCargaEstatica ?? a.calderaLlevaCargaEstatica ?? a.psLlevaCargaEstatica) ? "#34d399" : "#f97316" }}>
+                {(a.bdcLlevaCargaEstatica ?? a.ceLlevaCargaEstatica ?? a.calderaLlevaCargaEstatica ?? a.psLlevaCargaEstatica) ? "Sí — gobierna" : "No"}
+              </td>
               <td style={td}>{a.flujo} GPM</td>
               <td style={td}>{a.tuberia}</td>
               <td style={td}>{a.cargaBase}</td>

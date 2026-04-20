@@ -276,12 +276,38 @@ function empacarCalentamiento(key, label, calentamiento) {
     res = modo === "manual" ? (calentamiento.ceManual?.hidraulica ? { ...calentamiento.ceManual.hidraulica, seleccion: { marca: calentamiento.ceManual.equipo?.marca, modelo: calentamiento.ceManual.equipo?.modelo, cantidad: calentamiento.ceManual.cantidad, flujoTotal: calentamiento.ceManual.flujoTotal } } : null) : calentamiento.ceSeleccionado;
   }
   if (!res || res.error || !res.tablaTramos?.length) return null;
+
+  let tablaDistancia = res.tablaDistancia ?? null;
+
+  // Limpiar tablaAltura: alturaMaxSist_m no debe mostrar valores > 999
+  // (el componente pasa alturaMax + 1000 cuando el equipo no gobierna)
+  let tablaAltura = res.tablaAltura ?? null;
+  if (tablaAltura) {
+    const altMax = parseFloat(tablaAltura.alturaMaxSist_m ?? 0);
+    // Altura propia del equipo — buscar en todos los nombres posibles
+    const altPropia = parseFloat(
+      tablaAltura.alturaBDC_m ?? tablaAltura.alturaCE_m ??
+      tablaAltura.alturaCaldera_m ?? tablaAltura.alturaPS_m ??
+      tablaAltura.alturaEquipo_m ?? 0
+    );
+    tablaAltura = {
+      ...tablaAltura,
+      // Si alturaMax > 999 es el truco del componente — mostrar la propia
+      alturaMaxSist_m: f2(altMax > 999 ? altPropia : altMax),
+      alturaBDC_m:     tablaAltura.alturaBDC_m     ?? undefined,
+      alturaCE_m:      tablaAltura.alturaCE_m      ?? undefined,
+      alturaCaldera_m: tablaAltura.alturaCaldera_m ?? undefined,
+      alturaPS_m:      tablaAltura.alturaPS_m      ?? undefined,
+      alturaEquipo_m:  tablaAltura.alturaEquipo_m  ?? undefined,
+    };
+  }
+
   return {
     key, label,
     seleccion: res.seleccion ?? null,
     tablaTramos: normEquipo(res.tablaTramos),
-    tablaDistancia: res.tablaDistancia ?? null,
-    tablaAltura: res.tablaAltura ?? null,
+    tablaDistancia,
+    tablaAltura,
     cargaTramos: res.cargaTramos, cargaDistanciaIda: res.cargaDistanciaIda,
     cargaDistanciaReg: res.cargaDistanciaReg, cargaEstatica: res.cargaEstatica,
     cargaFriccion: res.cargaFriccionAltura, cargaFija: res.cargaFija_ft,
