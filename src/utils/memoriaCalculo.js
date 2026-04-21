@@ -5,7 +5,8 @@
    de equilibrio encontrados, con sus equipos recalculados.
    ================================================================ */
 
-import { retorno }    from "./retorno";
+import { retorno }        from "./retorno";
+import { getClimaMensual } from "../data/clima";
 import { desnatador } from "./desnatador";
 import { barredora }  from "./barredora";
 import { drenFondo }  from "./drenFondo";
@@ -434,10 +435,34 @@ export function generarMemoriaCalculo({
   if (reporteIter1)   reporteIter1.calentamiento   = calentamientoReporte;
   if (reporteIter2)   reporteIter2.calentamiento   = calentamientoReporte;
 
+  /* ── Perfil térmico — datos para la sección en memoria ── */
+  let perfilTermico = null;
+  if (calentamiento?.ciudad && calentamiento?.perdidasBTU) {
+    const tablaClima = getClimaMensual(calentamiento.ciudad) ?? [];
+    const mesesCalentar = calentamiento.mesesCalentar ?? {};
+    // Mes más frío entre los seleccionados
+    const mesesSel = tablaClima.filter(m => mesesCalentar[m.mes]);
+    const mesMasFrio = mesesSel.length
+      ? mesesSel.reduce((f, a) => a.tProm < f.tProm ? a : f)
+      : null;
+    perfilTermico = {
+      ciudad:      calentamiento.ciudad,
+      tempDeseada: calentamiento.tempDeseada,
+      cubierta:    calentamiento.cubierta,
+      techada:     calentamiento.techada,
+      mesesCalentar,
+      tablaClima,
+      mesMasFrio,
+      perdidasBTU: calentamiento.perdidasBTU,
+      perdidaTotalBTU: calentamiento.perdidaTotalBTU,
+    };
+  }
+
   const memoria = {
     resumen,
     reportes: [reporteDiseno, reporteIter1, reporteIter2].filter(Boolean),
-    calentamiento: calentamientoData,  // para la tabla comparativa del resumen
+    calentamiento: calentamientoData,
+    perfilTermico,
   };
 
   try {

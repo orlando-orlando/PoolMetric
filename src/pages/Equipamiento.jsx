@@ -1717,31 +1717,71 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     }
     lineas.push({ tipo: "sep", texto: "" });
 
-    // Iteraciones reales — campo correcto: flujoEquilibrio
+    // Separar pasos en iter1 y iter2
     const iters = res?.iteraciones ?? [];
-    let enIter2 = false, nPasoIter1 = 0, nPasoIter2 = 0;
+    const pasosIter1 = [], pasosIter2 = [];
+    let enIter2 = false;
     for (const it of iters) {
-      if (it.separador) {
-        lineas.push({ tipo: "sep",    texto: "" });
-        lineas.push({ tipo: "titulo", texto: "▶ Iteración 2 — recalculando con equipos ajustados..." });
-        enIter2 = true;
-        continue;
+      if (it.separador) { enIter2 = true; continue; }
+      if (enIter2) pasosIter2.push(it);
+      else         pasosIter1.push(it);
+    }
+
+    // Helper: extraer solo los momentos clave de un grupo de pasos
+    // Muestra: primer paso, un punto intermedio representativo, y equilibrio
+    const momentosClave = (pasos) => {
+      const noEq  = pasos.filter(p => !p.esEquilibrio);
+      const eq    = pasos.find(p =>  p.esEquilibrio);
+      const clave = [];
+
+      if (noEq.length > 0) {
+        // Primer paso — punto de partida
+        clave.push({ ...noEq[0], tipo: "inicio" });
       }
-      if (!enIter2 && nPasoIter1 === 0) {
-        lineas.push({ tipo: "titulo", texto: "▶ Iteración 1 — buscando punto de equilibrio..." });
+      if (noEq.length >= 3) {
+        // Punto intermedio — a ~60% del recorrido
+        const midIdx = Math.floor(noEq.length * 0.6);
+        clave.push({ ...noEq[midIdx], tipo: "medio" });
+      } else if (noEq.length === 2) {
+        clave.push({ ...noEq[1], tipo: "medio" });
       }
-      // flujoEquilibrio es el campo correcto según equilibrioHidraulico.js
-      const q    = parseFloat(it.flujoEquilibrio ?? 0).toFixed(1);
-      const cdtS = parseFloat(it.cargaSalida     ?? 0).toFixed(2);
-      const cdtB = parseFloat(it.cargaDispBomba  ?? 0).toFixed(2);
-      if (it.esEquilibrio) {
-        lineas.push({ tipo: "eq", texto: `  ★ Equilibrio → Q = ${q} GPM  |  CDT sistema = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
-      } else {
-        const paso  = enIter2 ? ++nPasoIter2 : ++nPasoIter1;
-        const cubre = parseFloat(cdtB) >= parseFloat(cdtS);
-        lineas.push({ tipo: cubre ? "paso" : "paso_baja",
-          texto: `  ${enIter2 ? "②" : "①"}.${paso}  Q = ${q} GPM  |  CDT sist = ${cdtS} ft  |  CDT bomba = ${cdtB} ft` });
+      if (eq) clave.push({ ...eq, tipo: "eq" });
+      return clave;
+    };
+
+    const renderPasos = (pasos, simbolo) => {
+      const clave = momentosClave(pasos);
+      for (const p of clave) {
+        const q    = parseFloat(p.flujoEquilibrio ?? 0).toFixed(1);
+        const cdtS = parseFloat(p.cargaSalida ?? 0).toFixed(2);
+        const cdtB = parseFloat(p.cargaDispBomba ?? 0).toFixed(2);
+        const delta = Math.abs(parseFloat(cdtB) - parseFloat(cdtS)).toFixed(2);
+
+        if (p.tipo === "eq") {
+          lineas.push({ tipo: "eq",
+            texto: `  ★ Convergido → Q = ${q} GPM  |  CDT = ${cdtS} ft` });
+        } else if (p.tipo === "inicio") {
+          const dir = parseFloat(cdtB) > parseFloat(cdtS) ? "bomba excede sistema" : "sistema excede bomba";
+          lineas.push({ tipo: "paso",
+            texto: `  ${simbolo} Iniciando en Q = ${q} GPM  |  Δ = ${delta} ft  (${dir})` });
+        } else {
+          lineas.push({ tipo: "paso",
+            texto: `  ${simbolo} Ajustando...  Q = ${q} GPM  |  Δ = ${delta} ft` });
+        }
       }
+    };
+
+    // Iter 1
+    if (pasosIter1.length > 0) {
+      lineas.push({ tipo: "titulo", texto: "▶ Iteración 1 — buscando punto de equilibrio..." });
+      renderPasos(pasosIter1, "①");
+    }
+
+    // Iter 2
+    lineas.push({ tipo: "sep", texto: "" });
+    if (pasosIter2.length > 0) {
+      lineas.push({ tipo: "titulo", texto: "▶ Iteración 2 — verificando con equipos ajustados..." });
+      renderPasos(pasosIter2, "②");
     }
 
     lineas.push({ tipo: "sep",    texto: "" });
@@ -2230,11 +2270,18 @@ function ResumenEquiposConfirmacion({
           </div>
         )}
 
-        {/* Generar memoria de cálculo */}
+        {/* Generar memoria de cálculo — bloqueado si hay cambios pendientes de confirmar */}
+        {hayCambios && !confirmado && (
+          <div style={{ fontSize:"0.7rem", color:"#f97316", background:"rgba(249,115,22,0.06)", border:"1px solid rgba(249,115,22,0.2)", borderRadius:"6px", padding:"0.4rem 0.7rem" }}>
+            ⚠ Confirma los ajustes de equipos antes de generar la memoria
+          </div>
+        )}
         <button
           className="btn-primario"
-          style={{ width: "100%", padding: "0.6rem 1rem", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.02em" }}
+          disabled={hayCambios && !confirmado}
+          style={{ width: "100%", padding: "0.6rem 1rem", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.02em", opacity: hayCambios && !confirmado ? 0.4 : 1, cursor: hayCambios && !confirmado ? "not-allowed" : "pointer" }}
           onClick={() => {
+            if (hayCambios && !confirmado) return;
             try {
               generarMemoriaCalculo({
                 estados,
@@ -2448,7 +2495,9 @@ export default function Equipamiento({
 
         {/* ── Header con tabs integrados ── */}
         <div className="selector-header">
-          <div className="selector-acciones" style={{ marginBottom: "0.75rem" }}>
+          <div className="selector-titulo">Equipamiento del sistema</div>
+          <div className="selector-subtitulo-tecnico">Selección y configuración de equipos hidráulicos</div>
+          <div className="selector-acciones" style={{ marginBottom: "0.75rem", marginTop: "0.75rem" }}>
             <button className="btn-secundario" onClick={() => setSeccion("calentamiento")}>
               ← Volver a Calentamiento
             </button>

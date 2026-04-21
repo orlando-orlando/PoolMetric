@@ -111,10 +111,14 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
   } catch { return null; }
 }
 
+const FLUJO_UMBRAL_MULTIPLICAR = 62; // GPM — filtros > este valor pueden ser múltiples
+const CANT_MAX_FILTROS = 4;            // máximo 4 unidades antes de subir capacidad
+
 function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGeneral) {
   if (!estado?.selId || !flujoNuevo) return null;
   let flujoEf, modelo, marca;
   const cantOriginal = estado.cantidad ?? 1;
+
   if (key === "filtroArena") {
     const f = catalogo.find(f => f.id === estado.selId);
     if (!f) return null;
@@ -130,18 +134,80 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
     modelo = f.modelo; marca = f.marca;
   }
   if (!flujoEf || flujoEf <= 0) return null;
-  const cantMin   = Math.max(1, Math.ceil(flujoNuevo / flujoEf));
-  const cantFinal = Math.max(cantMin, cantOriginal);
+
+  const catalActivos = catalogo
+    .filter(c => c.metadata?.activo !== false)
+    .map(c => ({ c, cap: c.specs?.maxFlow ?? c.specs?.flujoComercial ?? 0 }))
+    .sort((a, b) => a.cap - b.cap); // orden ascendente de capacidad
+
+  // ── Buscar el filtro de mayor capacidad que cubra el flujo con 1 unidad ──
+  const buscarMayorCapacidad = (flujoReq) => {
+    const candidatos = catalActivos.filter(({ cap }) => cap >= flujoReq);
+    return candidatos.length > 0 ? candidatos[0] : null; // el más ajustado
+  };
+
+  let cantFinal    = cantOriginal;
+  let flujoEfFinal = flujoEf;
+  let modeloFinal  = modelo;
+  let marcaFinal   = marca;
+
+  const flujoTotalActual = flujoEf * cantOriginal;
+
+  if (flujoTotalActual >= flujoNuevo) {
+    // Ya cubre — sin cambio
+    cantFinal = cantOriginal;
+
+  } else if (flujoEf <= FLUJO_UMBRAL_MULTIPLICAR) {
+    // Filtro pequeño (≤ 62 GPM): NUNCA poner más de 1 — siempre subir capacidad
+    const mejor = buscarMayorCapacidad(flujoNuevo);
+    if (mejor) {
+      flujoEfFinal = mejor.cap;
+      modeloFinal  = mejor.c.modelo;
+      marcaFinal   = mejor.c.marca;
+      cantFinal    = 1;
+    } else {
+      // No hay filtro suficiente en catálogo — dejar como está
+      cantFinal = cantOriginal;
+    }
+
+  } else {
+    // Filtro grande (> 62 GPM): intentar poner hasta CANT_MAX_FILTROS unidades
+    const cantNecesaria = Math.ceil(flujoNuevo / flujoEf);
+    if (cantNecesaria <= CANT_MAX_FILTROS) {
+      // Cabe dentro del límite → subir cantidad
+      cantFinal = Math.max(cantOriginal, cantNecesaria);
+    } else {
+      // Necesitaría más de 4 → buscar filtro de mayor capacidad
+      // Intentar con 1 filtro mayor, luego con 2, 3, hasta 4
+      let resuelto = false;
+      for (let cant = 1; cant <= CANT_MAX_FILTROS; cant++) {
+        const capNecesariaPorUnidad = flujoNuevo / cant;
+        const mejor = buscarMayorCapacidad(capNecesariaPorUnidad);
+        if (mejor && mejor.cap > flujoEf) {
+          // Preferir el filtro más grande con la menor cantidad
+          flujoEfFinal = mejor.cap;
+          modeloFinal  = mejor.c.modelo;
+          marcaFinal   = mejor.c.marca;
+          cantFinal    = cant;
+          resuelto     = true;
+          break;
+        }
+      }
+      if (!resuelto) {
+        // No se encontró solución óptima — máximo 4 del filtro original
+        cantFinal = CANT_MAX_FILTROS;
+      }
+    }
+  }
+
   try {
-    // Pasar flujoNuevo como flujoRealSistema para que la hidráulica de tuberías
-    // use el flujo real del sistema, no la capacidad instalada del filtro
-    const res = fnManual(flujoEf, cantFinal, flujoNuevo);
+    const res = fnManual(flujoEfFinal, cantFinal, flujoNuevo);
     return {
       cantidad: cantFinal, cantOriginal,
-      cambio: cantFinal !== cantOriginal,
+      cambio: cantFinal !== cantOriginal || flujoEfFinal !== flujoEf,
       cargaTotal: res?.cargaTotal ?? null,
       cargaTotalPSI: res?.cargaTotalPSI ?? null,
-      modelo, marca,
+      modelo: modeloFinal, marca: marcaFinal,
       resultadoHidraulico: res,
     };
   } catch { return null; }

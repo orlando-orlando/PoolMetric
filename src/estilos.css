@@ -1907,3 +1907,7 @@ select option:hover { background-color: #d1d5db; }
   50%       { opacity: 0; }
 }
 
+.tabla-resumen-frio.visible { display: block; }
+.tabla-resumen-frio.oculto  { display: none;  }
+.tabla-clima-card { overflow-y: auto !important; }
+

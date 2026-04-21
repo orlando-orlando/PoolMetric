@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const f2 = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(2); };
 
@@ -838,6 +838,231 @@ function TabExplosionMateriales({ reportes }) {
   );
 }
 
+/* ═══════════ TAB PERFIL TÉRMICO ═══════════ */
+function TabPerfilTermico({ perfilTermico }) {
+  const canvasRef = useRef(null);
+  const chartRef  = useRef(null);
+
+  if (!perfilTermico) return (
+    <div style={{ padding:"2rem", color:"#475569", fontSize:"0.78rem", textAlign:"center" }}>
+      No se configuró calentamiento en este proyecto.
+    </div>
+  );
+
+  const { ciudad, tempDeseada, cubierta, techada, tablaClima = [], mesMasFrio,
+          mesesCalentar = {}, perdidasBTU = {}, perdidaTotalBTU } = perfilTermico;
+
+  const NOMBRES_CIUDAD = {
+    guadalajara:"Guadalajara", mexicali:"Mexicali", losCabos:"Los Cabos",
+    hermosillo:"Hermosillo", chihuahua:"Chihuahua", torreon:"Torreón",
+    monterrey:"Monterrey", tampico:"Tampico", veracruz:"Veracruz",
+    sanLuisPotosi:"San Luis Potosí", durango:"Durango", culiacan:"Culiacán",
+    tepic:"Tepic", colima:"Colima", aguascalientes:"Aguascalientes",
+    zacatecas:"Zacatecas", morelia:"Morelia", leon:"León",
+    queretaro:"Querétaro", pachuca:"Pachuca", ciudadDeMexico:"Ciudad de México",
+    acapulco:"Acapulco", cuernavaca:"Cuernavaca", puebla:"Puebla",
+    tlaxcala:"Tlaxcala", oaxaca:"Oaxaca", villahermosa:"Villahermosa",
+    tuxtlaGutierrez:"Tuxtla Gutiérrez", campeche:"Campeche", merida:"Mérida",
+    cancun:"Cancún", manzanillo:"Manzanillo", puertoVallarta:"Puerto Vallarta",
+  };
+
+  const fmtBTU = (v) => Math.round(parseFloat(v) || 0).toLocaleString("es-MX");
+  const total  = parseFloat(perdidaTotalBTU) || 0;
+
+  const PERDIDAS = [
+    { key:"evaporacion",  label:"Evaporación",       color:"rgba(30,64,175,0.85)"  },
+    { key:"conveccion",   label:"Convección",         color:"rgba(56,189,248,0.85)" },
+    { key:"radiacion",    label:"Radiación",          color:"rgba(251,113,133,0.85)"},
+    { key:"transmision",  label:"Transmisión",        color:"rgba(163,163,163,0.85)"},
+    { key:"infinity",     label:"Infinity",           color:"rgba(34,197,94,0.85)"  },
+    { key:"canal",        label:"Canal perimetral",   color:"rgba(96,165,250,0.85)" },
+    { key:"tuberia",      label:"Tubería",            color:"rgba(251,191,36,0.85)" },
+  ].filter(p => (parseFloat(perdidasBTU[p.key]) || 0) > 0);
+
+  // Dibujar gráfica de pie con canvas puro (sin Chart.js externo)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || PERDIDAS.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const r  = Math.min(cx, cy) - 40;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let startAngle = -Math.PI / 2;
+    for (const p of PERDIDAS) {
+      const val   = parseFloat(perdidasBTU[p.key]) || 0;
+      const slice = (val / total) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+      ctx.closePath();
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Label si el slice es grande
+      if (slice > 0.25) {
+        const midAngle = startAngle + slice / 2;
+        const lx = cx + (r * 0.65) * Math.cos(midAngle);
+        const ly = cy + (r * 0.65) * Math.sin(midAngle);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 11px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`${((val/total)*100).toFixed(0)}%`, lx, ly);
+      }
+      startAngle += slice;
+    }
+  }, [perdidaTotalBTU, JSON.stringify(perdidasBTU)]);
+
+  const thS = { padding:"6px 10px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", fontSize:"0.7rem", whiteSpace:"nowrap" };
+  const tdS = (extra={}) => ({ padding:"5px 8px", border:"1px solid #1e3a5f", color:"#cbd5e1", textAlign:"center", fontSize:"0.72rem", verticalAlign:"middle", ...extra });
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
+
+      {/* ── Parámetros del diseño ── */}
+      <div>
+        <p style={tituloStyle}>Parámetros del diseño térmico</p>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"0.6rem", padding:"0.75rem 1rem", background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px" }}>
+          {[
+            { label:"Ciudad",           val: NOMBRES_CIUDAD[ciudad] ?? ciudad },
+            { label:"Temp. deseada",    val: `${tempDeseada} °C` },
+            { label:"Cubierta térmica", val: cubierta ? "Sí" : "No" },
+            { label:"Techada",          val: techada  ? "Sí" : "No" },
+            { label:"Mes más frío",     val: mesMasFrio ? `${mesMasFrio.mes} (${mesMasFrio.tProm}°C prom.)` : "—" },
+          ].map(({ label, val }) => (
+            <div key={label} style={{ padding:"0.4rem 0.8rem", background:"rgba(15,23,42,0.5)", border:"1px solid #1e3a5f", borderRadius:"6px", fontSize:"0.73rem" }}>
+              <span style={{ color:"#64748b" }}>{label}: </span>
+              <span style={{ color:"#e2e8f0", fontWeight:600 }}>{val}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Mes más frío detalle ── */}
+      {mesMasFrio && (
+        <div>
+          <p style={tituloStyle}>Mes más frío seleccionado — condiciones de diseño</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              {["Mes","T° Min (°C)","T° Prom (°C)","T° Max (°C)","Humedad (%)","Viento","Por qué se selecciona"].map(h => (
+                <th key={h} style={thS}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody><tr>
+              <td style={tdS({ color:"#38bdf8", fontWeight:700 })}>{mesMasFrio.mes}</td>
+              <td style={tdS({ color:"#7dd3fc" })}>{mesMasFrio.tMin}</td>
+              <td style={tdS({ color:"#f97316", fontWeight:700 })}>{mesMasFrio.tProm}</td>
+              <td style={tdS()}>{mesMasFrio.tMax}</td>
+              <td style={tdS()}>{mesMasFrio.humedad}</td>
+              <td style={tdS()}>{mesMasFrio.viento}</td>
+              <td style={tdS({ color:"#94a3b8", fontStyle:"italic", textAlign:"left" })}>
+                Temperatura promedio más baja entre los meses seleccionados para calentar → mayor demanda energética
+              </td>
+            </tr></tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Tabla climática mensual ── */}
+      {tablaClima.length > 0 && (
+        <div>
+          <p style={tituloStyle}>Tabla climática mensual</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.72rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              {["Mes","T° Min","T° Prom","T° Max","Humedad","Viento","Calentar"].map(h => (
+                <th key={h} style={thS}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {tablaClima.map((m, i) => {
+                const esMasFrio  = mesMasFrio?.mes === m.mes;
+                const seleccionado = mesesCalentar[m.mes];
+                return (
+                  <tr key={m.mes} style={{
+                    background: esMasFrio ? "rgba(249,115,22,0.12)" : i%2===0 ? "#1e293b" : "#162032",
+                    borderLeft: esMasFrio ? "3px solid #f97316" : "3px solid transparent",
+                  }}>
+                    <td style={tdS({ textAlign:"left", fontWeight: esMasFrio ? 700 : 400, color: esMasFrio ? "#f97316" : "#e2e8f0" })}>
+                      {m.mes}{esMasFrio ? " ★" : ""}
+                    </td>
+                    <td style={tdS({ color:"#7dd3fc" })}>{m.tMin}°C</td>
+                    <td style={tdS({ fontWeight: esMasFrio ? 700 : 400, color: esMasFrio ? "#f97316" : "#e2e8f0" })}>{m.tProm}°C</td>
+                    <td style={tdS()}>{m.tMax}°C</td>
+                    <td style={tdS()}>{m.humedad}%</td>
+                    <td style={tdS()}>{m.viento}</td>
+                    <td style={tdS({ color: seleccionado ? "#34d399" : "#475569" })}>
+                      {seleccionado ? "✓" : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Pérdidas + Gráfica ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.5rem", alignItems:"start" }}>
+
+        {/* Tabla de pérdidas */}
+        <div>
+          <p style={tituloStyle}>Pérdidas energéticas del sistema</p>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+            <thead><tr style={{ background:"#0f172a" }}>
+              <th style={{ ...thS, textAlign:"left" }}>Concepto</th>
+              <th style={thS}>BTU/h</th>
+              <th style={thS}>%</th>
+            </tr></thead>
+            <tbody>
+              {PERDIDAS.map((p, i) => {
+                const val = parseFloat(perdidasBTU[p.key]) || 0;
+                const pct = total > 0 ? (val / total * 100).toFixed(1) : "0.0";
+                return (
+                  <tr key={p.key} style={{ background: i%2===0?"#1e293b":"#162032" }}>
+                    <td style={tdS({ textAlign:"left", display:"flex", alignItems:"center", gap:"6px" })}>
+                      <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
+                      {p.label}
+                    </td>
+                    <td style={tdS({ color:"#e2e8f0", fontWeight:500 })}>{fmtBTU(val)}</td>
+                    <td style={tdS({ color:"#94a3b8" })}>{pct}%</td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+                <td style={tdS({ textAlign:"left", color:"#60a5fa", fontWeight:700 })}>TOTAL</td>
+                <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>{fmtBTU(total)}</td>
+                <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>100%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Gráfica de pie */}
+        <div style={{ display:"flex", flexDirection:"column", gap:"0.5rem" }}>
+          <p style={tituloStyle}>Distribución de pérdidas</p>
+          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", padding:"1rem", display:"flex", gap:"1.5rem", alignItems:"center", flexWrap:"wrap", justifyContent:"center" }}>
+            <canvas ref={canvasRef} width={240} height={240} />
+            {/* Leyenda */}
+            <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
+              {PERDIDAS.map(p => (
+                <div key={p.key} style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"0.7rem", color:"#cbd5e1" }}>
+                  <span style={{ width:"12px", height:"12px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
+                  {p.label}: {fmtBTU(parseFloat(perdidasBTU[p.key])||0)} BTU/h
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════ COMPONENTE PRINCIPAL ═══════════ */
 export default function MemoriaCalculo() {
   const [memoria, setMemoria]     = useState(null);
@@ -856,7 +1081,7 @@ export default function MemoriaCalculo() {
   if (error) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#f87171", fontFamily:"system-ui" }}>⚠️ {error}</div>;
   if (!memoria) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#94a3b8", fontFamily:"system-ui" }}>Cargando…</div>;
 
-  const { resumen, reportes = [], calentamiento = [] } = memoria;
+  const { resumen, reportes = [], calentamiento = [], perfilTermico = null } = memoria;
 
   const defEquipos = [
     { key:"retorno",            label:"Retornos",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
@@ -881,6 +1106,7 @@ export default function MemoriaCalculo() {
     { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
     { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
     { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
+    ...(perfilTermico ? [{ label:"🌡 Perfil térmico", comp: <TabPerfilTermico perfilTermico={perfilTermico} /> }] : []),
     ...defEquipos.map(eq => ({
       label: eq.label,
       comp: <TabEquipo equipoKey={eq.key} reportes={reportes} tipoRender={eq.tipo} sufijoCM={eq.sufijoCM} tituloTramos={eq.tituloTramos} tituloDisparo={eq.tituloDisparo} />,

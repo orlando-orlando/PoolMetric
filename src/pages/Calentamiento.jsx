@@ -298,12 +298,6 @@ export default function Calentamiento({
 
   const clima = useMemo(() => { if (!ciudad) return []; return getClimaMensual(ciudad); }, [ciudad]);
 
-  const mesMasFrio = useMemo(() => {
-    const sel = clima.filter(m => mesesCalentar[m.mes]);
-    if (!sel.length) return null;
-    return sel.reduce((frio, actual) => actual.tProm < frio.tProm ? actual : frio);
-  }, [clima, mesesCalentar]);
-
   const datosTermicos = useMemo(() => ({
     area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio,
     tempDeseada, techada, cubierta
@@ -313,6 +307,41 @@ export default function Calentamiento({
     if (!sistemaActivo?.cuerpos?.length) return 0;
     return Math.max(...sistemaActivo.cuerpos.map(c => Math.max(parseFloat(c.profMin) || 0, parseFloat(c.profMax) || 0)));
   }, [sistemaActivo]);
+
+
+  const mesMasFrio = useMemo(() => {
+      const sel = clima.filter(m => mesesCalentar[m.mes]);
+      if (!sel.length) return null;
+      if (!tempDeseada || areaTotal <= 0) {
+        return sel.reduce((f, a) => a.tProm < f.tProm ? a : f);
+      }
+      const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
+      const conPerdida = sel.map(m => {
+        try {
+          const ev  = qEvaporacion(dt, m)  || 0;
+          const con = qConveccion(dt, m)   || 0;
+          const rad = qRadiacion(dt, m)    || 0;
+          const tra = qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
+          const inf = (() => {
+            if (!sistemaActivo) return 0;
+            if (sistemaActivo.desborde !== "infinity" && sistemaActivo.desborde !== "ambos") return 0;
+            const largo = parseFloat(sistemaActivo.largoInfinity) || 0;
+            if (largo <= 0 || profMaxSistema <= 0) return 0;
+            return qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: largo, tempDeseada }, m) || 0;
+          })();
+          const can = (() => {
+            if (!sistemaActivo) return 0;
+            if (sistemaActivo.desborde !== "canal" && sistemaActivo.desborde !== "ambos") return 0;
+            const largo = parseFloat(sistemaActivo.largoCanal) || 0;
+            if (largo <= 0) return 0;
+            return qCanal({ largoCanal: largo, tempDeseada }, m) || 0;
+          })();
+          return { ...m, perdidaTotal: ev + con + rad + tra + inf + can };
+        } catch { return { ...m, perdidaTotal: 0 }; }
+      });
+      return conPerdida.reduce((max, a) => a.perdidaTotal > max.perdidaTotal ? a : max);
+    }, [clima, mesesCalentar, tempDeseada, areaTotal, volumenTotal, profundidadPromedio,
+        techada, cubierta, profMaxSistema, sistemaActivo]);
 
   const perdidaEvaporacion = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qEvaporacion(datosTermicos, mesMasFrio),  [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
   const perdidaConveccion  = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qConveccion(datosTermicos, mesMasFrio),   [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
@@ -1137,6 +1166,7 @@ export default function Calentamiento({
                       <tr>
                         <th>Mes</th><th>Temp Min (°C)</th><th>Temp Prom (°C)</th>
                         <th>Temp Max (°C)</th><th>Humedad (%)</th><th>Viento</th>
+                        <th>Pérdida clima (BTU/h)</th>
                         <th className="th-calentar">
                           <label className="checkbox-columna">
                             <input type="checkbox"
@@ -1150,10 +1180,34 @@ export default function Calentamiento({
                       </tr>
                     </thead>
                     <tbody>
-                      {clima.map(m => (
-                        <tr key={m.mes}>
-                          <td>{m.mes}</td><td>{m.tMin}</td><td>{m.tProm}</td>
+                      {clima.map(m => {
+                        const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
+                        const esMasFrio = mesMasFrio?.mes === m.mes;
+                        let btuMes = 0;
+                        if (tempDeseada && areaTotal > 0) {
+                          try {
+                            btuMes += qEvaporacion(dt, m)  || 0;
+                            btuMes += qConveccion(dt, m)   || 0;
+                            btuMes += qRadiacion(dt, m)    || 0;
+                            btuMes += qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
+                            if (sistemaActivo?.desborde === "infinity" || sistemaActivo?.desborde === "ambos") {
+                              const largo = parseFloat(sistemaActivo.largoInfinity) || 0;
+                              if (largo > 0 && profMaxSistema > 0)
+                                btuMes += qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: largo, tempDeseada }, m) || 0;
+                            }
+                            if (sistemaActivo?.desborde === "canal" || sistemaActivo?.desborde === "ambos") {
+                              const largo = parseFloat(sistemaActivo.largoCanal) || 0;
+                              if (largo > 0) btuMes += qCanal({ largoCanal: largo, tempDeseada }, m) || 0;
+                            }
+                          } catch {}
+                        }
+                        return (
+                        <tr key={m.mes} style={{ background: esMasFrio ? "rgba(249,115,22,0.08)" : undefined, borderLeft: esMasFrio ? "2px solid #f97316" : "2px solid transparent" }}>
+                          <td>{m.mes}{esMasFrio ? " ★" : ""}</td><td>{m.tMin}</td><td>{m.tProm}</td>
                           <td>{m.tMax}</td><td>{m.humedad}</td><td>{m.viento}</td>
+                          <td style={{ color: esMasFrio ? "#f97316" : btuMes > 0 ? "#94a3b8" : "#475569", fontWeight: esMasFrio ? 700 : 400, textAlign: "right", fontSize: "0.72rem" }}>
+                            {btuMes > 0 ? Math.round(btuMes).toLocaleString("es-MX") : "—"}
+                          </td>
                           <td>
                             <input type="checkbox"
                               checked={mesesCalentar[m.mes] || false}
@@ -1161,18 +1215,27 @@ export default function Calentamiento({
                             />
                           </td>
                         </tr>
-                      ))}
+                    ); })}
                     </tbody>
                   </table>
                   <div className={`tabla-resumen-frio ${mesMasFrio ? "visible" : "oculto"}`}>
                     <div className="resumen-titulo">Mes más frío seleccionado</div>
                     <table className="tabla-clima-pro resumen">
                       <thead>
-                        <tr><th>Mes</th><th>Temp Min (°C)</th><th>Temp Prom (°C)</th><th>Viento Máx</th><th>Humedad (%)</th></tr>
-                      </thead>
+                        <tr><th>Mes</th><th>Temp Min (°C)</th><th>Temp Prom (°C)</th><th>Viento Máx</th><th>Humedad (%)</th><th>Pérdida clima (BTU/h)</th></tr>                      
+                        </thead>
                       <tbody>
                         {mesMasFrio
-                          ? <tr><td>{mesMasFrio.mes}</td><td>{mesMasFrio.tMin}</td><td>{mesMasFrio.tProm}</td><td>{mesMasFrio.viento}</td><td>{mesMasFrio.humedad}</td></tr>
+                          ? <tr>
+                            <td>{mesMasFrio.mes}</td>
+                            <td>{mesMasFrio.tMin}</td>
+                            <td>{mesMasFrio.tProm}</td>
+                            <td>{mesMasFrio.viento}</td>
+                            <td>{mesMasFrio.humedad}</td>
+                            <td style={{ color:"#f97316", fontWeight:700, textAlign:"right" }}>
+                              {mesMasFrio.perdidaTotal ? Math.round(mesMasFrio.perdidaTotal).toLocaleString("es-MX") : "—"}
+                            </td>
+                          </tr>
                           : <tr><td colSpan={5} className="resumen-placeholder">Selecciona meses para ver el resumen</td></tr>
                         }
                       </tbody>
