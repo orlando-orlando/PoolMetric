@@ -1911,3 +1911,5 @@ select option:hover { background-color: #d1d5db; }
 .tabla-resumen-frio.oculto  { display: none;  }
 .tabla-clima-card { overflow-y: auto !important; }
 
+.tabla-clima-pro td, .tabla-clima-pro th { text-align: center; }
+.tabla-clima-pro td:first-child, .tabla-clima-pro th:first-child { text-align: left; }

@@ -331,6 +331,7 @@ export default function App() {
   const perdidaInfinity    = datosPorSistema?.calentamiento?.perdidasBTU?.infinity    ?? 0;
   const perdidaCanal       = datosPorSistema?.calentamiento?.perdidasBTU?.canal       ?? 0;
   const perdidaTuberia     = datosPorSistema?.calentamiento?.perdidasBTU?.tuberia     ?? 0;
+  const perdidaClima        = perdidaEvaporacion + perdidaConveccion + perdidaRadiacion + perdidaTransmision + perdidaInfinity + perdidaCanal;
 
   const calentamiento = datosPorSistema?.calentamiento;
 
@@ -609,9 +610,10 @@ export default function App() {
                 <tr><th className="th-indent">Convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion)  : "—"}</td></tr>
                 <tr><th className="th-indent">Radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion)   : "—"}</td></tr>
                 <tr><th className="th-indent">Transmisión:</th><td>{sistemaListoCalor ? formatBTU(perdidaTransmision) : "—"}</td></tr>
-                <tr><th className="th-indent">Tubería:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia)     : "—"}</td></tr>
-                <tr><th className="th-indent">Infinity:</th><td>{sistemaListoCalor ? formatBTU(perdidaInfinity)    : "—"}</td></tr>
-                <tr><th className="th-indent">Canal perimetral:</th><td>{sistemaListoCalor ? formatBTU(perdidaCanal) : "—"}</td></tr>
+                {sistemaListoCalor && perdidaInfinity > 0 && <tr><th className="th-indent">Infinity:</th><td>{formatBTU(perdidaInfinity)}</td></tr>}
+                {sistemaListoCalor && perdidaCanal > 0 && <tr><th className="th-indent">Canal perimetral:</th><td>{formatBTU(perdidaCanal)}</td></tr>}
+                <tr><th className="th-indent th-subtotal" style={{color:"#94a3b8",fontStyle:"italic"}}>Subtotal clima:</th><td style={{color:"#94a3b8",fontStyle:"italic"}}>{sistemaListoCalor ? formatBTU(perdidaClima) : "—"}</td></tr>
+                <tr><th className="th-indent">+ Tubería distribución:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia) : "—"}</td></tr>
                 <tr><th className="th-indent th-total th-seccion">Total pérdidas:</th><td className="td-perdida">{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
               </tbody></table>
               {bdcListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Bomba de calor</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoBDC)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaBDC)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadBDC)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaBDCft)}</td></tr></tbody></table></>)}

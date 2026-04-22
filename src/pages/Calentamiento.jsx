@@ -167,6 +167,28 @@ const PIE_OPTIONS = {
   }
 };
 
+
+/* ─── Helpers nombre comercial para calentamiento ─── */
+const CAL_NOMBRES = {
+  interheat: "InterHeat", spaheat: "SpaHeat", uniplaca: "Uniplaca",
+  serie: "Serie", jxi: "JXI", lxi: "LXI",
+};
+const ncCal = (obj) => {
+  if (!obj?.id) return obj?.modelo ?? "";
+  const parte = obj.id.split("-")[0].toLowerCase();
+  if (CAL_NOMBRES[parte]) return CAL_NOMBRES[parte];
+  if (obj.modelo && obj.modelo.toLowerCase().startsWith(parte)) return obj.modelo;
+  return parte.charAt(0).toUpperCase() + parte.slice(1);
+};
+const mostrarCodigoCal = (obj) => {
+  if (!obj?.id) return false;
+  const parte = obj.id.split("-")[0].toLowerCase();
+  if (CAL_NOMBRES[parte]) return true;
+  if (obj.modelo && obj.modelo.toLowerCase().startsWith(parte)) return false;
+  return true;
+};
+const fmtBTU = (v) => v ? Math.round(parseFloat(v)).toLocaleString("es-MX") + " BTU/h" : null;
+
 export default function Calentamiento({
   setSeccion, tipoSistema, datosPorSistema, setDatosPorSistema,
   areaTotal, volumenTotal, profundidadPromedio, tipoRetornoExterno,
@@ -939,6 +961,7 @@ export default function Calentamiento({
   const infoActivaParaMostrar = useMemo(() => {
     if (modoBDC === "manual" && bdcManual) {
       return {
+        id:        bdcManual.bomba.id,
         marca:     bdcManual.bomba.marca,
         modelo:    bdcManual.bomba.modelo,
         cantidad:  bdcManual.cantidad,
@@ -953,6 +976,7 @@ export default function Calentamiento({
     }
     if (bdcSeleccionada && !bdcSeleccionada.error) {
       return {
+        id:        bdcSeleccionada.seleccion.id ?? bombasCalor.find(b=>b.marca===bdcSeleccionada.seleccion.marca&&b.modelo===bdcSeleccionada.seleccion.modelo)?.id,
         marca:     bdcSeleccionada.seleccion.marca,
         modelo:    bdcSeleccionada.seleccion.modelo,
         cantidad:  bdcSeleccionada.seleccion.cantidad,
@@ -1166,7 +1190,7 @@ export default function Calentamiento({
                       <tr>
                         <th>Mes</th><th>Temp Min (°C)</th><th>Temp Prom (°C)</th>
                         <th>Temp Max (°C)</th><th>Humedad (%)</th><th>Viento</th>
-                        <th>Pérdida clima (BTU/h)</th>
+                        <th style={{textAlign:"center"}}>Pérdida clima (BTU/h)</th>
                         <th className="th-calentar">
                           <label className="checkbox-columna">
                             <input type="checkbox"
@@ -1205,7 +1229,7 @@ export default function Calentamiento({
                         <tr key={m.mes} style={{ background: esMasFrio ? "rgba(249,115,22,0.08)" : undefined, borderLeft: esMasFrio ? "2px solid #f97316" : "2px solid transparent" }}>
                           <td>{m.mes}{esMasFrio ? " ★" : ""}</td><td>{m.tMin}</td><td>{m.tProm}</td>
                           <td>{m.tMax}</td><td>{m.humedad}</td><td>{m.viento}</td>
-                          <td style={{ color: esMasFrio ? "#f97316" : btuMes > 0 ? "#94a3b8" : "#475569", fontWeight: esMasFrio ? 700 : 400, textAlign: "right", fontSize: "0.72rem" }}>
+                          <td style={{ color: esMasFrio ? "#f97316" : btuMes > 0 ? "#94a3b8" : "#475569", fontWeight: esMasFrio ? 700 : 400, textAlign: "center", fontSize: "0.72rem" }}>
                             {btuMes > 0 ? Math.round(btuMes).toLocaleString("es-MX") : "—"}
                           </td>
                           <td>
@@ -1288,7 +1312,7 @@ export default function Calentamiento({
                             {modoBDC === "recomendado" ? "Recomendado" : "Selección manual"}
                           </span>
                           <span className="bdc-rec-modelo">
-                            {infoActivaParaMostrar.marca} · {infoActivaParaMostrar.modelo}
+                            {infoActivaParaMostrar.marca} · {ncCal(infoActivaParaMostrar)}{infoActivaParaMostrar.capUnitaria && <span style={{color:"#7dd3fc",fontSize:"0.82em"}}> {fmtBTU(infoActivaParaMostrar.capUnitaria)}</span>}{mostrarCodigoCal(infoActivaParaMostrar) && <span style={{color:"#94a3b8",fontSize:"0.8em"}}> {infoActivaParaMostrar.modelo}</span>}
                           </span>
                         </div>
                         <span className={`bdc-modo-badge ${modoBDC === "manual" ? "badge-manual" : "badge-auto"}`}>
@@ -1471,7 +1495,8 @@ export default function Calentamiento({
                                 >
                                   <div className="bdc-manual-fila-info">
                                     <span className="bdc-manual-marca">{b.marca}</span>
-                                    <span className="bdc-manual-modelo">{b.modelo}</span>
+                                    <span className="bdc-manual-modelo">{ncCal(b)}</span>
+                                    <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{b.modelo}</span>
                                     <span className={`bdc-manual-vel ${b.specs.velocidad === "vv" ? "vel-vv" : "vel-1v"}`}>
                                       {b.specs.velocidad === "vv" ? "VV" : "1V"}
                                     </span>
@@ -1647,7 +1672,7 @@ export default function Calentamiento({
                             <IconoPanelSolar />
                             <div className="bdc-rec-titulo">
                               <span className="bdc-rec-label">{modoPS === "manual" ? "Manual" : "Recomendado"}</span>
-                              <span className="bdc-rec-modelo">{info.panel?.marca} · {info.panel?.modelo}</span>
+                              <span className="bdc-rec-modelo">{info.panel?.marca} · {ncCal(info.panel)}{info.panel?.specs?.capacidadCalentamiento && <span style={{color:"#7dd3fc",fontSize:"0.82em"}}> {fmtBTU(info.panel?.specs?.capacidadCalentamiento)}</span>}{mostrarCodigoCal(info.panel) && <span style={{color:"#94a3b8",fontSize:"0.8em"}}> {info.panel?.modelo}</span>}</span>
                             </div>
                             <span className={`bdc-modo-badge ${modoPS === "manual" ? "badge-manual" : "badge-auto"}`}>
                               {info.porcentaje != null ? `${info.porcentaje}%` : (modoPS === "manual" ? "Manual" : "Auto")}
@@ -1961,6 +1986,7 @@ export default function Calentamiento({
                           );
 
                           const sel = esManualActivo ? {
+                            id:               src.caldera.id,
                             marca:            src.caldera.marca,
                             modelo:           src.caldera.modelo,
                             tipoGas:          src.caldera.tipoGas,
@@ -1971,6 +1997,7 @@ export default function Calentamiento({
                             exceso:           src.exceso,
                             cubre:            src.cubre,
                           } : {
+                            id:               src.seleccion.id ?? calderasGas.find(c=>c.marca===src.seleccion.marca&&c.modelo===src.seleccion.modelo)?.id,
                             marca:            src.seleccion.marca,
                             modelo:           src.seleccion.modelo,
                             tipoGas:          src.seleccion.tipoGas,
@@ -1991,7 +2018,7 @@ export default function Calentamiento({
                                 <IconoCaldera />
                                 <div className="bdc-rec-titulo">
                                   <span className="bdc-rec-label">{modoCaldera === "manual" ? "Selección manual" : "Recomendado"}</span>
-                                  <span className="bdc-rec-modelo">{sel.marca} · {sel.modelo}</span>
+                                  <span className="bdc-rec-modelo">{sel.marca} · {ncCal(sel)}{sel.capOutputUnitario && <span style={{color:"#7dd3fc",fontSize:"0.82em"}}> {fmtBTU(sel.capOutputUnitario)}</span>}{mostrarCodigoCal(sel) && <span style={{color:"#94a3b8",fontSize:"0.8em"}}> {sel.modelo}</span>}</span>
                                 </div>
                                 <span className={`bdc-modo-badge ${modoCaldera === "manual" ? "badge-manual" : "badge-auto"}`}>
                                   {modoCaldera === "manual" ? "Manual" : "Auto"}
@@ -2176,7 +2203,8 @@ export default function Calentamiento({
                                       >
                                         <div className="bdc-manual-fila-info">
                                           <span className="bdc-manual-marca">{c.marca}</span>
-                                          <span className="bdc-manual-modelo">{c.modelo}</span>
+                                          <span className="bdc-manual-modelo">{ncCal(c)}</span>
+                                          <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{c.modelo}</span>
                                           <span className="bdc-manual-vel vel-1v">{c.tipoGas}</span>
                                           {esRecomendado && <span className="bdc-manual-badge-rec">★ Rec.</span>}
                                         </div>
@@ -2353,6 +2381,7 @@ export default function Calentamiento({
                           );
 
                           const sel = esManualActivo ? {
+                            id:          src.equipo.id,
                             marca:       src.equipo.marca,
                             modelo:      src.equipo.modelo,
                             cantidad:    src.cantidad,
@@ -2362,6 +2391,7 @@ export default function Calentamiento({
                             exceso:      src.exceso,
                             cubre:       src.cubre,
                           } : {
+                            id:          src.seleccion.id ?? calentadoresElectricos.find(e=>e.marca===src.seleccion.marca&&e.modelo===src.seleccion.modelo)?.id,
                             marca:       src.seleccion.marca,
                             modelo:      src.seleccion.modelo,
                             cantidad:    src.seleccion.cantidad,
@@ -2381,7 +2411,7 @@ export default function Calentamiento({
                                 <IconoCalentadorElectrico />
                                 <div className="bdc-rec-titulo">
                                   <span className="bdc-rec-label">{modoCE === "manual" ? "Selección manual" : "Recomendado"}</span>
-                                  <span className="bdc-rec-modelo">{sel.marca} · {sel.modelo}</span>
+                                  <span className="bdc-rec-modelo">{sel.marca} · {ncCal(sel)}{sel.capUnitaria && <span style={{color:"#7dd3fc",fontSize:"0.82em"}}> {fmtBTU(sel.capUnitaria)}</span>}{mostrarCodigoCal(sel) && <span style={{color:"#94a3b8",fontSize:"0.8em"}}> {sel.modelo}</span>}</span>
                                 </div>
                                 <span className={`bdc-modo-badge ${modoCE === "manual" ? "badge-manual" : "badge-auto"}`}>
                                   {modoCE === "manual" ? "Manual" : "Auto"}
@@ -2541,7 +2571,8 @@ export default function Calentamiento({
                                       >
                                         <div className="bdc-manual-fila-info">
                                           <span className="bdc-manual-marca">{eq.marca}</span>
-                                          <span className="bdc-manual-modelo">{eq.modelo}</span>
+                                          <span className="bdc-manual-modelo">{ncCal(eq)}</span>
+                                          <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{eq.modelo}</span>
                                           {esRecomendado && <span className="bdc-manual-badge-rec">★ Rec.</span>}
                                         </div>
                                         <div className="bdc-manual-fila-cap">{fmtBTU(eq.specs.capacidadCalentamiento)} BTU/h</div>

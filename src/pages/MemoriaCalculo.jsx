@@ -876,8 +876,11 @@ function TabPerfilTermico({ perfilTermico }) {
     { key:"transmision",  label:"Transmisión",        color:"rgba(163,163,163,0.85)"},
     { key:"infinity",     label:"Infinity",           color:"rgba(34,197,94,0.85)"  },
     { key:"canal",        label:"Canal perimetral",   color:"rgba(96,165,250,0.85)" },
-    { key:"tuberia",      label:"Tubería",            color:"rgba(251,191,36,0.85)" },
+    { key:"tuberia",      label:"+ Tubería",          color:"rgba(251,191,36,0.85)" },
   ].filter(p => (parseFloat(perdidasBTU[p.key]) || 0) > 0);
+
+  const perdidaClima = ["evaporacion","conveccion","radiacion","transmision","infinity","canal"]
+    .reduce((s, k) => s + (parseFloat(perdidasBTU[k]) || 0), 0);
 
   // Dibujar gráfica de pie con canvas puro (sin Chart.js externo)
   useEffect(() => {
@@ -973,8 +976,8 @@ function TabPerfilTermico({ perfilTermico }) {
           <p style={tituloStyle}>Tabla climática mensual</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.72rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
             <thead><tr style={{ background:"#0f172a" }}>
-              {["Mes","T° Min","T° Prom","T° Max","Humedad","Viento","Calentar"].map(h => (
-                <th key={h} style={thS}>{h}</th>
+              {["Mes","T° Min","T° Prom","T° Max","Humedad","Viento","Pérdida clima (BTU/h)","Calentar"].map(h => (
+                <th key={h} style={{...thS, textAlign:"center"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -994,6 +997,9 @@ function TabPerfilTermico({ perfilTermico }) {
                     <td style={tdS()}>{m.tMax}°C</td>
                     <td style={tdS()}>{m.humedad}%</td>
                     <td style={tdS()}>{m.viento}</td>
+                    <td style={tdS({ color: esMasFrio ? "#f97316" : m.perdidaClima > 0 ? "#94a3b8" : "#475569", fontWeight: esMasFrio ? 700 : 400 })}>
+                      {m.perdidaClima > 0 ? m.perdidaClima.toLocaleString("es-MX") : "—"}
+                    </td>
                     <td style={tdS({ color: seleccionado ? "#34d399" : "#475569" })}>
                       {seleccionado ? "✓" : "—"}
                     </td>
@@ -1021,15 +1027,28 @@ function TabPerfilTermico({ perfilTermico }) {
               {PERDIDAS.map((p, i) => {
                 const val = parseFloat(perdidasBTU[p.key]) || 0;
                 const pct = total > 0 ? (val / total * 100).toFixed(1) : "0.0";
+                const esTuberia = p.key === "tuberia";
                 return (
-                  <tr key={p.key} style={{ background: i%2===0?"#1e293b":"#162032" }}>
-                    <td style={tdS({ textAlign:"left", display:"flex", alignItems:"center", gap:"6px" })}>
-                      <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
-                      {p.label}
-                    </td>
-                    <td style={tdS({ color:"#e2e8f0", fontWeight:500 })}>{fmtBTU(val)}</td>
-                    <td style={tdS({ color:"#94a3b8" })}>{pct}%</td>
-                  </tr>
+                  <>
+                    {esTuberia && perdidaClima > 0 && (
+                      <tr key="subtotal-clima" style={{ background:"#162032", borderTop:"1px dashed #334155" }}>
+                        <td style={tdS({ textAlign:"left", color:"#94a3b8", fontStyle:"italic" })}>
+                          <span style={{ width:"10px", height:"10px", display:"inline-block", marginRight:"6px" }} />
+                          Subtotal clima
+                        </td>
+                        <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{fmtBTU(perdidaClima)}</td>
+                        <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{total > 0 ? (perdidaClima/total*100).toFixed(1) : "0.0"}%</td>
+                      </tr>
+                    )}
+                    <tr key={p.key} style={{ background: esTuberia ? "#1a2d1a" : i%2===0?"#1e293b":"#162032" }}>
+                      <td style={tdS({ textAlign:"left", display:"flex", alignItems:"center", gap:"6px", color: esTuberia ? "#fbbf24" : undefined })}>
+                        <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
+                        {p.label}
+                      </td>
+                      <td style={tdS({ color: esTuberia ? "#fbbf24" : "#e2e8f0", fontWeight:500 })}>{fmtBTU(val)}</td>
+                      <td style={tdS({ color:"#94a3b8" })}>{pct}%</td>
+                    </tr>
+                  </>
                 );
               })}
               <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>

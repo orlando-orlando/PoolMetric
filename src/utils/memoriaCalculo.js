@@ -7,6 +7,12 @@
 
 import { retorno }        from "./retorno";
 import { getClimaMensual } from "../data/clima";
+import { qEvaporacion }  from "./qEvaporacion";
+import { qConveccion }   from "./qConveccion";
+import { qRadiacion }    from "./qRadiacion";
+import { qTransmision }  from "./qTransmision";
+import { qInfinity }     from "./qInfinity";
+import { qCanal }        from "./qCanal";
 import { desnatador } from "./desnatador";
 import { barredora }  from "./barredora";
 import { drenFondo }  from "./drenFondo";
@@ -327,12 +333,15 @@ export function generarMemoriaCalculo({
   estadoBomba, equilibrio,
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
-  cargas,
+  cargas, tipoSistema: tipoSistemaArg, sistemaActivo: sistemaActivoArg,
 }) {
   if (!datosEmpotrable || !flujoMaxGlobal)
     throw new Error("Faltan datos de empotrable o flujo maximo.");
 
   const calentamiento   = datosPorSistema?.calentamiento;
+  // Datos del sistema activo (dimensiones, geometría)
+  const tipoSistema   = tipoSistemaArg ?? datosPorSistema?.tipoSistema ?? null;
+  const sistemaActivo = sistemaActivoArg ?? (tipoSistema ? (datosPorSistema?.[tipoSistema] ?? null) : null);
   const iteraciones     = equilibrio?.iteraciones ?? [];
   const equilibrioFinal = equilibrio?.equilibrio ?? null;
 
@@ -445,14 +454,55 @@ export function generarMemoriaCalculo({
     const mesMasFrio = mesesSel.length
       ? mesesSel.reduce((f, a) => a.tProm < f.tProm ? a : f)
       : null;
+    // Calcular pérdida clima por mes para tabla
+    // Geometría del sistema activo
+    const cuerpos      = sistemaActivo?.cuerpos ?? [];
+    const profMaxSistema = cuerpos.length
+      ? Math.max(...cuerpos.map(c => Math.max(parseFloat(c.profMin)||0, parseFloat(c.profMax)||0)))
+      : 0;
+    const areaTotal       = parseFloat(datosEmpotrable?.area) || cuerpos.reduce((s, c) => {
+      const a = parseFloat(c.largo||0) * parseFloat(c.ancho||0);
+      return s + (isNaN(a) ? 0 : a);
+    }, 0) || 0;
+    const volumenTotal    = calentamiento.volumenTotal   ?? 0;
+    const profundidadProm = calentamiento.profundidadPromedio ?? 0;
+    const tempDeseada     = calentamiento.tempDeseada ?? 0;
+    const cubierta        = calentamiento.cubierta ?? false;
+    const techada         = calentamiento.techada  ?? false;
+    const desborde        = sistemaActivo?.desborde ?? "";
+    const largoInfinity   = parseFloat(sistemaActivo?.largoInfinity) || 0;
+    const largoCanal      = parseFloat(sistemaActivo?.largoCanal)    || 0;
+
+    const calcBTUMes = (m) => {
+      try {
+        const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadProm, tempDeseada, techada, cubierta };
+        let btu = (qEvaporacion(dt, m) || 0) + (qConveccion(dt, m) || 0)
+                + (qRadiacion(dt, m)   || 0)
+                + (qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0);
+        if ((desborde === "infinity" || desborde === "ambos") && largoInfinity > 0 && profMaxSistema > 0)
+          btu += qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity, tempDeseada }, m) || 0;
+        if ((desborde === "canal" || desborde === "ambos") && largoCanal > 0)
+          btu += qCanal({ largoCanal, tempDeseada }, m) || 0;
+        return Math.round(btu);
+      } catch { return 0; }
+    };
+
+    const tablaClimaConBTU = tablaClima.map(m => ({ ...m, perdidaClima: calcBTUMes(m) }));
+
+    // mesMasFrio = mayor pérdida clima entre meses seleccionados
+    const mesesSelFiltrados = tablaClimaConBTU.filter(m => mesesCalentar[m.mes]);
+    const mesMasFrioReal = mesesSelFiltrados.length
+      ? mesesSelFiltrados.reduce((max, a) => a.perdidaClima > max.perdidaClima ? a : max)
+      : null;
+
     perfilTermico = {
       ciudad:      calentamiento.ciudad,
       tempDeseada: calentamiento.tempDeseada,
       cubierta:    calentamiento.cubierta,
       techada:     calentamiento.techada,
       mesesCalentar,
-      tablaClima,
-      mesMasFrio,
+      tablaClima:  tablaClimaConBTU,
+      mesMasFrio:  mesMasFrioReal ?? mesMasFrio,
       perdidasBTU: calentamiento.perdidasBTU,
       perdidaTotalBTU: calentamiento.perdidaTotalBTU,
     };
