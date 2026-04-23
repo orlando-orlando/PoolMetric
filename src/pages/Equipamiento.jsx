@@ -2132,8 +2132,22 @@ function ResumenEquiposConfirmacion({
   sistemaActivo = null,
 }) {
   const [confirmado, setConfirmado] = useState(false);
+  const [equiposConfirmados, setEquiposConfirmados] = useState(null);
 
   const equiposRecalc = resultado?.equilibrio?.equipos ?? {};
+  const hayCambiosCheck = Object.values(equiposRecalc).some(e => e?.cambio);
+
+  // Guardar punto de operación automáticamente cuando no hay cambios pendientes
+  useEffect(() => {
+    if (!hayCambiosCheck && resultado?.equilibrio?.flujo != null && onAjustarCargas) {
+      onAjustarCargas({
+        equipos: equiposRecalc,
+        flujo:   resultado.equilibrio.flujo,
+        cdt:     resultado.equilibrio.carga ?? null,
+      });
+    }
+  }, [resultado?.equilibrio?.flujo, hayCambiosCheck]);
+
 
   // ── Sección: grupo de filas ──
   const FilaEquipo = ({ color = "#94a3b8", nombre, subNombre, detalle, carga, badge, badgeColor }) => (
@@ -2334,6 +2348,7 @@ function ResumenEquiposConfirmacion({
                   flujo:   resultado?.equilibrio?.flujo ?? null,
                   cdt:     resultado?.equilibrio?.carga ?? null,
                 });
+                setEquiposConfirmados(equiposRecalc);
                 setConfirmado(true);
               }}
             >
@@ -2378,6 +2393,7 @@ function ResumenEquiposConfirmacion({
                 vol:              volumenTotalVal ?? null,
                 estadoBomba,
                 equilibrio:       resultado ?? null,
+                equiposConfirmados: equiposConfirmados ?? null,
                 datosPorSistema,
                 resultadoClorador,
                 sistemasSeleccionadosSanit,
