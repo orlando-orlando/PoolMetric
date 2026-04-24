@@ -2468,14 +2468,16 @@ export default function Equipamiento({
   flujoFiltradoVal = null,
   volumenTotalVal  = null,
 }) {
-  const [tabActiva, setTabActiva] = useState("sanitizacion");
+  const eqPrev = datosPorSistema?.equipamiento ?? {};
 
-  const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState({});
-  const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState({});
-  const [cargas,      setCargas]      = useState({});
-  const [estados,     setEstados]     = useState({});
-  const [estadoBomba, setEstadoBomba] = useState(null);
-  const [ajustesConfirmados, setAjustesConfirmados] = useState({});
+  const [tabActiva, setTabActiva] = useState(eqPrev.tabActiva ?? "sanitizacion");
+
+  const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
+  const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
+  const [cargas,      setCargas]      = useState(eqPrev.cargas      ?? {});
+  const [estados,     setEstados]     = useState(eqPrev.estados     ?? {});
+  const [estadoBomba, setEstadoBomba] = useState(eqPrev.estadoBomba ?? null);
+  const [ajustesConfirmados, setAjustesConfirmados] = useState(eqPrev.ajustesConfirmados ?? {});
 
   const setCarga = (key, valor) => setCargas(prev => prev[key] === valor ? prev : { ...prev, [key]: valor });
   const setEstado = (key, valor) => setEstados(prev => {
@@ -2483,13 +2485,31 @@ export default function Equipamiento({
     return { ...prev, [key]: valor };
   });
 
+  // Persistir selecciones en datosPorSistema para sobrevivir navegación
   useEffect(() => {
     if (onSanitizacionChange) onSanitizacionChange(sistemasSeleccionadosSanit);
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), sistemasSeleccionadosSanit } }));
   }, [sistemasSeleccionadosSanit]);
+
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), sistemasSeleccionadosFilt } }));
+  }, [sistemasSeleccionadosFilt]);
+
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), tabActiva } }));
+  }, [tabActiva]);
 
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas } }));
   }, [cargas]);
+
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), estados } }));
+  }, [estados]);
+
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), estadoBomba } }));
+  }, [estadoBomba]);
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);

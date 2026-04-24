@@ -27,6 +27,89 @@ import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+/* ── InputLimitado (rangos de entrada) ── */
+function clampVal(val, min, max) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return { valor: val, aviso: null };
+  if (n < min) return { valor: String(min), aviso: `Mínimo ${min}` };
+  if (n > max) return { valor: String(max), aviso: `Máximo ${max}` };
+  return { valor: val, aviso: null };
+}
+
+/* Input numérico con límites — muestra hint en rojo si se excede */
+function InputLimitado({ value, onChange, min, max, placeholder, className, onMouseEnter, onMouseLeave, step = 0.01 }) {
+  const [aviso, setAviso] = useState(null);
+
+  const handleKeyDown = (e) => {
+    const allowed = ["Backspace","Delete","Tab","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","."];
+    // Bloquear letras, símbolos, negativos
+    if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) { e.preventDefault(); return; }
+    if (e.key === "-") { e.preventDefault(); return; }
+    // Bloquear segundo punto
+    if (e.key === "." && String(value).includes(".")) { e.preventDefault(); return; }
+    // Bloquear dígito si ya se excede el máximo
+    if (/^\d$/.test(e.key)) {
+      const cur = String(value ?? "");
+      const next = cur + e.key;
+      const partes = next.split(".");
+      // Si no hay decimales aún, verificar que el entero no supere el máximo
+      if (partes.length === 1) {
+        const n = parseFloat(next);
+        if (!isNaN(n) && n > max) { e.preventDefault(); return; }
+      }
+    }
+  };
+
+  const handleChange = (e) => {
+    let raw = e.target.value;
+    // Quitar caracteres no válidos
+    raw = raw.replace(/[^0-9.]/g, "");
+    // Solo un punto
+    const partes = raw.split(".");
+    if (partes.length > 2) raw = partes[0] + "." + partes.slice(1).join("");
+    // Máximo 2 decimales
+    const p2 = raw.split(".");
+    if (p2[1] !== undefined) raw = p2[0] + "." + p2[1].slice(0, 2);
+    onChange(raw);
+    setAviso(null);
+  };
+
+  const handleBlur = (e) => {
+    const { valor, aviso: a } = clampVal(e.target.value, min, max);
+    if (valor !== e.target.value) onChange(valor);
+    setAviso(a);
+    if (a) setTimeout(() => setAviso(null), 2500);
+  };
+
+  return (
+    <div style={{ position: "relative", width: "100%" }}>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        placeholder={placeholder ?? ""}
+        className={className}
+        style={{ width: "100%", boxSizing: "border-box" }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
+      {aviso && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 2px)", left: 0,
+          fontSize: "0.65rem", color: "#f97316", fontWeight: 600,
+          background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.3)",
+          borderRadius: "4px", padding: "2px 6px", whiteSpace: "nowrap", zIndex: 10,
+        }}>
+          {aviso}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── GraficaPie memoizada — no se re-renderiza si pieData y pieOptions no cambian ── */
 const GraficaPie = memo(({ data, options }) => (
   <Pie data={data} options={options} />
@@ -279,7 +362,7 @@ export default function Calentamiento({
     if (!Object.values(mesesCalentar).some(v => v)) return false;
     if (cubierta === null) return false;
     if (techada === null) return false;
-    if (!usarBombaCalentamiento) return false;
+    // usarBombaCalentamiento bloqueado — módulo próximamente
     if (!sistemaCalentamientoCompleto) return false;
     return true;
   };
@@ -291,7 +374,7 @@ export default function Calentamiento({
     if (!Object.values(mesesCalentar).some(v => v)) errores.meses = true;
     if (cubierta === null) errores.cubierta = true;
     if (techada === null) errores.techada = true;
-    if (!usarBombaCalentamiento) errores.usarBombaCalentamiento = true;
+    // usarBombaCalentamiento bloqueado — módulo próximamente
     if (!sistemaCalentamientoCompleto) errores.sistemasCalentamiento = true;
     return errores;
   };
@@ -935,14 +1018,25 @@ export default function Calentamiento({
     default: "Configuración térmica del sistema"
   };
 
-  const pieData = useMemo(() => ({
-    labels: ["Evaporación", "Convección", "Radiación", "Transmisión", "Infinity", "Canal Perimetral", "Tubería"],
-    datasets: [{
-      data: [perdidasBTU.evaporacion, perdidasBTU.conveccion, perdidasBTU.radiacion, perdidasBTU.transmision, perdidasBTU.infinity, perdidasBTU.canal, perdidasBTU.tuberia],
-      backgroundColor: ["rgba(30,64,175,0.85)","rgba(56,189,248,0.85)","rgba(251,113,133,0.85)","rgba(163,163,163,0.85)","rgba(34,197,94,0.85)","rgba(96,165,250,0.85)","rgba(251,191,36,0.85)"],
-      borderColor: "rgba(15,23,42,0.8)", borderWidth: 2,
-    }]
-  }), [perdidasBTU]);
+  const pieData = useMemo(() => {
+    const entradas = [
+      { label: "Evaporación",     valor: perdidasBTU.evaporacion,  color: "rgba(30,64,175,0.85)"   },
+      { label: "Convección",      valor: perdidasBTU.conveccion,   color: "rgba(56,189,248,0.85)"  },
+      { label: "Radiación",       valor: perdidasBTU.radiacion,    color: "rgba(251,113,133,0.85)" },
+      { label: "Transmisión",     valor: perdidasBTU.transmision,  color: "rgba(163,163,163,0.85)" },
+      { label: "Infinity",        valor: perdidasBTU.infinity,     color: "rgba(34,197,94,0.85)"   },
+      { label: "Canal Perimetral",valor: perdidasBTU.canal,        color: "rgba(96,165,250,0.85)"  },
+      { label: "Tubería",         valor: perdidasBTU.tuberia,      color: "rgba(251,191,36,0.85)"  },
+    ].filter(e => e.valor > 0);
+    return {
+      labels: entradas.map(e => e.label),
+      datasets: [{
+        data: entradas.map(e => e.valor),
+        backgroundColor: entradas.map(e => e.color),
+        borderColor: "rgba(15,23,42,0.8)", borderWidth: 2,
+      }]
+    };
+  }, [perdidasBTU]);
 
   /* pieOptions es constante — definida fuera del componente (ver debajo de ChartJS.register) */
 
@@ -1094,21 +1188,23 @@ export default function Calentamiento({
                       <div className="sistema-detalle-campos">
                         <div className="campo">
                           <label>Distancia del equipo al cuarto de maquinas (m)</label>
-                          <input type="number" min="0"
-                            className={`input-azul ${camposIncompletos && datos.distancia === "" ? "input-error" : ""}`}
+                          <InputLimitado
+                            min={1} max={150}
                             value={datos.distancia}
-                            onChange={e => updateSistemaField(key, "distancia", e.target.value)}
-                            placeholder="ej. 5"
+                            onChange={v => updateSistemaField(key, "distancia", v)}
+                            className={`input-azul ${camposIncompletos && datos.distancia === "" ? "input-error" : ""}`}
                           />
+                          <span className="input-hint">rango: 1 – 150 m</span>
                         </div>
                         <div className="campo">
                           <label>Altura vertical sobre espejo de agua (m)</label>
-                          <input type="number" min="0"
-                            className={`input-azul ${camposIncompletos && datos.alturaVertical === "" ? "input-error" : ""}`}
+                          <InputLimitado
+                            min={0.1} max={30}
                             value={datos.alturaVertical}
-                            onChange={e => updateSistemaField(key, "alturaVertical", e.target.value)}
-                            placeholder="ej. 2"
+                            onChange={v => updateSistemaField(key, "alturaVertical", v)}
+                            className={`input-azul ${camposIncompletos && datos.alturaVertical === "" ? "input-error" : ""}`}
                           />
+                          <span className="input-hint">rango: 0.1 – 30 m</span>
                         </div>
                         {(key === "caldera" || key === "calentadorElectrico") && (
                           <div className="campo campo-tasa-elevacion">
@@ -1145,11 +1241,13 @@ export default function Calentamiento({
               </div>
               <div className="campo" onMouseEnter={() => !formularioBloqueado && setHoveredField("tempDeseada")} onMouseLeave={() => setHoveredField(null)}>
                 <label>Temperatura deseada (°C)</label>
-                <input type="number"
-                  className={`input-azul ${mostrarErrores && errores.tempDeseada ? "input-error" : ""}`}
+                <InputLimitado
+                  min={26} max={40}
                   value={tempDeseadaInput}
-                  onChange={e => { const val = e.target.value; setTempDeseadaInput(val); setTempDeseada(val === "" ? null : Number(val)); }}
+                  onChange={v => { setTempDeseadaInput(v); setTempDeseada(v === "" ? null : Number(v)); }}
+                  className={`input-azul ${mostrarErrores && errores.tempDeseada ? "input-error" : ""}`}
                 />
+                <span className="input-hint">rango: 26 – 40 °C</span>
               </div>
             </div>
             <div className="selector-radios">
@@ -1172,11 +1270,12 @@ export default function Calentamiento({
               <span>Análisis climático y pérdidas energéticas</span>
             </div>
 
-            <div className="layout-clima-bdc-fila1">
+            <div className="layout-clima-bdc-fila1" style={{ alignItems: "stretch" }}>
               <div className="layout-clima-bdc-celda celda-grafica"
+                style={{ display:"flex", alignItems:"center", justifyContent:"center" }}
                 onMouseEnter={() => !formularioBloqueado && setHoveredField("grafica")}
                 onMouseLeave={() => setHoveredField(null)}>
-                <div className="grafica-mini">
+                <div className="grafica-mini" style={{ width:"100%", height:"100%", minHeight:"420px" }}>
                   <GraficaPie data={pieData} options={PIE_OPTIONS} />
                 </div>
               </div>
@@ -1184,7 +1283,7 @@ export default function Calentamiento({
               <div className="layout-clima-bdc-celda celda-tabla"
                 onMouseEnter={() => !formularioBloqueado && setHoveredField("meses")}
                 onMouseLeave={() => setHoveredField(null)}>
-                <div className="tabla-clima-card">
+                <div className="tabla-clima-card" style={{ height:"auto", maxHeight:"none" }}>
                   <table className="tabla-clima-pro">
                     <thead>
                       <tr>
@@ -1256,7 +1355,7 @@ export default function Calentamiento({
                             <td>{mesMasFrio.tProm}</td>
                             <td>{mesMasFrio.viento}</td>
                             <td>{mesMasFrio.humedad}</td>
-                            <td style={{ color:"#f97316", fontWeight:700, textAlign:"right" }}>
+                            <td style={{ color:"#f97316", fontWeight:700, textAlign:"center" }}>
                               {mesMasFrio.perdidaTotal ? Math.round(mesMasFrio.perdidaTotal).toLocaleString("es-MX") : "—"}
                             </td>
                           </tr>
@@ -2676,14 +2775,19 @@ export default function Calentamiento({
           )}
 
           {/* ── MOTOBOMBA ── */}
-          <div className="selector-grupo">
-            <div className="selector-subtitulo">Motobomba para sistema de calentamiento</div>
-            <div className={`selector-radios ${mostrarErrores && errores.usarBombaCalentamiento ? "grupo-radio-error" : ""}`}
-              onMouseEnter={() => !formularioBloqueado && setHoveredField("usarBombaCalentamiento")}
-              onMouseLeave={() => setHoveredField(null)}
-            >
-              <label><input type="radio" checked={usarBombaCalentamiento === "si"} onChange={() => setUsarBombaCalentamiento("si")} /> Sí, motobomba independiente</label>
-              <label><input type="radio" checked={usarBombaCalentamiento === "no"} onChange={() => setUsarBombaCalentamiento("no")} /> No, comparte motobomba de filtrado</label>
+          <div className="selector-grupo" style={{ border:"1px solid rgba(167,139,250,0.25)", background:"rgba(167,139,250,0.04)" }}>
+            <div className="selector-subtitulo" style={{ borderLeftColor:"#a78bfa", color:"#c4b5fd" }}>
+              Motobomba para sistema de calentamiento
+              <span style={{ marginLeft:"0.5rem", fontSize:"0.62rem", fontWeight:600, color:"#a78bfa", background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:"10px", padding:"1px 7px", verticalAlign:"middle", letterSpacing:"0.03em" }}>Próximamente</span>
+            </div>
+            <div className="bloque-proximamente">
+              <div className="selector-radios">
+                <label><input type="radio" disabled /> Sí, motobomba independiente</label>
+                <label><input type="radio" disabled /> No, comparte motobomba de filtrado</label>
+              </div>
+            </div>
+            <div style={{ fontSize:"0.68rem", color:"#64748b", marginTop:"0.3rem" }}>
+              Este módulo estará disponible en una próxima actualización.
             </div>
           </div>
 
