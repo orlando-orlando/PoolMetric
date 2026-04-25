@@ -18,6 +18,9 @@
 
 /* === Reset === */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html {
+  font-size: 16.3px; /* base era 16px — sube todo ~6% proporcionalmente */
+}
 html, body {
   height: 100%;
   background-color: var(--color-fondo);
@@ -935,3 +938,895 @@ select option:hover { background-color: #d1d5db; }
 /* ── Punto de operación ── */
 .resultado-total-btn--equilibrio { color: #34d399 !important; border-top: 1px solid rgba(52,211,153,0.25); background: rgba(52,211,153,0.06); }
 .resultado-total-btn--equilibrio:hover { background: rgba(52,211,153,0.1); }
+
+/* ==========================================================
+   ☀️ TEMA CLARO — overrides completos
+   ========================================================== */
+
+/* ── Contenedor principal ── */
+body.tema-claro .selector-tecnico {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(29,111,168,0.15);
+}
+
+/* ── Tarjetas de sistema (Alberca, Chapoteadero, etc.) ── */
+body.tema-claro .fila-sistema {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .fila-sistema:hover {
+  background: rgba(29,111,168,0.06);
+  border-color: rgba(29,111,168,0.3);
+}
+body.tema-claro .fila-sistema.activo {
+  background: linear-gradient(90deg, rgba(29,111,168,0.12), rgba(29,111,168,0.04));
+  border-left-color: #1d6fa8;
+}
+body.tema-claro .sistema-nombre { color: #1e293b; }
+body.tema-claro .sistema-meta   { color: #475569; }
+
+/* ── Selector grupo (inputs) ── */
+body.tema-claro .selector-grupo {
+  background: rgba(255,255,255,0.75);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .selector-grupo:hover {
+  background: rgba(255,255,255,0.95);
+  border-color: rgba(29,111,168,0.35);
+}
+body.tema-claro .selector-grupo .selector-subtitulo { color: #1e293b; }
+
+/* ── Campos ── */
+body.tema-claro .campo {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .campo:hover {
+  background: #ffffff;
+  border-color: rgba(29,111,168,0.4);
+}
+body.tema-claro .campo label { color: #475569; }
+body.tema-claro .campo input,
+body.tema-claro .campo select { color: #1e293b; }
+body.tema-claro .campo input::placeholder { color: #94a3b8; }
+body.tema-claro .input-hint { color: #64748b; }
+
+/* ── Radios ── */
+body.tema-claro .selector-radios label {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.15);
+  color: #334155;
+}
+body.tema-claro .selector-radios label:hover {
+  background: rgba(29,111,168,0.06);
+  border-color: rgba(29,111,168,0.35);
+  color: #1e293b;
+}
+
+/* ── Textos generales panel derecho ── */
+body.tema-claro .selector-titulo  { color: #1e293b; }
+body.tema-claro .selector-subtitulo { color: #475569; }
+body.tema-claro .selector-titulo-sistema { color: #1e293b; }
+body.tema-claro .selector-subtitulo-tecnico { color: #475569; }
+body.tema-claro .selector-subtitulo-hint { color: #64748b; }
+
+/* ── Botones ── */
+body.tema-claro .btn-primario {
+  background: linear-gradient(135deg, #1d6fa8, #155e8a);
+  border-color: rgba(29,111,168,0.4);
+  color: #ffffff;
+}
+body.tema-claro .btn-primario:hover {
+  background: linear-gradient(135deg, #2480c0, #1d6fa8);
+}
+body.tema-claro .btn-secundario {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.25);
+  color: #1d6fa8;
+}
+body.tema-claro .btn-secundario:hover {
+  background: rgba(29,111,168,0.08);
+  border-color: rgba(29,111,168,0.45);
+  color: #155e8a;
+}
+body.tema-claro .btn-link { color: #1d6fa8; }
+body.tema-claro .btn-link:hover { color: #155e8a; }
+
+/* ── Footer selector ── */
+body.tema-claro .selector-footer,
+body.tema-claro .selector-footer.fijo {
+  background: rgba(236,237,240,0.9);
+  border-top-color: rgba(29,111,168,0.12);
+  color: #475569;
+}
+body.tema-claro .footer-highlight { color: #1d6fa8; }
+
+/* ── Tarjetas sistema cal (calentamiento) ── */
+body.tema-claro .sistema-cal-card {
+  background: rgba(255,255,255,0.75);
+  border-color: rgba(29,111,168,0.2);
+}
+body.tema-claro .sistema-cal-card:hover {
+  background: rgba(29,111,168,0.06);
+  border-color: rgba(29,111,168,0.4);
+}
+body.tema-claro .sistema-cal-card.activo {
+  background: rgba(29,111,168,0.1);
+  border-color: rgba(29,111,168,0.7);
+}
+body.tema-claro .sistema-cal-label { color: #334155; }
+body.tema-claro .sistema-cal-card.activo .sistema-cal-label { color: #1e3a5f; }
+
+/* ── Detalle card calentamiento ── */
+body.tema-claro .sistema-detalle-card {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(29,111,168,0.2);
+}
+body.tema-claro .sistema-detalle-titulo { color: #1e293b; }
+body.tema-claro .tasa-btn {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.2);
+  color: #475569;
+}
+body.tema-claro .tasa-btn:hover {
+  border-color: rgba(29,111,168,0.5);
+  color: #1d6fa8;
+}
+body.tema-claro .tasa-btn.tasa-activa {
+  background: rgba(29,111,168,0.1);
+  border-color: rgba(29,111,168,0.7);
+  color: #1d6fa8;
+}
+
+/* ── Tabla clima ── */
+body.tema-claro .tabla-clima-card {
+  background: rgba(255,255,255,0.85);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .tabla-clima-pro th { color: #1e293b; border-bottom-color: rgba(29,111,168,0.15); }
+body.tema-claro .tabla-clima-pro td { color: #334155; }
+body.tema-claro .resumen-titulo { color: #1e293b; }
+body.tema-claro .checkbox-raiz { color: #475569; }
+
+/* ── Gráfica ── */
+body.tema-claro .grafica-mini {
+  background: radial-gradient(60% 60% at center, rgba(29,111,168,0.08) 0%, rgba(236,237,240,0.6) 55%, rgba(220,222,226,0.8) 100%);
+  box-shadow: inset 0 0 0 1px rgba(29,111,168,0.12), 0 8px 20px rgba(0,0,0,0.08);
+}
+
+/* ── Layout clima bordes ── */
+body.tema-claro .layout-clima-bdc-fila1,
+body.tema-claro .layout-clima-bdc-fila2 {
+  background: rgba(255,255,255,0.5);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .celda-grafica,
+body.tema-claro .celda-bdc-rec {
+  border-right-color: rgba(29,111,168,0.1) !important;
+}
+
+/* ── Callout omitir ── */
+body.tema-claro .callout-omitir-calentamiento {
+  background: linear-gradient(90deg, rgba(29,111,168,0.08), rgba(255,255,255,0.6));
+  border-color: rgba(29,111,168,0.2);
+}
+body.tema-claro .callout-texto { color: #1e293b; }
+body.tema-claro .callout-texto span { color: #334155; }
+
+/* ── Equipamiento tabs ── */
+body.tema-claro .eq-root { background: transparent; }
+body.tema-claro .eq-header {
+  border-bottom-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .eq-titulo { color: #1e293b; }
+body.tema-claro .eq-tabs-wrapper {
+  background: rgba(236,237,240,0.95);
+  border-bottom-color: rgba(29,111,168,0.12);
+}
+body.tema-claro .eq-tab { color: #475569; }
+body.tema-claro .eq-tab--activa { color: #1d6fa8; }
+body.tema-claro .eq-tab:hover:not(.eq-tab--activa) {
+  color: #334155;
+  background: rgba(29,111,168,0.05);
+}
+body.tema-claro .eq-tabs-indicador { background: #1d6fa8; box-shadow: 0 0 6px rgba(29,111,168,0.4); }
+body.tema-claro .eq-contenido { background: transparent; }
+
+/* ── Eq selector cards ── */
+body.tema-claro .eq-selector-card {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .eq-selector-card:hover:not(.eq-selector-card--activo) {
+  background: rgba(29,111,168,0.05);
+  border-color: rgba(29,111,168,0.3);
+}
+body.tema-claro .eq-selector-card--activo {
+  background: rgba(29,111,168,0.08);
+  border-color: rgba(29,111,168,0.45);
+}
+body.tema-claro .eq-selector-card-label { color: #475569; }
+body.tema-claro .eq-selector-card--activo .eq-selector-card-label { color: #1e293b; }
+
+/* ── Eq bloques ── */
+body.tema-claro .eq-bloque {
+  background: rgba(255,255,255,0.6);
+  border-color: rgba(29,111,168,0.12);
+}
+body.tema-claro .eq-bloque-header {
+  background: rgba(29,111,168,0.05);
+  border-bottom-color: rgba(29,111,168,0.1);
+  color: #1d6fa8;
+}
+body.tema-claro .eq-bloque-header--succion { color: #475569; background: rgba(100,116,139,0.05); }
+body.tema-claro .eq-bloque-header--info    { color: #64748b; background: rgba(100,116,139,0.04); }
+body.tema-claro .eq-seccion-desc { color: #475569; }
+body.tema-claro .eq-sub-label { color: #64748b; border-top-color: rgba(29,111,168,0.1); }
+
+/* ── BDC cards ── */
+body.tema-claro .bdc-recomendada-card {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.2);
+}
+body.tema-claro .bdc-rec-label   { color: #64748b; }
+body.tema-claro .bdc-rec-modelo  { color: #1d6fa8; }
+body.tema-claro .bdc-hid-valor   { color: #1d6fa8; }
+body.tema-claro .bdc-stat-valor  { color: #1e293b; }
+body.tema-claro .bdc-stat-label  { color: #64748b; }
+body.tema-claro .bdc-demanda-label { color: #64748b; }
+body.tema-claro .bdc-rec-stats   { background: rgba(29,111,168,0.08); }
+body.tema-claro .bdc-rec-hidraulica { background: rgba(29,111,168,0.06); }
+body.tema-claro .bdc-selector-manual {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .bdc-manual-titulo { color: #64748b; }
+body.tema-claro .bdc-manual-fila {
+  background: rgba(255,255,255,0.6);
+  border-color: rgba(29,111,168,0.1);
+}
+body.tema-claro .bdc-manual-fila:hover { background: rgba(29,111,168,0.05); }
+body.tema-claro .bdc-manual-fila-activa {
+  background: rgba(29,111,168,0.08) !important;
+  border-color: rgba(29,111,168,0.35) !important;
+}
+body.tema-claro .bdc-manual-modelo { color: #1e293b; }
+body.tema-claro .bdc-manual-marca  { color: #64748b; }
+body.tema-claro .bdc-manual-fila-cap { color: #475569; }
+body.tema-claro .bdc-modo-toggle-wrapper {
+  background: rgba(255,255,255,0.6);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .bdc-modo-toggle {
+  background: rgba(236,237,240,0.9);
+  border-color: rgba(29,111,168,0.2);
+}
+body.tema-claro .bdc-modo-btn { color: #475569; }
+body.tema-claro .bdc-modo-btn:hover:not(.bdc-modo-activo) { color: #334155; }
+body.tema-claro .bdc-modo-btn.bdc-modo-activo {
+  background: rgba(29,111,168,0.12);
+  border-color: rgba(29,111,168,0.4);
+  color: #1d6fa8;
+}
+body.tema-claro .bdc-auto-label { color: #475569; }
+body.tema-claro .bdc-auto-val   { color: #1e293b; }
+body.tema-claro .bdc-auto-fila.bdc-auto-total {
+  background: rgba(29,111,168,0.06);
+  border-color: rgba(29,111,168,0.15);
+}
+
+/* ── Toggles resultados ── */
+body.tema-claro .resultado-totales-bloque {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .resultado-toggle-bloque--filtrado { border-color: rgba(29,111,168,0.25); }
+body.tema-claro .resultado-toggle-btn--filtrado { background: rgba(29,111,168,0.05); color: #1d6fa8; }
+body.tema-claro .resultado-toggle-btn--filtrado:hover,
+body.tema-claro .resultado-toggle-btn--filtrado.abierto { background: rgba(29,111,168,0.1); }
+body.tema-claro .resultado-toggle-cuerpo--filtrado {
+  background: rgba(29,111,168,0.03);
+  border-top-color: rgba(29,111,168,0.12);
+}
+
+/* ── Tabla resultados panel izquierdo ── */
+body.tema-claro .panel-izquierdo .tabla-resultados th { color: #1e3a5f; }
+body.tema-claro .panel-izquierdo .tabla-resultados td { color: #1e293b; }
+body.tema-claro .tabla-resultados tr:hover {
+  background: rgba(29,111,168,0.08);
+  box-shadow: inset 3px 0 0 rgba(29,111,168,0.5);
+}
+
+/* ── Toggle boton panel izquierdo ── */
+body.tema-claro .toggle-boton { color: #1e293b; background: rgba(255,255,255,0.08); }
+body.tema-claro .toggle-boton:hover { background: rgba(29,111,168,0.08); }
+body.tema-claro .toggle-boton.activo {
+  background: rgba(29,111,168,0.12);
+  color: #1e293b;
+  border-left-color: #1d6fa8;
+}
+
+/* ── Encabezados sección panel derecho ── */
+body.tema-claro .grupo-sistema {
+  background: rgba(255,255,255,0.6);
+  border-color: rgba(29,111,168,0.15);
+}
+body.tema-claro .grupo-sistema-titulo { color: #334155; }
+body.tema-claro .grupo-sistema-subtitulo { color: #475569; }
+
+/* ── Desglose badges y filas ── */
+body.tema-claro .desglose-label { color: #334155; }
+body.tema-claro .desglose-valor { color: #1e293b; }
+body.tema-claro .fila-gobierna .desglose-label,
+body.tema-claro .fila-gobierna .desglose-valor { color: #1d6fa8; }
+body.tema-claro .fila-secundaria .desglose-label,
+body.tema-claro .fila-secundaria .desglose-valor { color: #64748b; }
+body.tema-claro .resultado-totales-desglose-total { color: #1d6fa8; border-top-color: rgba(29,111,168,0.2); }
+body.tema-claro .resultado-total-btn-titulo { color: #1e293b; }
+body.tema-claro .resultado-totales-desglose--equilibrio .desglose-label { color: #334155; }
+body.tema-claro .resultado-totales-desglose--equilibrio .desglose-valor { color: #1e293b; }
+
+/* ── Header badges equipamiento ── */
+body.tema-claro .eq-header-badge {
+  background: rgba(255,255,255,0.8);
+  border-color: rgba(29,111,168,0.2);
+  color: #334155;
+}
+body.tema-claro .eq-back-btn { color: #475569; }
+body.tema-claro .eq-back-btn:hover { color: #1d6fa8; background: rgba(29,111,168,0.06); }
+
+/* ── Scrollbar modo claro ── */
+body.tema-claro .seccion-resultados::-webkit-scrollbar-thumb { background: rgba(29,111,168,0.3); }
+body.tema-claro .seccion-resultados::-webkit-scrollbar-thumb:hover { background: rgba(29,111,168,0.5); }
+
+/* ==========================================================
+   ☀️ TEMA CLARO — Refinamiento v2
+   Tarjetas con sombra, panel izquierdo adaptado
+   ========================================================== */
+
+/* ── Panel izquierdo en modo claro ── */
+body.tema-claro .panel-izquierdo {
+  background: linear-gradient(180deg, #1e293b, #0f172a) !important;
+}
+/* El panel izquierdo siempre oscuro — textos ya están bien en blanco */
+
+/* ── Tarjetas sistema (Alberca, etc.) — fondo blanco + sombra ── */
+body.tema-claro .fila-sistema {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+body.tema-claro .fila-sistema:hover {
+  background: #f8faff !important;
+  border-color: rgba(29,111,168,0.3) !important;
+  box-shadow: 0 4px 16px rgba(29,111,168,0.12), 0 2px 4px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .fila-sistema.activo {
+  background: linear-gradient(90deg, rgba(29,111,168,0.08), rgba(29,111,168,0.02)) !important;
+  border-left: 3px solid #1d6fa8 !important;
+  box-shadow: 0 4px 16px rgba(29,111,168,0.1) !important;
+}
+
+/* ── Contenedor selector técnico ── */
+body.tema-claro .selector-tecnico {
+  background: rgba(255,255,255,0.6) !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Grupos de inputs — tarjeta blanca con sombra ── */
+body.tema-claro .selector-grupo {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .selector-grupo:hover {
+  border-color: rgba(29,111,168,0.3) !important;
+  box-shadow: 0 4px 14px rgba(29,111,168,0.1) !important;
+}
+
+/* ── Campos individuales ── */
+body.tema-claro .campo {
+  background: #f8fafc !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+}
+body.tema-claro .campo:hover {
+  background: #ffffff !important;
+  border-color: rgba(29,111,168,0.35) !important;
+  box-shadow: 0 2px 6px rgba(29,111,168,0.08) !important;
+}
+
+/* ── Radios ── */
+body.tema-claro .selector-radios label {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+body.tema-claro .selector-radios label:hover {
+  background: #f0f7ff !important;
+  border-color: rgba(29,111,168,0.35) !important;
+  box-shadow: 0 2px 6px rgba(29,111,168,0.1) !important;
+}
+
+/* ── Tarjetas sistema cal ── */
+body.tema-claro .sistema-cal-card {
+  background: #ffffff !important;
+  border: 1.5px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .sistema-cal-card:hover {
+  background: #f0f7ff !important;
+  border-color: rgba(29,111,168,0.4) !important;
+  box-shadow: 0 4px 14px rgba(29,111,168,0.12) !important;
+}
+body.tema-claro .sistema-cal-card.activo {
+  background: rgba(29,111,168,0.08) !important;
+  border-color: #1d6fa8 !important;
+  box-shadow: 0 0 0 3px rgba(29,111,168,0.12), 0 4px 14px rgba(29,111,168,0.1) !important;
+}
+
+/* ── Detalle card calentamiento ── */
+body.tema-claro .sistema-detalle-card {
+  background: #ffffff !important;
+  border: 1.5px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+
+/* ── Tabla clima ── */
+body.tema-claro .tabla-clima-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important;
+}
+
+/* ── Layout clima ── */
+body.tema-claro .layout-clima-bdc-fila1,
+body.tema-claro .layout-clima-bdc-fila2 {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07) !important;
+}
+
+/* ── BDC cards ── */
+body.tema-claro .bdc-recomendada-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.18) !important;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.07) !important;
+}
+body.tema-claro .bdc-selector-manual {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .bdc-manual-fila {
+  background: #f8fafc !important;
+  border: 1px solid rgba(29,111,168,0.1) !important;
+}
+body.tema-claro .bdc-manual-fila:hover {
+  background: #f0f7ff !important;
+}
+
+/* ── Totales y toggles resultados ── */
+body.tema-claro .resultado-totales-bloque {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .resultado-toggle-bloque--filtrado {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* ── Equipamiento cards ── */
+body.tema-claro .eq-bloque {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .eq-selector-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05) !important;
+}
+body.tema-claro .eq-selector-card:hover:not(.eq-selector-card--activo) {
+  background: #f0f7ff !important;
+  border-color: rgba(29,111,168,0.3) !important;
+  box-shadow: 0 4px 12px rgba(29,111,168,0.1) !important;
+}
+body.tema-claro .eq-selector-card--activo {
+  background: rgba(29,111,168,0.06) !important;
+  border-color: rgba(29,111,168,0.45) !important;
+  box-shadow: 0 0 0 3px rgba(29,111,168,0.1) !important;
+}
+body.tema-claro .eq-tabs-wrapper {
+  background: #f1f5f9 !important;
+  border-bottom: 1px solid rgba(29,111,168,0.12) !important;
+}
+body.tema-claro .bdc-modo-toggle-wrapper {
+  background: #f8fafc !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+}
+body.tema-claro .bdc-modo-toggle {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+}
+
+/* ── Grupo sistema equipamiento ── */
+body.tema-claro .grupo-sistema {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.12) !important;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.07) !important;
+}
+
+/* ── Bloque próximamente en modo claro ── */
+body.tema-claro .sistema-cal-card--proximamente {
+  background: #f8f6ff !important;
+  border-color: rgba(167,139,250,0.3) !important;
+}
+
+/* ==========================================================
+   ☀️ TEMA CLARO — Fix panel izquierdo textos y botón área
+   ========================================================== */
+
+/* ── Panel izquierdo: textos resultados visibles sobre fondo oscuro ── */
+body.tema-claro .panel-izquierdo .tabla-resultados th {
+  color: #93c5fd !important;
+  font-weight: 600;
+}
+body.tema-claro .panel-izquierdo .tabla-resultados td {
+  color: #f1f5f9 !important;
+}
+body.tema-claro .panel-izquierdo .tabla-resultados tr:hover {
+  background: rgba(29,111,168,0.2) !important;
+}
+
+/* Textos generales del panel izquierdo en modo claro */
+body.tema-claro .panel-izquierdo .selector-titulo,
+body.tema-claro .panel-izquierdo .titulo-panel {
+  color: #f1f5f9 !important;
+}
+
+/* Resultados generales labels */
+body.tema-claro .seccion-resultados .tabla-resultados th { color: #93c5fd !important; }
+body.tema-claro .seccion-resultados .tabla-resultados td { color: #f1f5f9 !important; }
+
+/* Toggle botones resultados sobre fondo oscuro */
+body.tema-claro .toggle-boton { color: #e2e8f0 !important; }
+body.tema-claro .toggle-boton.activo { color: #f1f5f9 !important; }
+
+/* ── Botón calcular área — visible en modo claro ── */
+body.tema-claro .btn-calculador-area {
+  background: rgba(29,111,168,0.08) !important;
+  border: 1px solid rgba(29,111,168,0.3) !important;
+  color: #1d6fa8 !important;
+}
+body.tema-claro .btn-calculador-area:hover {
+  background: rgba(29,111,168,0.15) !important;
+  border-color: rgba(29,111,168,0.5) !important;
+  color: #155e8a !important;
+}
+
+/* ── Campos en modo claro — label y valores visibles ── */
+body.tema-claro .selector-grupo .campo label { color: #334155 !important; }
+body.tema-claro .selector-grupo .campo input { color: #1e293b !important; }
+body.tema-claro .selector-grupo .campo select { color: #1e293b !important; }
+body.tema-claro .input-hint { color: #64748b !important; opacity: 1 !important; }
+
+/* ── Select dropdowns en modo claro ── */
+body.tema-claro select {
+  color: #1e293b !important;
+  background-color: #ffffff !important;
+}
+
+/* ── Resultado toggle desglose — visible ── */
+body.tema-claro .resultado-toggle-cuerpo--filtrado { background: #f0f7ff !important; }
+body.tema-claro .resultado-total-btn--flujo { background: rgba(52,211,153,0.08) !important; }
+body.tema-claro .resultado-total-btn--cdt   { background: rgba(29,111,168,0.06) !important; }
+body.tema-claro .resultado-total-btn-titulo { color: #1e293b !important; }
+
+/* ── PlaceholderResultados texto ── */
+body.tema-claro .panel-izquierdo p,
+body.tema-claro .panel-izquierdo span:not(.nav-text):not(.logo-nombre):not(.logo-subtitulo):not(.logo-nombre-acento) {
+  color: #94a3b8;
+}
+/* excepciones — nav y logo siempre claros */
+body.tema-claro .nav-item { color: #e5e7eb !important; }
+body.tema-claro .nav-item.activo { color: #90cdf4 !important; }
+body.tema-claro .logo-nombre { color: #c8e0f8 !important; }
+body.tema-claro .logo-nombre-acento { color: #29aaef !important; }
+body.tema-claro .logo-subtitulo { color: #7fb9e8 !important; }
+
+/* ==========================================================
+   ☀️ TEMA CLARO — Fix contraste BDC y calentamiento v3
+   ========================================================== */
+
+/* ── Labels BDC — más oscuros en modo claro ── */
+body.tema-claro .bdc-auto-label     { color: #334155 !important; }
+body.tema-claro .bdc-auto-val       { color: #1e293b !important; }
+body.tema-claro .bdc-demanda-label  { color: #334155 !important; }
+body.tema-claro .bdc-demanda-valor  { color: #1e293b !important; }
+body.tema-claro .bdc-stat-label     { color: #334155 !important; }
+body.tema-claro .bdc-stat-valor     { color: #1e293b !important; }
+body.tema-claro .bdc-manual-titulo  { color: #334155 !important; }
+body.tema-claro .bdc-hid-label      { color: #334155 !important; }
+body.tema-claro .bdc-hid-valor      { color: #1d6fa8 !important; }
+body.tema-claro .bdc-rec-label      { color: #475569 !important; }
+body.tema-claro .bdc-rec-modelo     { color: #1d6fa8 !important; }
+body.tema-claro .bdc-pendiente-txt  { color: #475569 !important; }
+body.tema-claro .bdc-manual-marca   { color: #475569 !important; }
+body.tema-claro .bdc-manual-modelo  { color: #1e293b !important; }
+body.tema-claro .bdc-manual-fila-cap { color: #334155 !important; }
+body.tema-claro .bdc-manual-cant-label { color: #475569 !important; }
+body.tema-claro .bdc-manual-cant-ctrl span { color: #1e293b !important; }
+body.tema-claro .bdc-hid-val-highlight { color: #1d6fa8 !important; }
+
+/* ── Stats row en modo claro ── */
+body.tema-claro .bdc-rec-stats {
+  background: rgba(29,111,168,0.06) !important;
+}
+body.tema-claro .bdc-stat-sep {
+  background: rgba(29,111,168,0.15) !important;
+}
+body.tema-claro .bdc-auto-sep {
+  background: rgba(29,111,168,0.12) !important;
+}
+body.tema-claro .bdc-auto-fila:hover {
+  background: rgba(29,111,168,0.04) !important;
+}
+body.tema-claro .bdc-auto-fila.bdc-auto-total {
+  background: rgba(29,111,168,0.08) !important;
+  border-color: rgba(29,111,168,0.2) !important;
+}
+
+/* ── Título sección hidráulica ── */
+body.tema-claro .bdc-hid-detalle-titulo { color: #1d6fa8 !important; }
+body.tema-claro .bdc-manual-hint { color: #64748b !important; }
+
+/* ── Textos inline hardcodeados en calentamiento ── */
+/* Los divs con style={{color:"#475569"}} se corrigen con selector de clase padre */
+body.tema-claro .celda-bdc-rec > div,
+body.tema-claro .bdc-selector-manual.bdc-inset {
+  color: #334155;
+}
+
+/* ── Modo toggle aviso déficit ── */
+body.tema-claro .bdc-modo-aviso-deficit {
+  color: #92400e !important;
+  background: rgba(251,191,36,0.12) !important;
+  border-color: rgba(251,191,36,0.3) !important;
+}
+
+/* ── Tabla resultados panel izquierdo — subheaders ── */
+body.tema-claro .resultado-subheader--perdidas { color: #94a3b8 !important; }
+body.tema-claro .resultado-subheader--equipo   { color: #90cdf4 !important; }
+body.tema-claro .resultado-subheader--cloro    { color: #6ee7b7 !important; }
+
+/* fix subheader filtrado sobre fondo oscuro */
+body.tema-claro .resultado-subheader--filtrado {
+  color: #7dd3fc !important;
+}
+
+/* ── Panel izquierdo — labels generales más visibles ── */
+body.tema-claro .panel-izquierdo .tabla-resultados th {
+  color: #bfdbfe !important;
+}
+body.tema-claro .panel-izquierdo .tabla-resultados td {
+  color: #f1f5f9 !important;
+}
+/* valores especiales coloreados — mantener su color */
+body.tema-claro .panel-izquierdo .td-flujo   { color: #34d399 !important; }
+body.tema-claro .panel-izquierdo .td-cdt     { color: #60a5fa !important; }
+body.tema-claro .panel-izquierdo .td-perdida { color: #fb923c !important; }
+body.tema-claro .panel-izquierdo .td-vel     { color: #e2e8f0 !important; }
+
+/* Flujo máx global y CDT total — destacar */
+body.tema-claro .panel-izquierdo .td-flujo-max { color: #34d399 !important; font-weight: 700 !important; }
+body.tema-claro .panel-izquierdo .td-cdt-total { color: #60a5fa !important; font-weight: 700 !important; }
+
+/* ── Sistema cal card label ── */
+body.tema-claro .sistema-cal-label { color: #1e293b !important; }
+body.tema-claro .sistema-cal-card.activo .sistema-cal-label { color: #1e3a5f !important; }
+
+/* ── Tasa elevación grid ── */
+body.tema-claro .tasa-elevacion-grid {
+  background: #f8fafc !important;
+  border-color: rgba(29,111,168,0.2) !important;
+}
+body.tema-claro .tasa-btn { background: #ffffff !important; color: #334155 !important; }
+body.tema-claro .tasa-btn:hover { color: #1d6fa8 !important; border-color: rgba(29,111,168,0.5) !important; }
+body.tema-claro .tasa-btn.tasa-activa { background: rgba(29,111,168,0.1) !important; color: #1d6fa8 !important; }
+
+/* ── Callout omitir calentamiento ── */
+body.tema-claro .callout-texto { color: #1e293b !important; }
+body.tema-claro .callout-texto span { color: #334155 !important; }
+
+/* ── Selector subtítulo hint ── */
+body.tema-claro .selector-subtitulo-hint { color: #475569 !important; }
+body.tema-claro .selector-subtitulo-tecnico { color: #475569 !important; }
+
+/* ── Badge modo BDC en modo claro ── */
+body.tema-claro .badge-auto {
+  background: rgba(29,111,168,0.12) !important;
+  color: #1d6fa8 !important;
+  border-color: rgba(29,111,168,0.3) !important;
+}
+
+/* ==========================================================
+   🔧 Fix botones +/- cantidad equipos y toggles coloreados
+   ========================================================== */
+
+/* ── Botones +/- cantidad equipos — visibles en ambos temas ── */
+.bdc-manual-cant-ctrl button {
+  background: rgba(29,111,168,0.15) !important;
+  border: 1px solid rgba(29,111,168,0.35) !important;
+  color: #90cdf4 !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+}
+.bdc-manual-cant-ctrl button:hover {
+  background: rgba(29,111,168,0.3) !important;
+  border-color: rgba(29,111,168,0.6) !important;
+  color: #bfdbfe !important;
+}
+body.tema-claro .bdc-manual-cant-ctrl button {
+  background: rgba(29,111,168,0.08) !important;
+  border: 1px solid rgba(29,111,168,0.3) !important;
+  color: #1d6fa8 !important;
+}
+body.tema-claro .bdc-manual-cant-ctrl button:hover {
+  background: rgba(29,111,168,0.18) !important;
+  color: #155e8a !important;
+}
+body.tema-claro .bdc-manual-cant-ctrl span { color: #1e293b !important; }
+
+/* ==========================================================
+   🎨 Toggles resultados — contorno de color por sistema
+   Fondo blanco/semitransparente + borde de color
+   ========================================================== */
+
+/* ── FILTRADO — azul ── */
+.resultado-toggle-bloque--filtrado {
+  border: 1.5px solid rgba(29,111,168,0.5) !important;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.resultado-toggle-btn--filtrado {
+  background: rgba(29,111,168,0.08) !important;
+  color: #90cdf4 !important;
+}
+.resultado-toggle-btn--filtrado:hover,
+.resultado-toggle-btn--filtrado.abierto {
+  background: rgba(29,111,168,0.15) !important;
+}
+.resultado-toggle-cuerpo--filtrado {
+  background: rgba(29,111,168,0.04) !important;
+  border-top: 1px solid rgba(29,111,168,0.2) !important;
+}
+
+/* ── CALENTAMIENTO — naranja ── */
+.resultado-toggle-bloque--calentamiento {
+  border: 1.5px solid rgba(251,146,60,0.5) !important;
+}
+.resultado-toggle-btn--calentamiento {
+  background: rgba(251,146,60,0.08) !important;
+  color: #fb923c !important;
+}
+.resultado-toggle-btn--calentamiento:hover,
+.resultado-toggle-btn--calentamiento.abierto {
+  background: rgba(251,146,60,0.15) !important;
+}
+.resultado-toggle-cuerpo--calentamiento {
+  background: rgba(251,146,60,0.04) !important;
+  border-top: 1px solid rgba(251,146,60,0.15) !important;
+}
+
+/* ── SANITIZACIÓN — violeta ── */
+.resultado-toggle-bloque--sanitizacion {
+  border: 1.5px solid rgba(167,139,250,0.5) !important;
+}
+.resultado-toggle-btn--sanitizacion {
+  background: rgba(167,139,250,0.08) !important;
+  color: #c4b5fd !important;
+}
+.resultado-toggle-btn--sanitizacion:hover,
+.resultado-toggle-btn--sanitizacion.abierto {
+  background: rgba(167,139,250,0.15) !important;
+}
+.resultado-toggle-cuerpo--sanitizacion {
+  background: rgba(167,139,250,0.04) !important;
+  border-top: 1px solid rgba(167,139,250,0.15) !important;
+}
+
+/* ── Textos dentro de los toggles — visibles en ambos temas ── */
+.resultado-toggle-cuerpo .tabla-resultados th { color: #94a3b8; }
+.resultado-toggle-cuerpo .tabla-resultados td { color: #e2e8f0; }
+.resultado-toggle-cuerpo .th-indent           { color: #94a3b8; padding-left: 0.75rem; }
+
+/* ── Modo claro: toggles fondo blanco + borde de color ── */
+body.tema-claro .resultado-toggle-bloque--filtrado    { background: #ffffff; }
+body.tema-claro .resultado-toggle-bloque--calentamiento { background: #ffffff; }
+body.tema-claro .resultado-toggle-bloque--sanitizacion  { background: #ffffff; }
+
+body.tema-claro .resultado-toggle-btn--filtrado     { color: #1d6fa8 !important; background: rgba(29,111,168,0.06) !important; }
+body.tema-claro .resultado-toggle-btn--calentamiento { color: #c2410c !important; background: rgba(251,146,60,0.06) !important; }
+body.tema-claro .resultado-toggle-btn--sanitizacion  { color: #7c3aed !important; background: rgba(167,139,250,0.06) !important; }
+
+body.tema-claro .resultado-toggle-cuerpo .tabla-resultados th { color: #475569 !important; }
+body.tema-claro .resultado-toggle-cuerpo .tabla-resultados td { color: #1e293b !important; }
+body.tema-claro .resultado-toggle-cuerpo .td-flujo   { color: #059669 !important; }
+body.tema-claro .resultado-toggle-cuerpo .td-cdt     { color: #1d6fa8 !important; }
+body.tema-claro .resultado-toggle-cuerpo .td-perdida { color: #ea580c !important; font-weight: 700; }
+body.tema-claro .resultado-toggle-cuerpo .td-cloro-nec { color: #059669 !important; }
+body.tema-claro .resultado-toggle-cuerpo .td-cloro-ins { color: #1d6fa8 !important; }
+
+/* ── Subheaders dentro de toggles en modo claro ── */
+body.tema-claro .resultado-subheader--perdidas  { color: #64748b !important; }
+body.tema-claro .resultado-subheader--equipo    { color: #1d6fa8 !important; }
+body.tema-claro .resultado-subheader--cloro     { color: #059669 !important; }
+body.tema-claro .resultado-subheader--filtrado  { color: #1d6fa8 !important; }
+
+/* ── Totales bloque — borde verde para flujo ── */
+.resultado-totales-bloque {
+  border: 1.5px solid rgba(52,211,153,0.35) !important;
+}
+body.tema-claro .resultado-totales-bloque { background: #ffffff !important; }
+body.tema-claro .resultado-total-btn-titulo { color: #334155 !important; }
+body.tema-claro .resultado-total-btn--flujo { background: rgba(52,211,153,0.06) !important; }
+body.tema-claro .resultado-total-btn--cdt   { background: rgba(29,111,168,0.06) !important; }
+body.tema-claro .resultado-totales-desglose .desglose-label { color: #334155 !important; }
+body.tema-claro .resultado-totales-desglose .desglose-valor { color: #1e293b !important; }
+
+/* ==========================================================
+   ☀️ Fix "Seleccionar todo / Calentar" y radios calentamiento
+   ========================================================== */
+
+/* ── Checkbox columna Seleccionar todo / Calentar ── */
+.checkbox-columna { color: #e2e8f0; }
+.titulo-columna   { color: #e2e8f0; }
+body.tema-claro .checkbox-columna { color: #334155 !important; }
+body.tema-claro .titulo-columna   { color: #334155 !important; }
+body.tema-claro .checkbox-raiz    { color: #334155 !important; }
+
+/* ── Radios ¿Cuenta con cubierta? / ¿Techado? ── */
+.selector-radios .grupo-radio > span { color: #e2e8f0; }
+body.tema-claro .selector-radios .grupo-radio > span { color: #1e293b !important; }
+
+/* ── Resumen header en modo claro ── */
+body.tema-claro .seccion-resultados > div[style] { color: #334155; }
+
+/* ── Tabla verificación — header "Resumen de equipos" ── */
+body.tema-claro .resumen-equipos-header { color: #334155 !important; }
+
+/* ==========================================================
+   🌓 Transición suave entre tema claro y oscuro
+   ========================================================== */
+
+*, *::before, *::after {
+  transition:
+    background-color 0.35s ease,
+    background 0.35s ease,
+    border-color 0.3s ease,
+    color 0.25s ease,
+    box-shadow 0.3s ease,
+    opacity 0.2s ease !important;
+}
+
+/* Excepciones — elementos que NO deben transicionar
+   (animaciones propias, transforms, etc.) */
+.opcion-sistema,
+.fila-sistema,
+.tarjeta-expandida,
+.grafica-mini canvas,
+.spinner,
+.eq-tabs-indicador,
+.resultado-toggle-chevron,
+.toggle-boton svg {
+  transition: unset !important;
+}
+/* Restaurar sus transiciones propias */
+.opcion-sistema { transition: transform .25s ease, box-shadow .25s ease !important; }
+.fila-sistema   { transition: background 160ms ease, border 160ms ease !important; }
+.eq-tabs-indicador { transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1), background-color 0.35s ease !important; }
+.resultado-toggle-chevron { transition: transform 0.2s !important; }
+.toggle-boton svg { transition: transform .25s ease !important; }

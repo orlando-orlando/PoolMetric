@@ -448,6 +448,25 @@ export default function Calentamiento({
     }, [clima, mesesCalentar, tempDeseada, areaTotal, volumenTotal, profundidadPromedio,
         techada, cubierta, profMaxSistema, sistemaActivo]);
 
+  // Tabla completa de todos los meses con pérdida calculada — para memoria de cálculo
+  const tablaClimaConPerdida = useMemo(() => {
+    if (!clima.length || !tempDeseada || areaTotal <= 0) return clima.map(m => ({ ...m, perdidaClima: 0 }));
+    const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
+    return clima.map(m => {
+      try {
+        const ev  = qEvaporacion(dt, m)  || 0;
+        const con = qConveccion(dt, m)   || 0;
+        const rad = qRadiacion(dt, m)    || 0;
+        const tra = qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
+        const inf = (sistemaActivo?.desborde === "infinity" || sistemaActivo?.desborde === "ambos")
+          ? (qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: parseFloat(sistemaActivo.largoInfinity)||0, tempDeseada }, m) || 0) : 0;
+        const can = (sistemaActivo?.desborde === "canal" || sistemaActivo?.desborde === "ambos")
+          ? (qCanal({ largoCanal: parseFloat(sistemaActivo.largoCanal)||0, tempDeseada }, m) || 0) : 0;
+        return { ...m, perdidaClima: Math.round(ev + con + rad + tra + inf + can) };
+      } catch { return { ...m, perdidaClima: 0 }; }
+    });
+  }, [clima, tempDeseada, areaTotal, volumenTotal, profundidadPromedio, techada, cubierta, profMaxSistema, sistemaActivo]);
+
   const perdidaEvaporacion = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qEvaporacion(datosTermicos, mesMasFrio),  [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
   const perdidaConveccion  = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qConveccion(datosTermicos, mesMasFrio),   [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
   const perdidaRadiacion   = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qRadiacion(datosTermicos, mesMasFrio),    [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
@@ -950,6 +969,18 @@ export default function Calentamiento({
         perdidasBTU:           s.perdidasBTU,
         perdidaTotalBTU:       s.perdidaTotalBTU,
         sistemasSeleccionados: s.sistemasSeleccionados,
+        // Tabla clima con pérdidas calculadas — para memoria de cálculo
+        tablaClima:            tablaClimaConPerdida,
+        mesMasFrio:            mesMasFrio,
+        // Datos del sistema para perfilTermico en memoria de cálculo
+        areaTotal:             areaTotal,
+        volumenTotal:          volumenTotal,
+        profundidadPromedio:   profundidadPromedio,
+        profMaxSistema:        profMaxSistema,
+        sistemaActivo:         tipoSistema ?? null,
+        desborde:              sistemaActivo?.desborde ?? null,
+        largoInfinity:         sistemaActivo?.largoInfinity ?? null,
+        largoCanal:            sistemaActivo?.largoCanal ?? null,
         modoBDC:               s.modoBDC,
         selManualBDCId:        s.selManualBDCId,
         selManualCantidad:     s.selManualCantidad,
@@ -983,6 +1014,8 @@ export default function Calentamiento({
     /* Solo valores de cálculo — NO estados UI como hoveredField */
     decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
     perdidaTotalBTU, sistemasSeleccionados,
+    areaTotal, volumenTotal, profundidadPromedio, profMaxSistema,
+    tipoSistema, sistemaActivo, mesMasFrio, tablaClimaConPerdida,
     modoBDC, selManualBDCId, selManualCantidad,
     modoPS, selManualPSPct, selManualPSCant,
     modoCaldera, selManualCalderaId, selManualCalderaCant,

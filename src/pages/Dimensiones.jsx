@@ -679,6 +679,7 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
                   className={mostrarErrores && errores.largoCanal ? "input-error" : ""}
                   onMouseEnter={() => setHoveredField("largoCanal")} onMouseLeave={() => setHoveredField(null)}
                 />
+                <span className="input-hint">rango: {LIMITES_CANAL[0]} – {LIMITES_CANAL[1]} m</span>
               </div>
             )}
           </div>

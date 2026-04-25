@@ -875,26 +875,26 @@ export default function App() {
                   <div style={{
                     marginTop: "0.35rem",
                     padding: "0.55rem 0.75rem",
-                    background: "rgba(52,211,153,0.05)",
-                    border: "1px solid rgba(52,211,153,0.2)",
+                    background: "rgba(52,211,153,0.08)",
+                    border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
                     borderRadius: "8px",
                     display: "flex", flexDirection: "column", gap: "0.35rem",
                   }}>
-                    <div style={{ fontSize: "0.62rem", color: "#34d399", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
+                    <div style={{ fontSize: "0.62rem", color: temaOscuro ? "#34d399" : "#059669", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
                       ⚡ Punto de operación
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Flujo</span>
+                      <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>Flujo</span>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#34d399" }}>{fmtGPM(puntoOperacion.flujo)}</span>
-                        {deltaFlujo != null && <span style={{ fontSize: "0.67rem", color: colorDelta }}>{fmtPct(deltaFlujo)}</span>}
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#34d399" : "#059669" }}>{fmtGPM(puntoOperacion.flujo)}</span>
+                        {deltaFlujo != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorDelta === "#34d399" ? (temaOscuro ? "#34d399" : "#059669") : (temaOscuro ? "#f97316" : "#ea580c") }}>{fmtPct(deltaFlujo)}</span>}
                       </div>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>CDT</span>
+                      <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>CDT</span>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#e2e8f0" }}>{fmtFt(puntoOperacion.cdt)}</span>
-                        {deltaCDT != null && <span style={{ fontSize: "0.67rem", color: "#64748b" }}>{fmtPct(deltaCDT)}</span>}
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#e2e8f0" : "#1e293b" }}>{fmtFt(puntoOperacion.cdt)}</span>
+                        {deltaCDT != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: temaOscuro ? "#94a3b8" : "#475569" }}>{fmtPct(deltaCDT)}</span>}
                       </div>
                     </div>
                   </div>

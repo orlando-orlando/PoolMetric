@@ -112,7 +112,7 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 }
 
 const FLUJO_UMBRAL_MULTIPLICAR = 62; // GPM — filtros > este valor pueden ser múltiples
-const CANT_MAX_FILTROS = 4;            // máximo 4 unidades antes de subir capacidad
+const CANT_MAX_FILTROS = 20;           // máximo de unidades antes de subir capacidad
 
 function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGeneral) {
   if (!estado?.selId || !flujoNuevo) return null;
@@ -158,16 +158,30 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
     cantFinal = cantOriginal;
 
   } else if (flujoEf <= FLUJO_UMBRAL_MULTIPLICAR) {
-    // Filtro pequeño (≤ 62 GPM): NUNCA poner más de 1 — siempre subir capacidad
+    // Filtro pequeño (≤ 62 GPM): intentar subir capacidad primero
     const mejor = buscarMayorCapacidad(flujoNuevo);
     if (mejor) {
+      // Hay un filtro grande que cubre solo — usar 1 unidad
       flujoEfFinal = mejor.cap;
       modeloFinal  = mejor.c.modelo;
       marcaFinal   = mejor.c.marca;
       cantFinal    = 1;
     } else {
-      // No hay filtro suficiente en catálogo — dejar como está
-      cantFinal = cantOriginal;
+      // No hay filtro que cubra solo — usar el de mayor capacidad disponible
+      // y calcular cuántas unidades se necesitan
+      const mayorDisponible = catalActivos.length > 0
+        ? catalActivos[catalActivos.length - 1]  // el de mayor capacidad
+        : null;
+      if (mayorDisponible && mayorDisponible.cap > 0) {
+        const cantNec = Math.ceil(flujoNuevo / mayorDisponible.cap);
+        flujoEfFinal = mayorDisponible.cap;
+        modeloFinal  = mayorDisponible.c.modelo;
+        marcaFinal   = mayorDisponible.c.marca;
+        cantFinal    = cantNec;
+      } else {
+        // No hay solución — escalar con el filtro actual
+        cantFinal = Math.ceil(flujoNuevo / flujoEf);
+      }
     }
 
   } else {

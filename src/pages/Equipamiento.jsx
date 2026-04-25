@@ -1917,11 +1917,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     // Calcular primero
     let res = null;
     try {
-      const cargasBase     = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
-      const snapshotCargas = { ...cargasBase };
-      const snapshotCDT    = cargaTotalGlobal;
+      const cargasBase      = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
+      const snapshotCargas  = { ...cargasBase };
+      const snapshotCDT     = cargaTotalGlobal;
+      const snapshotEstados = JSON.parse(JSON.stringify(estados)); // copia profunda de cantidades originales
       res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral });
-      if (res && !res.error) { res._snapshotCargas = snapshotCargas; res._snapshotCDT = snapshotCDT; }
+      if (res && !res.error) { res._snapshotCargas = snapshotCargas; res._snapshotCDT = snapshotCDT; res._snapshotEstados = snapshotEstados; }
     } catch (e) { res = { error: e.message }; }
 
     // Construir líneas a partir del resultado real
@@ -2149,36 +2150,61 @@ function ResumenEquiposConfirmacion({
   }, [resultado?.equilibrio?.flujo, hayCambiosCheck]);
 
 
+  // ── Detectar tema (reactivo) ──
+  const [esClaro, setEsClaro] = useState(document.body.classList.contains("tema-claro"));
+  useEffect(() => {
+    const obs = new MutationObserver(() => setEsClaro(document.body.classList.contains("tema-claro")));
+    obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
   // ── Sección: grupo de filas ──
-  const FilaEquipo = ({ color = "#94a3b8", nombre, subNombre, detalle, carga, badge, badgeColor }) => (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "0.35rem 0.7rem", borderRadius: "5px", marginBottom: "0.2rem",
-      background: badge === "ajuste" ? "rgba(249,115,22,0.07)" : "rgba(15,23,42,0.3)",
-      border: `1px solid ${badge === "ajuste" ? "rgba(249,115,22,0.25)" : "rgba(255,255,255,0.04)"}`,
-    }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1 }}>
-        <span style={{ fontSize: "0.73rem", fontWeight: badge === "ajuste" ? 600 : 400, color }}>{nombre}</span>
-        {subNombre && <span style={{ fontSize: "0.63rem", color: "#64748b" }}>{subNombre}</span>}
+  const FilaEquipo = ({ color, nombre, subNombre, detalle, carga, badge }) => {
+    // En oscuro: nombres en blanco claro; en claro: nombres en casi negro
+    const colorNombre = badge === "ajuste"
+      ? "#f97316"
+      : (color && color !== "#e2e8f0" && color !== "#94a3b8")
+        ? color  // color especial (azul motobomba, naranja ajuste)
+        : esClaro ? "#1e293b" : "#e2e8f0";
+    const colorSub  = esClaro ? "#475569" : "#94a3b8";
+    const colorDet  = esClaro ? "#475569" : "#94a3b8";
+    const bgFila    = badge === "ajuste"
+      ? "rgba(249,115,22,0.07)"
+      : esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
+    const borderFila = badge === "ajuste"
+      ? "rgba(249,115,22,0.25)"
+      : esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0.35rem 0.7rem", borderRadius: "6px", marginBottom: "0.25rem",
+        background: bgFila, border: `1px solid ${borderFila}`,
+        boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: "0.76rem", fontWeight: 500, color: colorNombre, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
+          {subNombre && <span style={{ fontSize: "0.65rem", color: colorSub }}>{subNombre}</span>}
+        </div>
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexShrink: 0, marginLeft: "0.5rem" }}>
+          {detalle && <span style={{ fontSize: "0.68rem", color: colorDet }}>{detalle}</span>}
+          {carga    && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: badge === "ajuste" ? "#f97316" : esClaro ? "#1d6fa8" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
+          {badge && (
+            <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "4px",
+              background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)",
+              color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b",
+            }}>
+              {badge === "ajuste" ? "↑ Ajuste" : badge === "ok" ? "✓ OK" : badge}
+            </span>
+          )}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-        {detalle && <span style={{ fontSize: "0.68rem", color: "#64748b" }}>{detalle}</span>}
-        {carga    && <span style={{ fontSize: "0.68rem", color: badge === "ajuste" ? "#f97316" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
-        {badge && (
-          <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.1rem 0.45rem", borderRadius: "4px",
-            background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)",
-            color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b",
-          }}>
-            {badge === "ajuste" ? "↑ Ajustado" : badge === "ok" ? "✓ OK" : badge}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const SeccionTitulo = ({ emoji, titulo }) => (
-    <div style={{ fontSize: "0.63rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase",
-      letterSpacing: "0.05em", margin: "0.65rem 0 0.25rem", paddingLeft: "0.2rem",
+    <div style={{ fontSize: "0.65rem", color: esClaro ? "#1d6fa8" : "#90cdf4", fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.06em", margin: "0.75rem 0 0.3rem",
+      paddingLeft: "0.4rem", borderLeft: `3px solid ${esClaro ? "#1d6fa8" : "#1d6fa8"}`,
       display: "flex", alignItems: "center", gap: "0.4rem" }}>
       <span>{emoji}</span><span>{titulo}</span>
     </div>
@@ -2276,10 +2302,14 @@ function ResumenEquiposConfirmacion({
           const est = estados[key];
           const rec = equiposRecalc[key];
           if (!est && !rec) return null;
+          // Desnatador solo aparece si NO hay infinity/canal
+          if (key === "desnatador" && tieneDesbordeCanal) return null;
+          // Dren canal solo aparece si HAY infinity/canal
+          if (key === "drenCanal" && !tieneDesbordeCanal) return null;
           const nombre   = NOMBRES_EQ[key];
           const cantidad = rec ? rec.cantidad : est?.cantidad;
-          const marca    = rec?.marca ?? "—";
-          const modelo   = rec?.modelo ?? "—";
+          const marca    = rec?.marca  ?? est?.marca  ?? "—";
+          const modelo   = rec?.modelo ?? est?.modelo ?? "—";
           const cargaVal = rec ? parseFloat(rec.sumaFinal ?? rec.cargaTotal ?? 0) : parseFloat(cargas[key] ?? 0);
           const cambio   = rec?.cambio ?? false;
           return (
@@ -2306,8 +2336,8 @@ function ResumenEquiposConfirmacion({
           const rec = equiposRecalc[key];
           const nombre   = NOMBRES_EQ[key];
           const cantidad = rec ? rec.cantidad : est?.cantidad;
-          const marca    = rec?.marca ?? "—";
-          const modelo   = rec?.modelo ?? "—";
+          const marca    = rec?.marca  ?? est?.marca  ?? "—";
+          const modelo   = rec?.modelo ?? est?.modelo ?? "—";
           const cargaVal = rec ? parseFloat(rec.cargaTotal ?? rec.sumaFinal ?? 0) : parseFloat(cargas[key] ?? 0);
           const cambio   = rec?.cambio ?? false;
           return (
@@ -2378,7 +2408,7 @@ function ResumenEquiposConfirmacion({
             if (hayCambios && !confirmado) return;
             try {
               generarMemoriaCalculo({
-                estados,
+                estados: resultado?._snapshotEstados ?? estados,  // cantidades originales de diseño
                 datosEmpotrable,
                 tieneDesbordeCanal,
                 flujoMaxGlobal,

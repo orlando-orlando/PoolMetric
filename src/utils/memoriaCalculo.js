@@ -6,13 +6,6 @@
    ================================================================ */
 
 import { retorno }        from "./retorno";
-import { getClimaMensual } from "../data/clima";
-import { qEvaporacion }  from "./qEvaporacion";
-import { qConveccion }   from "./qConveccion";
-import { qRadiacion }    from "./qRadiacion";
-import { qTransmision }  from "./qTransmision";
-import { qInfinity }     from "./qInfinity";
-import { qCanal }        from "./qCanal";
 import { desnatador } from "./desnatador";
 import { barredora }  from "./barredora";
 import { drenFondo }  from "./drenFondo";
@@ -134,9 +127,14 @@ function empacarFiltroRes(res, label, seleccion) {
 }
 
 function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, tieneDesbordeCanal,
-  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador, equiposRecalcIter }) {
+  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador, equiposRecalcIter,
+  seleccionesAjustadas }) {
   const est  = (k) => estados?.[k];
   const tipo = (k) => est(k)?.tipo ?? null;
+
+  // Marca/modelo ajustados — prioridad: seleccionesAjustadas > equiposRecalcIter > estado
+  const marcaAjustada  = (k) => seleccionesAjustadas?.[k]?.marca  ?? equiposRecalcIter?.[k]?.marca  ?? est(k)?.marca;
+  const modeloAjustado = (k) => seleccionesAjustadas?.[k]?.modelo ?? equiposRecalcIter?.[k]?.modelo ?? est(k)?.modelo;
 
   const cantParaKey = (k) => {
     if (equiposRecalcIter) return equiposRecalcIter[k]?.cantidad ?? est(k)?.cantidad ?? null;
@@ -185,29 +183,38 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
   const filtros = {};
 
   if (sistemasSeleccionadosFilt?.filtroArena && est("filtroArena")?.selId) {
-    const resIter = equiposRecalcIter?.filtroArena?.resultadoHidraulico;
+    const recIter = equiposRecalcIter?.filtroArena;
+    const resIter = recIter?.resultadoHidraulico;
     const eq = est("filtroArena");
     const cant = cantParaKey("filtroArena") ?? 1;
+    const marcaFiltro  = marcaAjustada("filtroArena")  ?? eq.marca;
+    const modeloFiltro = modeloAjustado("filtroArena") ?? eq.modelo;
     const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cant, flujoCalculo);
-    const data = empacarFiltroRes(res, "Filtro de arena", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
+    const data = empacarFiltroRes(res, "Filtro de arena", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroArena = data;
   }
 
   if (sistemasSeleccionadosFilt?.prefiltro && est("prefiltro")?.selId) {
-    const resIter = equiposRecalcIter?.prefiltro?.resultadoHidraulico;
+    const recIter = equiposRecalcIter?.prefiltro;
+    const resIter = recIter?.resultadoHidraulico;
     const eq = est("prefiltro");
     const cant = cantParaKey("prefiltro") ?? 1;
+    const marcaFiltro  = marcaAjustada("prefiltro")  ?? eq.marca;
+    const modeloFiltro = modeloAjustado("prefiltro") ?? eq.modelo;
     const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cant, flujoCalculo);
-    const data = empacarFiltroRes(res, "Prefiltro", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
+    const data = empacarFiltroRes(res, "Prefiltro", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.prefiltro = data;
   }
 
   if (sistemasSeleccionadosFilt?.filtroCartucho && est("filtroCartucho")?.selId) {
-    const resIter = equiposRecalcIter?.filtroCartucho?.resultadoHidraulico;
+    const recIter = equiposRecalcIter?.filtroCartucho;
+    const resIter = recIter?.resultadoHidraulico;
     const eq = est("filtroCartucho");
     const cant = cantParaKey("filtroCartucho") ?? 1;
+    const marcaFiltro  = marcaAjustada("filtroCartucho")  ?? eq.marca;
+    const modeloFiltro = modeloAjustado("filtroCartucho") ?? eq.modelo;
     const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cant, flujoCalculo);
-    const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: eq.marca, modelo: eq.modelo, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
+    const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroCartucho = data;
   }
 
@@ -333,15 +340,12 @@ export function generarMemoriaCalculo({
   estadoBomba, equilibrio,
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
-  cargas, tipoSistema: tipoSistemaArg, sistemaActivo: sistemaActivoArg,
+  cargas, equiposConfirmados,
 }) {
   if (!datosEmpotrable || !flujoMaxGlobal)
     throw new Error("Faltan datos de empotrable o flujo maximo.");
 
   const calentamiento   = datosPorSistema?.calentamiento;
-  // Datos del sistema activo (dimensiones, geometría)
-  const tipoSistema   = tipoSistemaArg ?? datosPorSistema?.tipoSistema ?? null;
-  const sistemaActivo = sistemaActivoArg ?? (tipoSistema ? (datosPorSistema?.[tipoSistema] ?? null) : null);
   const iteraciones     = equilibrio?.iteraciones ?? [];
   const equilibrioFinal = equilibrio?.equilibrio ?? null;
 
@@ -393,9 +397,12 @@ export function generarMemoriaCalculo({
 
   /* ── 3 Reportes ── */
   const reporteDiseno = generarReporte({
-    ...ctx, label: "Diseno original",
+    ...ctx,
+    estados,                     // estados ORIGINALES — cantidades de diseño
+    label: "Diseno original",
     flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: null,
+    seleccionesAjustadas: equiposConfirmados ?? null,
   });
 
   // Iter 1: equipos exactamente en el punto ★ de iter 1
@@ -444,66 +451,18 @@ export function generarMemoriaCalculo({
   if (reporteIter1)   reporteIter1.calentamiento   = calentamientoReporte;
   if (reporteIter2)   reporteIter2.calentamiento   = calentamientoReporte;
 
-  /* ── Perfil térmico — datos para la sección en memoria ── */
+  /* ── Perfil térmico — datos ya calculados en Calentamiento.jsx ── */
   let perfilTermico = null;
   if (calentamiento?.ciudad && calentamiento?.perdidasBTU) {
-    const tablaClima = getClimaMensual(calentamiento.ciudad) ?? [];
-    const mesesCalentar = calentamiento.mesesCalentar ?? {};
-    // Mes más frío entre los seleccionados
-    const mesesSel = tablaClima.filter(m => mesesCalentar[m.mes]);
-    const mesMasFrio = mesesSel.length
-      ? mesesSel.reduce((f, a) => a.tProm < f.tProm ? a : f)
-      : null;
-    // Calcular pérdida clima por mes para tabla
-    // Geometría del sistema activo
-    const cuerpos      = sistemaActivo?.cuerpos ?? [];
-    const profMaxSistema = cuerpos.length
-      ? Math.max(...cuerpos.map(c => Math.max(parseFloat(c.profMin)||0, parseFloat(c.profMax)||0)))
-      : 0;
-    const areaTotal       = parseFloat(datosEmpotrable?.area) || cuerpos.reduce((s, c) => {
-      const a = parseFloat(c.largo||0) * parseFloat(c.ancho||0);
-      return s + (isNaN(a) ? 0 : a);
-    }, 0) || 0;
-    const volumenTotal    = calentamiento.volumenTotal   ?? 0;
-    const profundidadProm = calentamiento.profundidadPromedio ?? 0;
-    const tempDeseada     = calentamiento.tempDeseada ?? 0;
-    const cubierta        = calentamiento.cubierta ?? false;
-    const techada         = calentamiento.techada  ?? false;
-    const desborde        = sistemaActivo?.desborde ?? "";
-    const largoInfinity   = parseFloat(sistemaActivo?.largoInfinity) || 0;
-    const largoCanal      = parseFloat(sistemaActivo?.largoCanal)    || 0;
-
-    const calcBTUMes = (m) => {
-      try {
-        const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadProm, tempDeseada, techada, cubierta };
-        let btu = (qEvaporacion(dt, m) || 0) + (qConveccion(dt, m) || 0)
-                + (qRadiacion(dt, m)   || 0)
-                + (qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0);
-        if ((desborde === "infinity" || desborde === "ambos") && largoInfinity > 0 && profMaxSistema > 0)
-          btu += qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity, tempDeseada }, m) || 0;
-        if ((desborde === "canal" || desborde === "ambos") && largoCanal > 0)
-          btu += qCanal({ largoCanal, tempDeseada }, m) || 0;
-        return Math.round(btu);
-      } catch { return 0; }
-    };
-
-    const tablaClimaConBTU = tablaClima.map(m => ({ ...m, perdidaClima: calcBTUMes(m) }));
-
-    // mesMasFrio = mayor pérdida clima entre meses seleccionados
-    const mesesSelFiltrados = tablaClimaConBTU.filter(m => mesesCalentar[m.mes]);
-    const mesMasFrioReal = mesesSelFiltrados.length
-      ? mesesSelFiltrados.reduce((max, a) => a.perdidaClima > max.perdidaClima ? a : max)
-      : null;
-
     perfilTermico = {
-      ciudad:      calentamiento.ciudad,
-      tempDeseada: calentamiento.tempDeseada,
-      cubierta:    calentamiento.cubierta,
-      techada:     calentamiento.techada,
-      mesesCalentar,
-      tablaClima:  tablaClimaConBTU,
-      mesMasFrio:  mesMasFrioReal ?? mesMasFrio,
-      perdidasBTU: calentamiento.perdidasBTU,
+      ciudad:         calentamiento.ciudad,
+      tempDeseada:    calentamiento.tempDeseada,
+      cubierta:       calentamiento.cubierta,
+      techada:        calentamiento.techada,
+      mesesCalentar:  calentamiento.mesesCalentar ?? {},
+      tablaClima:     calentamiento.tablaClima    ?? [],
+      mesMasFrio:     calentamiento.mesMasFrio    ?? null,
+      perdidasBTU:    calentamiento.perdidasBTU,
       perdidaTotalBTU: calentamiento.perdidaTotalBTU,
     };
   }
@@ -513,6 +472,7 @@ export function generarMemoriaCalculo({
     reportes: [reporteDiseno, reporteIter1, reporteIter2].filter(Boolean),
     calentamiento: calentamientoData,
     perfilTermico,
+    equiposConfirmados: equiposConfirmados ?? null,
   };
 
   try {

@@ -509,7 +509,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
 }
 
 /* ═══════════ TAB EQUIPOS — formato cotización ═══════════ */
-function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
+function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposConfirmados = null }) {
   const r = reportes[0];
   if (!r) return null;
 
@@ -522,6 +522,7 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
   ];
 
   const colores = {
+    "Motobomba":                "#1d6fa8",
     "Empotrables e Hidráulica": "#3b82f6",
     "Filtración":               "#8b5cf6",
     "Sanitización":             "#10b981",
@@ -539,97 +540,86 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
     caldera:"Caldera de gas", calentadorElectrico:"Calentador eléctrico",
   };
 
-  // Para empotrables: extraer marca/modelo del resumenTramos o del resultado
   const getInfoEmpotrable = (key, data) => {
-    // Los empotrables no tienen seleccion directa — extraer de resumenTramos o de la data
     const sel = data?.seleccion;
-    // Buscar en el resultado hidráulico
-    const res = data?.resultado?.[0]; // primera fila tiene info del tramo
+    // La cantidad de diseño original está en cantOriginal de equiposConfirmados
+    // Si no hay equiposConfirmados, usar la del reporte
+    const cantDiseno = equiposConfirmados?.[key]?.cantOriginal ?? sel?.cantidad ?? "—";
     return {
       marca:    sel?.marca    ?? "—",
       modelo:   sel?.modelo   ?? "—",
-      cantidad: sel?.cantidad ?? "—",
-      flujo:    sel?.flujoTotal != null ? f2(sel.flujoTotal) + " GPM"
-              : res?.flujo != null ? f2(res.flujo) + " GPM" : "—",
-      cdt:      data?.cargaDinamicaTotal != null ? f2(data.cargaDinamicaTotal) + " ft" : "—",
+      cantidad: cantDiseno,
     };
   };
 
   const getInfo = (key) => {
     if (key === "motobomba") {
       if (!resumen?.bomba || resumen.bomba === "—") return null;
+      const partes = (resumen.bomba ?? "").split(" ");
       return {
-        marca:    resumen.bomba?.split(" ")?.[0] ?? "—",
-        modelo:   resumen.bomba?.split(" ")?.slice(1).join(" ") ?? "—",
+        marca:    partes[0] ?? "—",
+        modelo:   partes.slice(1).join(" ") ?? "—",
         cantidad: resumen.nBombas ?? 1,
-        flujo:    resumen.flujoMax ? resumen.flujoMax + " GPM" : "—",
-        cdt:      resumen.cdtDiseno ? resumen.cdtDiseno + " ft" : "—",
       };
     }
     const data = getEquipoData(r, key);
     if (!data) return null;
     const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
     if (isEmp) return getInfoEmpotrable(key, data);
-    const sel = data.seleccion ?? {};
-    return {
-      marca:    sel.marca    ?? "—",
-      modelo:   sel.modelo   ?? "—",
-      cantidad: sel.cantidad ?? "—",
-      flujo:    sel.flujoTotal != null ? f2(sel.flujoTotal) + " GPM" : "—",
-      cdt:      data.cargaDinamicaTotal != null ? f2(data.cargaDinamicaTotal) + " ft"
-              : data.cargaTotal          != null ? f2(data.cargaTotal)          + " ft" : "—",
-    };
+
+    // Para filtros y sanitización:
+    // 1. Prioridad máxima: equiposConfirmados (tiene marca/modelo del recálculo real)
+    // 2. Fallback: selección del reporte
+    const conf = equiposConfirmados?.[key];
+    const sel  = data.seleccion ?? {};
+
+    const marca    = conf?.marca    ?? sel.marca    ?? "—";
+    const modelo   = conf?.modelo   ?? sel.modelo   ?? "—";
+    const cantidad = conf?.cantidad ?? sel.cantidad ?? "—";
+
+    return { marca, modelo, cantidad };
   };
 
   let itemNum = 0;
 
   return (
     <div style={{ background:"#fff", color:"#111", padding:"2rem", borderRadius:"8px", fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-      {/* Encabezado cotización */}
-      <div style={{ borderBottom:"3px solid #1e3a8a", paddingBottom:"1rem", marginBottom:"1.5rem", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-        <div>
-          <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"#1e3a8a", margin:0 }}>Relación de equipos</h2>
-          <p style={{ fontSize:"0.8rem", color:"#64748b", margin:"4px 0 0" }}>Memoria de cálculo hidráulico — PoolMetric</p>
-        </div>
-        <div style={{ textAlign:"right", fontSize:"0.78rem", color:"#64748b" }}>
-          <div>Flujo máximo: <strong style={{ color:"#1e3a8a" }}>{reportes[0]?.flujo} GPM</strong></div>
-        </div>
+      {/* Encabezado */}
+      <div style={{ borderBottom:"3px solid #1e3a8a", paddingBottom:"1rem", marginBottom:"1.5rem" }}>
+        <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"#1e3a8a", margin:0 }}>Relación de equipos</h2>
+        <p style={{ fontSize:"0.8rem", color:"#64748b", margin:"4px 0 0" }}>Memoria de cálculo hidráulico — PoolMetric</p>
       </div>
 
       {secciones.map(sec => {
         const filas = sec.keys.map(k => ({ key: k, info: getInfo(k) })).filter(x => x.info);
         if (!filas.length) return null;
-        const color = colores[sec.titulo];
+        const color = colores[sec.titulo] ?? "#64748b";
         return (
-          <div key={sec.titulo} style={{ marginBottom:"2rem" }}>
+          <div key={sec.titulo} style={{ marginBottom:"1.75rem" }}>
             {/* Header de sección */}
-            <div style={{ background:color, color:"#fff", padding:"6px 14px", borderRadius:"4px", fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"0" }}>
+            <div style={{ background:color, color:"#fff", padding:"6px 14px", borderRadius:"4px 4px 0 0", fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em" }}>
               {sec.titulo}
             </div>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.82rem" }}>
               <thead>
                 <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"40px", borderRight:"1px solid #e2e8f0" }}>#</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Descripción</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Marca</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"36px", borderRight:"1px solid #e2e8f0" }}>#</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"25%", borderRight:"1px solid #e2e8f0" }}>Descripción</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"20%", borderRight:"1px solid #e2e8f0" }}>Marca</th>
                   <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Modelo</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0", width:"70px" }}>Cant.</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0", width:"90px" }}>Flujo total</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"80px" }}>CDT</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"70px" }}>Cant.</th>
                 </tr>
               </thead>
               <tbody>
                 {filas.map(({ key, info }, i) => {
                   itemNum++;
                   return (
-                    <tr key={key} style={{ borderBottom:"1px solid #e2e8f0", background: i%2===0?"#fff":"#f8fafc" }}>
+                    <tr key={key} style={{ borderBottom:"1px solid #e2e8f0", background: i%2===0 ? "#fff" : "#f8fafc" }}>
                       <td style={{ padding:"9px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, fontSize:"0.75rem", borderRight:"1px solid #e2e8f0" }}>{itemNum}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>{nombres[key]}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.marca}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#1e293b", fontWeight:700, borderRight:"1px solid #e2e8f0" }}>{info.cantidad}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.flujo}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"center", color:color,     fontWeight:700 }}>{info.cdt}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#334155", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#1e293b", fontWeight:700 }}>{info.cantidad}</td>
                     </tr>
                   );
                 })}
@@ -640,7 +630,7 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {} }) {
       })}
 
       <div style={{ borderTop:"2px solid #e2e8f0", paddingTop:"0.75rem", marginTop:"0.5rem", fontSize:"0.72rem", color:"#94a3b8", textAlign:"center" }}>
-        Generado por PoolMetric · Los valores de CDT corresponden al diseño original del sistema
+        Generado por PoolMetric · Memoria de cálculo hidráulico
       </div>
     </div>
   );
@@ -1100,7 +1090,7 @@ export default function MemoriaCalculo() {
   if (error) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#f87171", fontFamily:"system-ui" }}>⚠️ {error}</div>;
   if (!memoria) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#94a3b8", fontFamily:"system-ui" }}>Cargando…</div>;
 
-  const { resumen, reportes = [], calentamiento = [], perfilTermico = null } = memoria;
+  const { resumen, reportes = [], calentamiento = [], perfilTermico = null, equiposConfirmados = null } = memoria;
 
   const defEquipos = [
     { key:"retorno",            label:"Retornos",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
@@ -1123,7 +1113,7 @@ export default function MemoriaCalculo() {
 
   const tabs = [
     { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
-    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
+    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} equiposConfirmados={equiposConfirmados} /> },
     { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
     ...(perfilTermico ? [{ label:"🌡 Perfil térmico", comp: <TabPerfilTermico perfilTermico={perfilTermico} /> }] : []),
     ...defEquipos.map(eq => ({
