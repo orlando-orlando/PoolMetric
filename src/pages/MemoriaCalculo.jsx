@@ -509,7 +509,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
 }
 
 /* ═══════════ TAB EQUIPOS — formato cotización ═══════════ */
-function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposConfirmados = null }) {
+function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposConfirmados = null, estadosDiseno = null, specsEquipos = null, specsSanitizacion = null, specsCalentamiento = null }) {
   const r = reportes[0];
   if (!r) return null;
 
@@ -540,44 +540,93 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
     caldera:"Caldera de gas", calentadorElectrico:"Calentador eléctrico",
   };
 
-  const getInfoEmpotrable = (key, data) => {
+  const getInfoEmpotrable = (key, data, esDiseno) => {
     const sel = data?.seleccion;
-    // La cantidad de diseño original está en cantOriginal de equiposConfirmados
-    // Si no hay equiposConfirmados, usar la del reporte
-    const cantDiseno = equiposConfirmados?.[key]?.cantOriginal ?? sel?.cantidad ?? "—";
+    const conf = equiposConfirmados?.[key];
+    // Diseño original → cantidad original antes del ajuste
+    // Iteraciones → cantidad ajustada por el equilibrio
+    const cantidad = esDiseno
+      ? (conf?.cantOriginal ?? sel?.cantidad ?? "—")
+      : (conf?.cantidad     ?? sel?.cantidad ?? "—");
     return {
-      marca:    sel?.marca    ?? "—",
-      modelo:   sel?.modelo   ?? "—",
-      cantidad: cantDiseno,
+      marca:    sel?.marca  ?? "—",
+      modelo:   sel?.modelo ?? "—",
+      cantidad,
     };
   };
 
   const getInfo = (key) => {
     if (key === "motobomba") {
       if (!resumen?.bomba || resumen.bomba === "—") return null;
-      const partes = (resumen.bomba ?? "").split(" ");
       return {
-        marca:    partes[0] ?? "—",
-        modelo:   partes.slice(1).join(" ") ?? "—",
+        marca:    resumen.bombaMarca  ?? resumen.bomba?.split(" ")?.[0] ?? "—",
+        modelo:   resumen.bombaModelo ?? resumen.bomba?.split(" ")?.slice(1).join(" ") ?? "—",
         cantidad: resumen.nBombas ?? 1,
       };
     }
     const data = getEquipoData(r, key);
     if (!data) return null;
-    const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
-    if (isEmp) return getInfoEmpotrable(key, data);
-
-    // Para filtros y sanitización:
-    // 1. Prioridad máxima: equiposConfirmados (tiene marca/modelo del recálculo real)
-    // 2. Fallback: selección del reporte
     const conf = equiposConfirmados?.[key];
     const sel  = data.seleccion ?? {};
 
-    const marca    = conf?.marca    ?? sel.marca    ?? "—";
-    const modelo   = conf?.modelo   ?? sel.modelo   ?? "—";
-    const cantidad = conf?.cantidad ?? sel.cantidad ?? "—";
+    // Cantidad ajustada final — conf?.cantidad si hubo ajuste, sino la del reporte
+    const cantidad = conf?.cantidad ?? sel?.cantidad ?? "—";
+    const marca    = conf?.marca    ?? sel?.marca    ?? "—";
+    const modelo   = conf?.modelo   ?? sel?.modelo   ?? "—";
 
     return { marca, modelo, cantidad };
+  };
+
+  const getSpec = (key) => {
+    if (key === "motobomba") {
+      const hp = resumen.bombaPotencia;
+      return hp ? `${hp} HP` : null;
+    }
+    // specsEquipos tiene los specs capturados al momento de generar la memoria
+    const sp = specsEquipos?.[key]?.spec ?? estadosDiseno?.[key]?.spec;
+    const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
+    if (isEmp) return sp != null ? `${sp}"` : null;
+    if (key === "filtroArena" || key === "prefiltro") {
+      // Prioridad: diameter del recálculo (equiposConfirmados) > spec del estado > reporte
+      const conf = equiposConfirmados?.[key];
+      if (conf?.diameter != null) return `${conf.diameter}"`;
+      if (sp != null) return `${sp}"`;
+      const data = getEquipoData(r, key);
+      const sp2 = data?.seleccion?.diameter ?? data?.seleccion?.spec;
+      return sp2 != null ? `${sp2}"` : null;
+    }
+    if (key === "filtroCartucho") {
+      const conf = equiposConfirmados?.[key];
+      if (conf?.filtrationArea != null) return `${conf.filtrationArea} ft²`;
+      if (sp != null) return `${sp} ft²`;
+      const data = getEquipoData(r, key);
+      const sp2 = data?.seleccion?.filtrationArea ?? data?.seleccion?.spec;
+      return sp2 != null ? `${sp2} ft²` : null;
+    }
+    if (["cloradorSalino","cloradorAutomatico","lamparaUV"].includes(key)) {
+      // Usar specsSanitizacion que viene directamente de memoriaCalculo
+      const capStr = specsSanitizacion?.[key];
+      if (capStr) return capStr;
+      return sp != null ? `${sp}` : null;
+    }
+    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(key)) {
+      // Prioridad: specsCalentamiento precalculado > buscar en array
+      if (specsCalentamiento?.[key]) return specsCalentamiento[key];
+      const item = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
+      const cap = item?.seleccion?.capUnitaria ?? item?.capUnitaria;
+      return cap ? `${Math.round(cap).toLocaleString("es-MX")} BTU/h` : null;
+    }
+    return null;
+  };
+
+  // Header dinámico de especificación según sección
+  const headerSpec = (secTitulo) => {
+    if (secTitulo === "Motobomba") return "Potencia";
+    if (secTitulo === "Empotrables e Hidráulica") return "Diámetro";
+    if (secTitulo === "Filtración") return "Diámetro / Área";
+    if (secTitulo === "Sanitización") return "Capacidad";
+    if (secTitulo === "Calentamiento") return "Capacidad";
+    return "Especificación";
   };
 
   let itemNum = 0;
@@ -605,9 +654,10 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
                 <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
                   <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"36px", borderRight:"1px solid #e2e8f0" }}>#</th>
                   <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"25%", borderRight:"1px solid #e2e8f0" }}>Descripción</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"20%", borderRight:"1px solid #e2e8f0" }}>Marca</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"18%", borderRight:"1px solid #e2e8f0" }}>Marca</th>
                   <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Modelo</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"70px" }}>Cant.</th>
+                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"14%", borderRight:"1px solid #e2e8f0" }}>{headerSpec(sec.titulo)}</th>
+                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"60px" }}>Cant.</th>
                 </tr>
               </thead>
               <tbody>
@@ -619,6 +669,7 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>{nombres[key]}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.marca}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#334155", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1d6fa8", fontWeight:500, borderRight:"1px solid #e2e8f0", fontSize:"0.78rem" }}>{getSpec(key, info) ?? "—"}</td>
                       <td style={{ padding:"9px 10px", textAlign:"center", color:"#1e293b", fontWeight:700 }}>{info.cantidad}</td>
                     </tr>
                   );
@@ -1090,7 +1141,7 @@ export default function MemoriaCalculo() {
   if (error) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#f87171", fontFamily:"system-ui" }}>⚠️ {error}</div>;
   if (!memoria) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#94a3b8", fontFamily:"system-ui" }}>Cargando…</div>;
 
-  const { resumen, reportes = [], calentamiento = [], perfilTermico = null, equiposConfirmados = null } = memoria;
+  const { resumen, reportes = [], calentamiento = [], perfilTermico = null, equiposConfirmados = null, estadosDiseno = null, specsEquipos = null, specsSanitizacion = null, specsCalentamiento = null } = memoria;
 
   const defEquipos = [
     { key:"retorno",            label:"Retornos",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
@@ -1113,7 +1164,7 @@ export default function MemoriaCalculo() {
 
   const tabs = [
     { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
-    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} equiposConfirmados={equiposConfirmados} /> },
+    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} equiposConfirmados={equiposConfirmados} estadosDiseno={estadosDiseno} specsEquipos={specsEquipos} specsSanitizacion={specsSanitizacion} specsCalentamiento={specsCalentamiento} /> },
     { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
     ...(perfilTermico ? [{ label:"🌡 Perfil térmico", comp: <TabPerfilTermico perfilTermico={perfilTermico} /> }] : []),
     ...defEquipos.map(eq => ({

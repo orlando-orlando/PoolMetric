@@ -599,7 +599,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   const cargaActivaFt = infoActiva?.res?.sumaFinal != null
     ? parseFloat(infoActiva.res.sumaFinal) + 1.5
     : null;
-  const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null, marca: infoActiva.equipo?.marca ?? null, modelo: infoActiva.equipo?.modelo ?? null } : null;
+  const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null, marca: infoActiva.equipo?.marca ?? null, modelo: infoActiva.equipo?.modelo ?? null, spec: infoActiva.equipo?.specs?.dimensionPuerto ?? infoActiva.equipo?.specs?.tamano ?? null } : null;
 
   // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
   useEffect(() => {
@@ -795,6 +795,7 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
         marca: modo === "recomendado" ? infoActiva.seleccion?.marca : infoActiva.prefiltroEq?.marca,
         modelo: modo === "recomendado" ? infoActiva.seleccion?.modelo : infoActiva.prefiltroEq?.modelo,
         flujoEf: modo === "recomendado" ? parseFloat(infoActiva.seleccion?.flujoPorPrefiltro ?? 0) : parseFloat(infoActiva.flujoPorPrefiltro ?? 0),
+        spec: infoActiva.prefiltroEq?.diameter ?? infoActiva.seleccion?.diameter ?? infoActiva.prefiltroEq?.specs?.diameter ?? null,
         resultado: infoActiva }
     : null;
 
@@ -957,6 +958,7 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
         marca: modo === "recomendado" ? infoActiva.seleccion?.marca : null,
         modelo: modo === "recomendado" ? infoActiva.seleccion?.modelo : null,
         flujoEf: modo === "recomendado" ? parseFloat(infoActiva.seleccion?.flujoEfectivo ?? 0) : parseFloat(infoActiva.flujoEf ?? 0),
+        spec: infoActiva.seleccion?.filtrationArea ?? infoActiva.filtroEq?.specs?.filtrationArea ?? null,
         resultado: infoActiva }
     : null;
 
@@ -1126,6 +1128,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
         marca: modo === "recomendado" ? infoActiva.seleccion?.marca : infoActiva.filtro?.marca,
         modelo: modo === "recomendado" ? infoActiva.seleccion?.modelo : infoActiva.filtro?.modelo,
         flujoEf: modo === "recomendado" ? parseFloat(infoActiva.seleccion?.flujoPorFiltro ?? 0) : parseFloat(infoActiva.flujoPorFiltro ?? 0),
+        spec: infoActiva.filtro?.diameter ?? infoActiva.seleccion?.diameter ?? infoActiva.filtro?.specs?.diameter ?? null,
         resultado: infoActiva }
     : null;
 
@@ -1408,7 +1411,10 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
   const cargaCAFt = infoActiva?.cargaTotal != null ? (parseFloat(infoActiva.cargaTotal) || null) : null;
   useEffect(() => { if (onCargaChange) onCargaChange(cargaCAFt); }, [cargaCAFt]);
   useEffect(() => {
-    if (onEstadoChange) onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal } : null);
+    if (!onEstadoChange) return;
+    const eqCA = infoActiva ? cloradoresAutomaticos.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
+    const specCA = eqCA?.specs?.capacidadComercial != null ? `${eqCA.specs.capacidadComercial} kg/día` : null;
+    onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specCA } : null);
   }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
 
   const labelInst = (i) => i === "enLinea" ? "En línea" : "Fuera de línea";
@@ -1546,7 +1552,10 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
   const cargaUVFt = infoActiva?.cargaTotal != null ? (parseFloat(infoActiva.cargaTotal) || null) : null;
   useEffect(() => { if (onCargaChange) onCargaChange(cargaUVFt); }, [cargaUVFt]);
   useEffect(() => {
-    if (onEstadoChange) onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal } : null);
+    if (!onEstadoChange) return;
+    const eqUV = infoActiva ? generadoresUV.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
+    const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
+    onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specUV } : null);
   }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
 
   if (!flujoMaxSistema || flujoMaxSistema <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
@@ -1665,7 +1674,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null })
   }
 
   const infoActiva  = modo === "recomendado" ? rec : manualCalc;
-  const estBActual  = infoActiva ? { bombaId: infoActiva.bomba.id, nBombas: infoActiva.n ?? infoActiva.cantidad, modelo: infoActiva.bomba.modelo, marca: infoActiva.bomba.marca } : null;
+  const estBActual  = infoActiva ? { bombaId: infoActiva.bomba.id, nBombas: infoActiva.n ?? infoActiva.cantidad, modelo: infoActiva.bomba.modelo, marca: infoActiva.bomba.marca, potenciaHP: infoActiva.bomba.potencia_hp ?? null } : null;
   useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.stringify(estBActual)]);
 
   if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) {
@@ -2408,7 +2417,15 @@ function ResumenEquiposConfirmacion({
             if (hayCambios && !confirmado) return;
             try {
               generarMemoriaCalculo({
-                estados: resultado?._snapshotEstados ?? estados,  // cantidades originales de diseño
+                estados: resultado?._snapshotEstados ?? estados,
+                label: "Diseno original",
+                flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
+                equiposRecalcIter: null,
+                seleccionesAjustadas: equiposConfirmados ?? null,
+                // Specs actuales de cada equipo (diámetro, filtrationArea, etc.)
+                specsEquipos: Object.fromEntries(
+                  Object.entries(estados).map(([k, v]) => [k, { spec: v?.spec ?? null }])
+                ),
                 datosEmpotrable,
                 tieneDesbordeCanal,
                 flujoMaxGlobal,

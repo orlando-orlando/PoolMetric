@@ -216,12 +216,17 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
 
   try {
     const res = fnManual(flujoEfFinal, cantFinal, flujoNuevo);
+    // Buscar el equipo en el catálogo para obtener el diámetro real
+    const eqEnCatalog = catalActivos.find(e => e.c.modelo === modeloFinal && e.c.marca === marcaFinal);
+    const diameter = eqEnCatalog?.c?.specs?.diameter ?? eqEnCatalog?.c?.diameter ?? null;
+    const filtrationArea = eqEnCatalog?.c?.specs?.filtrationArea ?? null;
     return {
       cantidad: cantFinal, cantOriginal,
       cambio: cantFinal !== cantOriginal || flujoEfFinal !== flujoEf,
       cargaTotal: res?.cargaTotal ?? null,
       cargaTotalPSI: res?.cargaTotalPSI ?? null,
       modelo: modeloFinal, marca: marcaFinal,
+      diameter, filtrationArea,
       resultadoHidraulico: res,
     };
   } catch { return null; }
