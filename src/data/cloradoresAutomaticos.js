@@ -5,7 +5,7 @@ export const cloradoresAutomaticos = [
     instalacion: "enLinea",
     marca: "Inter Water",
     modelo: "IL201",
-    specs: { flujo: 15, capacidadResidencial: 42000, capacidadComercial: 0.07 },
+    specs: { flujo: 5, capacidadResidencial: 42000, capacidadComercial: 0.07 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -15,7 +15,7 @@ export const cloradoresAutomaticos = [
     instalacion: "enLinea",
     marca: "Inter Water",
     modelo: "IL202",
-    specs: { flujo: 15, capacidadResidencial: 90000, capacidadComercial: 0.14 },
+    specs: { flujo: 5, capacidadResidencial: 90000, capacidadComercial: 0.14 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -25,7 +25,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL301",
-    specs: { flujo: 20, capacidadResidencial: 42000, capacidadComercial: 0.07 },
+    specs: { flujo: 5, capacidadResidencial: 42000, capacidadComercial: 0.07 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -35,7 +35,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL302",
-    specs: { flujo: 20, capacidadResidencial: 90000, capacidadComercial: 0.14 },
+    specs: { flujo: 5, capacidadResidencial: 90000, capacidadComercial: 0.14 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -45,7 +45,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL303",
-    specs: { flujo: 30, capacidadResidencial: 373000, capacidadComercial: 0.56 },
+    specs: { flujo: 5, capacidadResidencial: 373000, capacidadComercial: 0.56 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -55,7 +55,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL304",
-    specs: { flujo: 30, capacidadResidencial: 504000, capacidadComercial: 0.76 },
+    specs: { flujo: 5, capacidadResidencial: 504000, capacidadComercial: 0.76 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -65,7 +65,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL305",
-    specs: { flujo: 30, capacidadResidencial: 656000, capacidadComercial: 0.98 },
+    specs: { flujo: 5, capacidadResidencial: 656000, capacidadComercial: 0.98 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -75,7 +75,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Inter Water",
     modelo: "OL306",
-    specs: { flujo: 30, capacidadResidencial: 868000, capacidadComercial: 1.30 },
+    specs: { flujo: 5, capacidadResidencial: 868000, capacidadComercial: 1.30 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -85,7 +85,7 @@ export const cloradoresAutomaticos = [
     instalacion: "enLinea",
     marca: "Hayward",
     modelo: "CL100",
-    specs: { flujo: 20, capacidadResidencial: 42000, capacidadComercial: 0.07 },
+    specs: { flujo: 5, capacidadResidencial: 42000, capacidadComercial: 0.07 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -95,7 +95,7 @@ export const cloradoresAutomaticos = [
     instalacion: "enLinea",
     marca: "Hayward",
     modelo: "CL2002S",
-    specs: { flujo: 20, capacidadResidencial: 90000, capacidadComercial: 0.14 },
+    specs: { flujo: 5, capacidadResidencial: 90000, capacidadComercial: 0.14 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -105,7 +105,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Hayward",
     modelo: "CL110",
-    specs: { flujo: 20, capacidadResidencial: 42000, capacidadComercial: 0.07 },
+    specs: { flujo: 5, capacidadResidencial: 42000, capacidadComercial: 0.07 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   },
@@ -115,7 +115,7 @@ export const cloradoresAutomaticos = [
     instalacion: "fueraLinea",
     marca: "Hayward",
     modelo: "CL220",
-    specs: { flujo: 20, capacidadResidencial: 90000, capacidadComercial: 0.14 },
+    specs: { flujo: 5, capacidadResidencial: 90000, capacidadComercial: 0.14 },
     unidades: { flujo: "gpm", capacidadResidencial: "litros", capacidadComercial: "kg/dia" },
     metadata: { precio: null, activo: true }
   }

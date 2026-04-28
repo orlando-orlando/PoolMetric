@@ -135,19 +135,17 @@ function recomendarRetorno(flujoMaximo, datos) {
 function recomendarDesnatador(flujoMaximo, datos) {
   if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
   try {
-    const area     = parseFloat(datos?.area) || 0;
     const catalogo = desnatadores.filter(d => d.metadata.activo && d.specs.dimensionPuerto === 2.0);
     if (!catalogo.length) return null;
-    // Usar el primer equipo activo para obtener capacidad de flujo unitaria
     const equipo = catalogo[0];
     const capFlujo = equipo.specs.flujo ?? 0;
-    // Cantidad mínima: el mayor entre criterio de área y criterio de flujo
     const num = cantMinDesnatador(flujoMaximo, datos, capFlujo);
     const flujoPorEq = flujoMaximo / num;
-    // Recalcular hidráulica con la cantidad correcta
-    const res = desnatador(flujoMaximo, "2.0", datos, num);
+    const tipo = tipoParaCalculo(equipo);
+    // Llamar con flujoMaximo y num — igual que BloqueEmpotrable en modo manual
+    const res = desnatador(flujoMaximo, tipo, datos, num);
     if (!res?.resultadoD?.length) return null;
-    return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo: "2.0", res };
+    return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo, res };
   } catch { return null; }
 }
 
@@ -541,7 +539,10 @@ function extraerInfoCalentamiento(calentamiento) {
 const TAMANO_A_TIPO_CALCULO = { "9x9": "9.0", "12x12": "12.0", "18x18": "18.0" };
 function tipoParaCalculo(eq) {
   const raw = String(eq.specs.tamano ?? eq.specs.dimensionPuerto ?? "");
-  return TAMANO_A_TIPO_CALCULO[raw] ?? raw;
+  const mapped = TAMANO_A_TIPO_CALCULO[raw] ?? raw;
+  // Normalizar números enteros a formato decimal: "2" → "2.0", "1.5" queda igual
+  if (/^\d+$/.test(mapped)) return mapped + ".0";
+  return mapped;
 }
 
 /* =====================================================
@@ -599,7 +600,15 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   const cargaActivaFt = infoActiva?.res?.sumaFinal != null
     ? parseFloat(infoActiva.res.sumaFinal) + 1.5
     : null;
-  const estadoActual  = infoActiva ? { modo, selId: infoActiva.equipo?.id ?? null, cantidad: infoActiva.cantidad, tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null, marca: infoActiva.equipo?.marca ?? null, modelo: infoActiva.equipo?.modelo ?? null, spec: infoActiva.equipo?.specs?.dimensionPuerto ?? infoActiva.equipo?.specs?.tamano ?? null } : null;
+  const estadoActual  = infoActiva ? {
+    modo, selId: infoActiva.equipo?.id ?? null,
+    cantidad: infoActiva.cantidad,
+    tipo: infoActiva.equipo ? tipoParaCalculo(infoActiva.equipo) : null,
+    marca:  infoActiva.equipo?.marca  ?? null,
+    modelo: infoActiva.equipo?.modelo ?? null,
+    // drenes usan tamano (tamaño físico), retornos/desnatadores/barredoras usan dimensionPuerto
+    spec: infoActiva.equipo?.specs?.tamano ?? infoActiva.equipo?.specs?.dimensionPuerto ?? null,
+  } : null;
 
   // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
   useEffect(() => {
@@ -955,10 +964,10 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
 
   const estCT = infoActiva && !infoActiva?.error
     ? { modo, selId: selIdCTefectivo, cantidad: modo === "recomendado" ? infoActiva.seleccion?.cantidad : selCant,
-        marca: modo === "recomendado" ? infoActiva.seleccion?.marca : null,
-        modelo: modo === "recomendado" ? infoActiva.seleccion?.modelo : null,
+        marca:  modo === "recomendado" ? infoActiva.seleccion?.marca  : (infoActiva.filtroEq?.marca  ?? null),
+        modelo: modo === "recomendado" ? infoActiva.seleccion?.modelo : (infoActiva.filtroEq?.modelo ?? null),
         flujoEf: modo === "recomendado" ? parseFloat(infoActiva.seleccion?.flujoEfectivo ?? 0) : parseFloat(infoActiva.flujoEf ?? 0),
-        spec: infoActiva.seleccion?.filtrationArea ?? infoActiva.filtroEq?.specs?.filtrationArea ?? null,
+        spec: infoActiva.filtroEq?.specs?.filtrationArea ?? infoActiva.seleccion?.filtrationArea ?? null,
         resultado: infoActiva }
     : null;
 
@@ -1237,13 +1246,10 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
 /* =====================================================
    BLOQUE GENERADOR DE CLORO SALINO
 ===================================================== */
-function BloqueCloradorSalino({ resultadoClorador }) {
-  const [modoCL, setModoCL]               = useState("recomendado");
-  const [selManualCLId, setSelManualCLId] = useState(null);
-  const [selManualCLCant, setSelManualCLCant] = useState(1);
-  const [filtroMarca, setFiltroMarca]     = useState("todas");
-
+function BloqueCloradorSalino({ resultadoClorador, onEstadoChange,
+  modoCL, setModoCL, selManualCLId, setSelManualCLId, selManualCLCant, setSelManualCLCant }) {
   const rec = resultadoClorador && !resultadoClorador.error ? resultadoClorador : null;
+  const [filtroMarca, setFiltroMarca] = useState("todas");
 
   const marcasDisponibles = useMemo(() =>
     ["todas", ...new Set(generadoresDeCloro.filter(g => g.metadata.activo).map(g => g.marca))], []);
@@ -1272,6 +1278,18 @@ function BloqueCloradorSalino({ resultadoClorador }) {
     }
     return null;
   }, [modoCL, cloradorManual, rec]);
+
+  // ── Reportar estado al padre ──
+  useEffect(() => {
+    if (!onEstadoChange) return;
+    if (!infoActiva) { onEstadoChange(null); return; }
+    onEstadoChange({
+      marca: infoActiva.marca, modelo: infoActiva.modelo,
+      cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal,
+      cargaTotal: infoActiva.cargaTotal,
+      spec: infoActiva.capInstalada != null ? `${infoActiva.capInstalada} ${infoActiva.unidad ?? "kg/día"}` : null,
+    });
+  }, [modoCL, infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, infoActiva?.capInstalada]);
 
   if (!rec) return <div className="sanitizacion-pendiente">Completa las dimensiones para ver la selección de generadores de cloro</div>;
 
@@ -1776,7 +1794,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null })
 /* =====================================================
    BLOQUE VERIFICACIÓN DEL DISEÑO
 ===================================================== */
-function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null, sistemaActivo = null }) {
+function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null, sistemaActivo = null, modoCloradorSalino = "recomendado", selCloradorSalinoId = null, selCloradorSalinoCant = 1, cloradorEnLineaQuitado = false, flujoOperacion = null }) {
   const [fase, setFase]           = useState("idle");
   const [lineasTerminal, setLineasTerminal] = useState([]);
   const [resultado, setResultado] = useState(null);
@@ -2111,6 +2129,11 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
             flujoInfinityVal={flujoInfinityVal ?? null}
             flujoFiltradoVal={flujoFiltradoVal ?? null}
             volumenTotalVal={volumenTotalVal ?? null}
+            modoCloradorSalino={modoCloradorSalino}
+            selCloradorSalinoId={selCloradorSalinoId}
+            selCloradorSalinoCant={selCloradorSalinoCant}
+            cloradorEnLineaQuitado={cloradorEnLineaQuitado}
+            flujoOperacion={flujoOperacion}
           />
 
         </>)}
@@ -2140,6 +2163,11 @@ function ResumenEquiposConfirmacion({
   flujoFiltradoVal = null,
   volumenTotalVal  = null,
   sistemaActivo = null,
+  modoCloradorSalino = "recomendado",
+  selCloradorSalinoId = null,
+  selCloradorSalinoCant = 1,
+  cloradorEnLineaQuitado = false,
+  flujoOperacion = null,
 }) {
   const [confirmado, setConfirmado] = useState(false);
   const [equiposConfirmados, setEquiposConfirmados] = useState(null);
@@ -2290,15 +2318,37 @@ function ResumenEquiposConfirmacion({
           );
         })()}
 
+        {/* Aviso cuando clorador en línea fue quitado por exceder 90 GPM */}
+        {cloradorEnLineaQuitado && (
+          <FilaEquipo color="#94a3b8"
+            nombre="Clorador automático en línea"
+            subNombre="Excede límite de operación"
+            detalle={`Flujo operación ${parseFloat(flujoOperacion ?? 0).toFixed(1)} GPM > 90 GPM máx.`}
+            carga={null}
+            badge="info"
+          />
+        )}
+
         {sistemasSanitizacion?.lamparaUV && (() => {
           const d = datosSanitizacion?.lamparaUV;
+          // UV cambió si su flujoTotal es diferente al flujo máximo de diseño
+          // (el useEffect la recalculó con el flujo de operación)
+          const flujoDiseno = eq?.flujoEq != null ? flujoMaxGlobal : null;
+          const cantOrigUV = resultado?._snapshotEstados?.lamparaUV?.cantidad ?? null;
+          const cantActualUV = d?.cantidad;
+          // También detectar por flujoTotal vs flujo de diseño
+          const flujoTotalUV = d?.flujoTotal != null ? parseFloat(d.flujoTotal) : null;
+          const uvCambio = (cantOrigUV != null && cantActualUV != null && cantOrigUV !== cantActualUV)
+            || (flujoTotalUV != null && flujoMaxGlobal != null && flujoTotalUV > flujoMaxGlobal * 1.05);
           return (
-            <FilaEquipo color="#e2e8f0"
+            <FilaEquipo color={uvCambio ? "#f97316" : "#e2e8f0"}
               nombre="Lámpara UV"
               subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
-              detalle={d?.cantidad != null ? `${d.cantidad} equipo${d.cantidad > 1 ? "s" : ""}${d.flujoTotal != null ? ` · ${parseFloat(d.flujoTotal).toFixed(1)} GPM` : ""}` : null}
+              detalle={uvCambio && cantOrigUV != null
+                ? `${cantOrigUV} → ${cantActualUV} uds`
+                : d?.cantidad != null ? `${d.cantidad} equipo${d.cantidad > 1 ? "s" : ""}${d.flujoTotal != null ? ` · ${parseFloat(d.flujoTotal).toFixed(1)} GPM` : ""}` : null}
               carga={cargas?.lamparaUV != null ? `${parseFloat(cargas.lamparaUV).toFixed(2)} ft` : null}
-              badge="ok"
+              badge={uvCambio ? "ajuste" : "ok"}
             />
           );
         })()}
@@ -2416,13 +2466,60 @@ function ResumenEquiposConfirmacion({
           onClick={() => {
             if (hayCambios && !confirmado) return;
             try {
+              // DEBUG temporal
+              console.log("=== GENERAR MEMORIA ===");
+              console.log("modoCloradorSalino:", modoCloradorSalino);
+              console.log("selCloradorSalinoId:", selCloradorSalinoId);
+              console.log("selCloradorSalinoCant:", selCloradorSalinoCant);
+              console.log("estados.cloradorSalino:", estados?.cloradorSalino);
+
+              // Estado del clorador salino:
+              // Si modo manual y hay id → construir desde catálogo (más preciso)
+              // Si modo manual sin id → usar estados.cloradorSalino (tiene datos del último montaje)
+              // Si modo recomendado → usar estados.cloradorSalino (tiene datos del recomendado)
+              let estadoCloradorSalinoActual = estados?.cloradorSalino ?? null;
+              // Si modo manual y selCloradorSalinoId tiene valor, buscar en catálogo
+              // Si no tiene id pero estados.cloradorSalino tiene spec manual → construir desde spec
+              if (modoCloradorSalino === "manual") {
+                // Prioridad 1: buscar en catálogo por id
+                const equipo = selCloradorSalinoId
+                  ? generadoresDeCloro.find(g => g.id === selCloradorSalinoId)
+                  : null;
+                if (equipo) {
+                  try {
+                    const hidraulica = calcularCargaCloradorManual(equipo.specs.flujo, selCloradorSalinoCant);
+                    if (!hidraulica?.error) {
+                      const capInstalada = parseFloat((selCloradorSalinoCant * equipo.specs.capacidadComercial).toFixed(3));
+                      estadoCloradorSalinoActual = {
+                        marca: equipo.marca, modelo: equipo.modelo,
+                        cantidad: selCloradorSalinoCant,
+                        flujoTotal: equipo.specs.flujo * selCloradorSalinoCant,
+                        cargaTotal: hidraulica.cargaTotal,
+                        spec: `${capInstalada} kg/día`,
+                      };
+                    }
+                  } catch { /* continuar al fallback */ }
+                }
+                // Prioridad 2: estados.cloradorSalino ya tiene los datos correctos del manual
+                // (el useEffect de BloqueCloradorSalino lo actualiza con marca/modelo/spec del manual)
+                if (!equipo || !estadoCloradorSalinoActual?.marca) {
+                  const est = estados?.cloradorSalino;
+                  if (est?.marca && est?.modelo) {
+                    estadoCloradorSalinoActual = est;
+                  }
+                }
+              }
+
               generarMemoriaCalculo({
                 estados: resultado?._snapshotEstados ?? estados,
+                estadosActuales: {
+                  ...estados,
+                  ...(estadoCloradorSalinoActual ? { cloradorSalino: estadoCloradorSalinoActual } : {}),
+                },
                 label: "Diseno original",
                 flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
                 equiposRecalcIter: null,
                 seleccionesAjustadas: equiposConfirmados ?? null,
-                // Specs actuales de cada equipo (diámetro, filtrationArea, etc.)
                 specsEquipos: Object.fromEntries(
                   Object.entries(estados).map(([k, v]) => [k, { spec: v?.spec ?? null }])
                 ),
@@ -2526,6 +2623,11 @@ export default function Equipamiento({
   const [estadoBomba, setEstadoBomba] = useState(eqPrev.estadoBomba ?? null);
   const [ajustesConfirmados, setAjustesConfirmados] = useState(eqPrev.ajustesConfirmados ?? {});
 
+  // Estado del clorador salino — persiste entre tabs porque vive en el padre
+  const [modoCloradorSalino,    setModoCloradorSalino]    = useState(eqPrev.modoCloradorSalino    ?? "recomendado");
+  const [selCloradorSalinoId,   setSelCloradorSalinoId]   = useState(eqPrev.selCloradorSalinoId   ?? null);
+  const [selCloradorSalinoCant, setSelCloradorSalinoCant] = useState(eqPrev.selCloradorSalinoCant ?? 1);
+
   const setCarga = (key, valor) => setCargas(prev => prev[key] === valor ? prev : { ...prev, [key]: valor });
   const setEstado = (key, valor) => setEstados(prev => {
     if (JSON.stringify(prev[key]) === JSON.stringify(valor)) return prev;
@@ -2557,6 +2659,52 @@ export default function Equipamiento({
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), estadoBomba } }));
   }, [estadoBomba]);
+
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant } }));
+  }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant]);
+
+  // Recalcular UV con el flujo de operación real cuando se confirma el punto de equilibrio
+  const flujoUVEfectivo = datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal;
+  useEffect(() => {
+    if (!sistemasSeleccionadosSanit?.lamparaUV) return;
+    if (!flujoUVEfectivo || flujoUVEfectivo <= 0) return;
+    try {
+      const r = generadorUV(flujoUVEfectivo, flujoUVEfectivo);
+      if (!r || r.error) return;
+      const eqUV = generadoresUV.find(g => g.marca === r.seleccion?.marca && g.modelo === r.seleccion?.modelo);
+      const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
+      setEstado("lamparaUV", {
+        marca: r.seleccion?.marca, modelo: r.seleccion?.modelo,
+        cantidad: r.seleccion?.cantidad, flujoTotal: r.seleccion?.flujoTotal,
+        spec: specUV,
+      });
+      setCarga("lamparaUV", parseFloat(r.cargaTotal) || null);
+    } catch { /* mantener estado anterior */ }
+  }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.lamparaUV]);
+
+  const [cloradorEnLineaQuitado, setCloradorEnLineaQuitado] = useState(false);
+
+  // Clorador en línea: límite de 90 GPM — si flujo de operación > 90 GPM, deseleccionarlo
+  const FLUJO_MAX_CLORADOR_EN_LINEA = 90;
+  useEffect(() => {
+    if (!sistemasSeleccionadosSanit?.cloradorAutomatico) {
+      // Si ya no está seleccionado pero lo quitamos antes, mantener el aviso
+      return;
+    }
+    const estCA = estados?.cloradorAutomatico;
+    if (estCA?.instalacion !== "enLinea") { setCloradorEnLineaQuitado(false); return; }
+    if (!flujoUVEfectivo || flujoUVEfectivo <= FLUJO_MAX_CLORADOR_EN_LINEA) { setCloradorEnLineaQuitado(false); return; }
+    // Flujo de operación excede el límite — deseleccionar y marcar
+    setCloradorEnLineaQuitado(true);
+    setSistemasSeleccionadosSanit(prev => {
+      const n = { ...prev };
+      delete n.cloradorAutomatico;
+      return n;
+    });
+    setCarga("cloradorAutomatico", null);
+    setEstado("cloradorAutomatico", null);
+  }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.cloradorAutomatico, estados?.cloradorAutomatico?.instalacion]);
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
@@ -2731,7 +2879,13 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoCloradorSalino /></span>
                     <span className="sistema-detalle-titulo">Generador de cloro salino</span>
                   </div>
-                  <BloqueCloradorSalino resultadoClorador={resultadoClorador} />
+                  <BloqueCloradorSalino
+                    resultadoClorador={resultadoClorador}
+                    onEstadoChange={e => setEstado("cloradorSalino", e)}
+                    modoCL={modoCloradorSalino} setModoCL={setModoCloradorSalino}
+                    selManualCLId={selCloradorSalinoId} setSelManualCLId={setSelCloradorSalinoId}
+                    selManualCLCant={selCloradorSalinoCant} setSelManualCLCant={setSelCloradorSalinoCant}
+                  />
                 </div>
               </div>
             )}
@@ -2753,7 +2907,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoLamparaUV /></span>
                     <span className="sistema-detalle-titulo">Lámpara UV</span>
                   </div>
-                  <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal} onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} />
+                  <BloqueLamparaUV flujoMaxSistema={datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal} onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} />
                 </div>
               </div>
             )}
@@ -2936,12 +3090,12 @@ export default function Equipamiento({
                   sistemasSanitizacion={sistemasSeleccionadosSanit}
                   sistemasFiltracion={sistemasSeleccionadosFilt}
                   datosSanitizacion={{
-                    cloradorSalino: resultadoClorador && !resultadoClorador.error ? {
+                    cloradorSalino: estados?.cloradorSalino ?? (resultadoClorador && !resultadoClorador.error ? {
                       marca: resultadoClorador.seleccion?.marca,
                       modelo: resultadoClorador.seleccion?.modelo,
                       cantidad: resultadoClorador.seleccion?.cantidad,
                       flujoTotal: resultadoClorador.seleccion?.flujoTotal,
-                    } : null,
+                    } : null),
                     cloradorAutomatico: estados?.cloradorAutomatico ?? null,
                     lamparaUV: estados?.lamparaUV ?? null,
                   }}
@@ -2967,6 +3121,11 @@ export default function Equipamiento({
                   flujoInfinityVal={flujoInfinityVal ?? null}
                   flujoFiltradoVal={flujoFiltradoVal ?? null}
                   volumenTotalVal={volumenTotalVal ?? null}
+                  modoCloradorSalino={modoCloradorSalino}
+                  selCloradorSalinoId={selCloradorSalinoId}
+                  selCloradorSalinoCant={selCloradorSalinoCant}
+                  cloradorEnLineaQuitado={cloradorEnLineaQuitado}
+                  flujoOperacion={flujoUVEfectivo}
                 />
               </div>
             )}

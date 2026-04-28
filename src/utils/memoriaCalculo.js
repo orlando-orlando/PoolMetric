@@ -221,9 +221,16 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
 
   const sanitizacion = {};
 
-  if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
-    const data = empacarFiltroRes(resultadoClorador, "Generador de cloro salino");
-    if (data) sanitizacion.cloradorSalino = data;
+  if (sistemasSeleccionadosSanit?.cloradorSalino) {
+    const estCS = est("cloradorSalino");
+    // Usar resultadoClorador para la tabla hidráulica, pero sobrescribir seleccion con datos actuales
+    if (resultadoClorador && !resultadoClorador.error) {
+      const selCS = (estCS?.marca && estCS?.modelo)
+        ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
+        : null;
+      const data = empacarFiltroRes(resultadoClorador, "Generador de cloro salino", selCS);
+      if (data) sanitizacion.cloradorSalino = data;
+    }
   }
 
   if (sistemasSeleccionadosSanit?.lamparaUV) {
@@ -277,7 +284,11 @@ function empacarCalentamiento(key, label, calentamiento) {
   if (key === "bombaCalor") {
     const modo = calentamiento.modoBDC ?? "recomendado";
     res = modo === "manual" ? calentamiento.bdcManual : calentamiento.bdcSeleccionada;
-    if (res?.hidraulica) res = { ...res, ...res.hidraulica, seleccion: res.seleccion ?? { marca: res.bomba?.marca, modelo: res.bomba?.modelo, cantidad: res.cantidad, flujoTotal: res.flujoTotal } };
+    if (res?.hidraulica) {
+      const capU = res.bomba?.specs?.capacidadCalentamiento ?? res.seleccion?.capUnitaria ?? null;
+      res = { ...res, ...res.hidraulica, seleccion: res.seleccion ?? { marca: res.bomba?.marca, modelo: res.bomba?.modelo, cantidad: res.cantidad, flujoTotal: res.flujoTotal, capUnitaria: capU } };
+      if (res.seleccion && capU != null) res = { ...res, seleccion: { ...res.seleccion, capUnitaria: res.seleccion.capUnitaria ?? capU } };
+    }
   } else if (key === "panelSolar") {
     const modo = calentamiento.modoPS ?? "recomendado";
     const src = modo === "manual" ? calentamiento.psManual : calentamiento.psSeleccionado;
@@ -285,13 +296,24 @@ function empacarCalentamiento(key, label, calentamiento) {
     const marcaPS  = src.panel?.marca  ?? src.seleccion?.marca  ?? src.marca  ?? "—";
     const modeloPS = src.panel?.modelo ?? src.seleccion?.modelo ?? src.modelo ?? "—";
     const cantPS   = src.totalPaneles  ?? src.seleccion?.cantidad ?? src.cantidad ?? "—";
-    res = { ...(src.hidraulica ?? {}), seleccion: { marca: marcaPS, modelo: modeloPS, cantidad: cantPS, flujoTotal: src.flujoTotal ?? src.seleccion?.flujoTotal } };
+    const capPS    = src.panel?.specs?.capacidadCalentamiento ?? src.seleccion?.capUnitaria ?? null;
+    res = { ...(src.hidraulica ?? {}), seleccion: { marca: marcaPS, modelo: modeloPS, cantidad: cantPS, flujoTotal: src.flujoTotal ?? src.seleccion?.flujoTotal, capUnitaria: capPS } };
   } else if (key === "caldera") {
     const modo = calentamiento.modoCaldera ?? "recomendado";
-    res = modo === "manual" ? (calentamiento.calderaManual?.hidraulica ? { ...calentamiento.calderaManual.hidraulica, seleccion: { marca: calentamiento.calderaManual.caldera?.marca, modelo: calentamiento.calderaManual.caldera?.modelo, cantidad: calentamiento.calderaManual.cantidad, flujoTotal: calentamiento.calderaManual.flujoTotal } } : null) : calentamiento.calderaSeleccionada;
+    if (modo === "manual" && calentamiento.calderaManual?.hidraulica) {
+      const capC = calentamiento.calderaManual.caldera?.specs?.capacidadCalentamiento ?? null;
+      res = { ...calentamiento.calderaManual.hidraulica, seleccion: { marca: calentamiento.calderaManual.caldera?.marca, modelo: calentamiento.calderaManual.caldera?.modelo, cantidad: calentamiento.calderaManual.cantidad, flujoTotal: calentamiento.calderaManual.flujoTotal, capUnitaria: capC } };
+    } else {
+      res = calentamiento.calderaSeleccionada;
+    }
   } else if (key === "calentadorElectrico") {
     const modo = calentamiento.modoCE ?? "recomendado";
-    res = modo === "manual" ? (calentamiento.ceManual?.hidraulica ? { ...calentamiento.ceManual.hidraulica, seleccion: { marca: calentamiento.ceManual.equipo?.marca, modelo: calentamiento.ceManual.equipo?.modelo, cantidad: calentamiento.ceManual.cantidad, flujoTotal: calentamiento.ceManual.flujoTotal } } : null) : calentamiento.ceSeleccionado;
+    if (modo === "manual" && calentamiento.ceManual?.hidraulica) {
+      const capCE = calentamiento.ceManual.equipo?.specs?.capacidadCalentamiento ?? null;
+      res = { ...calentamiento.ceManual.hidraulica, seleccion: { marca: calentamiento.ceManual.equipo?.marca, modelo: calentamiento.ceManual.equipo?.modelo, cantidad: calentamiento.ceManual.cantidad, flujoTotal: calentamiento.ceManual.flujoTotal, capUnitaria: capCE } };
+    } else {
+      res = calentamiento.ceSeleccionado;
+    }
   }
   if (!res || res.error || !res.tablaTramos?.length) return null;
 
@@ -338,7 +360,7 @@ function empacarCalentamiento(key, label, calentamiento) {
    FUNCION PRINCIPAL
    ================================================================ */
 export function generarMemoriaCalculo({
-  estados, datosEmpotrable, tieneDesbordeCanal,
+  estados, estadosActuales, datosEmpotrable, tieneDesbordeCanal,
   flujoMaxGlobal, cargaTotalGlobal,
   tuberiaMaxGlobal, flujoVolumen, flujoInfinityVal, flujoFiltradoVal, vol,
   estadoBomba, equilibrio,
@@ -346,6 +368,24 @@ export function generarMemoriaCalculo({
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas, equiposConfirmados, specsEquipos,
 }) {
+  // estadosActuales tiene marca/modelo/spec actuales
+  // estados (snapshot) tiene cantidades originales de diseño
+  // Combinar: cantidades del snapshot + marca/modelo/spec actuales
+  const estadosMerged = {};
+  const allKeys = new Set([...Object.keys(estados ?? {}), ...Object.keys(estadosActuales ?? {})]);
+  for (const k of allKeys) {
+    const snap = estados?.[k] ?? {};
+    const actual = estadosActuales?.[k] ?? {};
+    estadosMerged[k] = {
+      ...snap,
+      // Sobreescribir marca/modelo/spec con los actuales
+      marca:  actual.marca  ?? snap.marca,
+      modelo: actual.modelo ?? snap.modelo,
+      spec:   actual.spec   ?? snap.spec,
+      selId:  actual.selId  ?? snap.selId,
+      tipo:   actual.tipo   ?? snap.tipo,
+    };
+  }
   if (!datosEmpotrable || !flujoMaxGlobal)
     throw new Error("Faltan datos de empotrable o flujo maximo.");
 
@@ -398,14 +438,14 @@ export function generarMemoriaCalculo({
   };
 
   const ctx = {
-    estados, datosEmpotrable, tieneDesbordeCanal,
+    estados: estadosMerged, datosEmpotrable, tieneDesbordeCanal,
     sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador,
   };
 
   /* ── 3 Reportes ── */
   const reporteDiseno = generarReporte({
     ...ctx,
-    estados,                     // estados ORIGINALES — cantidades de diseño
+    estados: estadosMerged,          // cantidades originales + marca/modelo actuales
     label: "Diseno original",
     flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: null,
@@ -505,13 +545,25 @@ export function generarMemoriaCalculo({
   }
 
   const specsSanitizacion = {
-    cloradorSalino:     resultadoClorador?.kgDiaInstalado != null
-      ? `${resultadoClorador.kgDiaInstalado} ${resultadoClorador.modoCloro === "comercial" ? "kg/día" : "litros"}`
-      : resultadoClorador?.capInstalada != null
-        ? `${resultadoClorador.capInstalada} kg/día`
-        : null,
-    cloradorAutomatico: estados?.cloradorAutomatico?.spec ?? null,
-    lamparaUV:          estados?.lamparaUV?.spec ?? null,
+    cloradorSalino: (() => {
+      const estCS = estadosMerged?.cloradorSalino;
+      if (estCS?.spec && estCS?.cantidad > 1) {
+        // spec tiene la capacidad total — dividir entre cantidad para obtener unitaria
+        const match = estCS.spec.match(/^([\d.]+)\s*(.+)$/);
+        if (match) {
+          const total = parseFloat(match[1]);
+          const unidad = match[2];
+          const unitaria = parseFloat((total / estCS.cantidad).toFixed(3));
+          return `${unitaria} ${unidad}`;
+        }
+      }
+      return estCS?.spec
+        ?? (resultadoClorador?.kgDiaInstalado != null
+          ? `${resultadoClorador.kgDiaInstalado} ${resultadoClorador.modoCloro === "comercial" ? "kg/día" : "litros"}`
+          : null);
+    })(),
+    cloradorAutomatico: estadosMerged?.cloradorAutomatico?.spec ?? null,
+    lamparaUV:          estadosMerged?.lamparaUV?.spec ?? null,
   };
 
   const memoria = {
@@ -520,7 +572,7 @@ export function generarMemoriaCalculo({
     calentamiento: calentamientoData,
     perfilTermico,
     equiposConfirmados: equiposConfirmados ?? null,
-    estadosDiseno: estados,
+    estadosDiseno: estadosMerged,   // cantidades snapshot + marca/modelo actuales
     specsEquipos: specsEquipos ?? null,
     specsCalentamiento,
     specsSanitizacion,

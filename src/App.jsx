@@ -575,11 +575,18 @@ export default function App() {
     if (flujoPS       != null)    lista.push({ label: "Panel solar",           valor: flujoPS });
     if (flujoCaldera  != null)    lista.push({ label: "Caldera",               valor: flujoCaldera });
     if (flujoCE       != null)    lista.push({ label: "Calent. eléctrico",     valor: flujoCE });
-    if (cloradorSeleccionado           && flujoClorador != null) lista.push({ label: "Gen. cloro salino",  valor: flujoClorador });
-    if (uvSeleccionado                 && cargaLamparaUV != null) lista.push({ label: "Lámpara UV",         valor: 0 });
-    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) lista.push({ label: "Clorador automático", valor: 0 });
+    if (cloradorSeleccionado && flujoClorador != null) lista.push({ label: "Gen. cloro salino", valor: flujoClorador });
+    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+      const estCA = estados?.cloradorAutomatico;
+      // Solo fuera de línea cuenta para flujo máximo (5 GPM × cantidad)
+      // En línea el agua ya circula en el sistema, no agrega flujo
+      if (estCA?.instalacion === "fueraLinea" && estCA?.flujoTotal != null) {
+        const flujoCA = parseFloat(estCA.flujoTotal);
+        if (flujoCA > 0) lista.push({ label: "Clorador automático", valor: flujoCA });
+      }
+    }
     return lista.filter(f => f.valor > 0);
-  }, [flujoFiltrado, flujoInfinitySistema, flujoBDC, flujoPS, flujoCaldera, flujoCE, cloradorSeleccionado, flujoClorador, uvSeleccionado, cloradorAutomaticoSeleccionado, cargaLamparaUV, cargaCloradorAutomatico]);
+  }, [flujoFiltrado, flujoInfinitySistema, flujoBDC, flujoPS, flujoCaldera, flujoCE, cloradorSeleccionado, flujoClorador, uvSeleccionado, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico, cargaLamparaUV, estados]);
 
   const flujoMaxGlobal = useMemo(() => {
     if (!flujosCandidatos.length) return null;
