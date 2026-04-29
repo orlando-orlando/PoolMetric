@@ -1,4 +1,5 @@
 import { motobombas1v }                   from "../data/motobombas1v";
+import { generadoresUV }                  from "../data/generadoresUV";
 import { retornos }                       from "../data/retornos";
 import { desnatadores }                   from "../data/desnatadores";
 import { barredoras }                     from "../data/barredoras";
@@ -69,28 +70,24 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 
   let cantMinNueva;
   if (key === "barredora") {
-    // Barredora: cantidad fija por geometria, NO cambia con el flujo
     cantMinNueva = estado.cantidad ?? 1;
   } else if (key === "desnatador") {
-    const area       = parseFloat(datosEmpotrable?.area) || 0;
-    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+    const area        = parseFloat(datosEmpotrable?.area) || 0;
+    const flujoPorEq  = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     const numPorArea  = area > 0 ? Math.ceil(area / 40) : 1;
     const numPorFlujo = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : 1;
     cantMinNueva = Math.max(numPorArea, numPorFlujo, 1);
   } else if (key === "drenFondo") {
-    // Drenes de fondo: minimo 2 por norma antiatrapamiento
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
     if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(2, num);
   } else if (key === "drenCanal") {
-    // Drenes de canal: minimo 1
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
     if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(1, num);
   } else {
-    // Retorno y otros: minimo 1, no forzar 2
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     cantMinNueva = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
   }
@@ -111,8 +108,8 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
   } catch { return null; }
 }
 
-const FLUJO_UMBRAL_MULTIPLICAR = 62; // GPM — filtros > este valor pueden ser múltiples
-const CANT_MAX_FILTROS = 20;           // máximo de unidades antes de subir capacidad
+const FLUJO_UMBRAL_MULTIPLICAR = 62;
+const CANT_MAX_FILTROS = 20;
 
 function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGeneral) {
   if (!estado?.selId || !flujoNuevo) return null;
@@ -138,12 +135,11 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   const catalActivos = catalogo
     .filter(c => c.metadata?.activo !== false)
     .map(c => ({ c, cap: c.specs?.maxFlow ?? c.specs?.flujoComercial ?? 0 }))
-    .sort((a, b) => a.cap - b.cap); // orden ascendente de capacidad
+    .sort((a, b) => a.cap - b.cap);
 
-  // ── Buscar el filtro de mayor capacidad que cubra el flujo con 1 unidad ──
   const buscarMayorCapacidad = (flujoReq) => {
     const candidatos = catalActivos.filter(({ cap }) => cap >= flujoReq);
-    return candidatos.length > 0 ? candidatos[0] : null; // el más ajustado
+    return candidatos.length > 0 ? candidatos[0] : null;
   };
 
   let cantFinal    = cantOriginal;
@@ -154,24 +150,16 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   const flujoTotalActual = flujoEf * cantOriginal;
 
   if (flujoTotalActual >= flujoNuevo) {
-    // Ya cubre — sin cambio
     cantFinal = cantOriginal;
-
   } else if (flujoEf <= FLUJO_UMBRAL_MULTIPLICAR) {
-    // Filtro pequeño (≤ 62 GPM): intentar subir capacidad primero
     const mejor = buscarMayorCapacidad(flujoNuevo);
     if (mejor) {
-      // Hay un filtro grande que cubre solo — usar 1 unidad
       flujoEfFinal = mejor.cap;
       modeloFinal  = mejor.c.modelo;
       marcaFinal   = mejor.c.marca;
       cantFinal    = 1;
     } else {
-      // No hay filtro que cubra solo — usar el de mayor capacidad disponible
-      // y calcular cuántas unidades se necesitan
-      const mayorDisponible = catalActivos.length > 0
-        ? catalActivos[catalActivos.length - 1]  // el de mayor capacidad
-        : null;
+      const mayorDisponible = catalActivos.length > 0 ? catalActivos[catalActivos.length - 1] : null;
       if (mayorDisponible && mayorDisponible.cap > 0) {
         const cantNec = Math.ceil(flujoNuevo / mayorDisponible.cap);
         flujoEfFinal = mayorDisponible.cap;
@@ -179,26 +167,19 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
         marcaFinal   = mayorDisponible.c.marca;
         cantFinal    = cantNec;
       } else {
-        // No hay solución — escalar con el filtro actual
         cantFinal = Math.ceil(flujoNuevo / flujoEf);
       }
     }
-
   } else {
-    // Filtro grande (> 62 GPM): intentar poner hasta CANT_MAX_FILTROS unidades
     const cantNecesaria = Math.ceil(flujoNuevo / flujoEf);
     if (cantNecesaria <= CANT_MAX_FILTROS) {
-      // Cabe dentro del límite → subir cantidad
       cantFinal = Math.max(cantOriginal, cantNecesaria);
     } else {
-      // Necesitaría más de 4 → buscar filtro de mayor capacidad
-      // Intentar con 1 filtro mayor, luego con 2, 3, hasta 4
       let resuelto = false;
       for (let cant = 1; cant <= CANT_MAX_FILTROS; cant++) {
         const capNecesariaPorUnidad = flujoNuevo / cant;
         const mejor = buscarMayorCapacidad(capNecesariaPorUnidad);
         if (mejor && mejor.cap > flujoEf) {
-          // Preferir el filtro más grande con la menor cantidad
           flujoEfFinal = mejor.cap;
           modeloFinal  = mejor.c.modelo;
           marcaFinal   = mejor.c.marca;
@@ -207,16 +188,12 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
           break;
         }
       }
-      if (!resuelto) {
-        // No se encontró solución óptima — máximo 4 del filtro original
-        cantFinal = CANT_MAX_FILTROS;
-      }
+      if (!resuelto) cantFinal = CANT_MAX_FILTROS;
     }
   }
 
   try {
     const res = fnManual(flujoEfFinal, cantFinal, flujoNuevo);
-    // Buscar el equipo en el catálogo para obtener el diámetro real
     const eqEnCatalog = catalActivos.find(e => e.c.modelo === modeloFinal && e.c.marca === marcaFinal);
     const diameter = eqEnCatalog?.c?.specs?.diameter ?? eqEnCatalog?.c?.diameter ?? null;
     const filtrationArea = eqEnCatalog?.c?.specs?.filtrationArea ?? null;
@@ -232,10 +209,73 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   } catch { return null; }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   recalcularUV — FIX
+   - Si el equipo actual cubre el flujoNuevo → sin cambio
+   - Si no cubre → buscar el más pequeño del catálogo que sí cubra
+     con 1 sola unidad
+   - Si ninguno individual cubre → usar el más grande y
+     calcular cuántas unidades se necesitan
+───────────────────────────────────────────────────────────── */
+function recalcularUV(estado, flujoNuevo) {
+  if (!estado?.selId || !flujoNuevo) return null;
+
+  const eqActual = generadoresUV.find(g => g.id === estado.selId);
+  if (!eqActual) return null;
+
+  const cantOriginal    = estado.cantidad ?? 1;
+  const capacidadActual = eqActual.specs.flujo;
+
+  // Catálogo activo ordenado de menor a mayor capacidad
+  const catalActivos = generadoresUV
+    .filter(g => g.metadata?.activo !== false)
+    .sort((a, b) => a.specs.flujo - b.specs.flujo);
+
+  let eqFinal    = eqActual;
+  let cantFinal  = cantOriginal;
+  let hubo_cambio = false;
+
+  if (capacidadActual >= flujoNuevo) {
+    // El equipo actual ya cubre — sin cambio
+    eqFinal   = eqActual;
+    cantFinal = cantOriginal;
+  } else {
+    // Buscar el más pequeño que cubra el flujo con 1 unidad
+    const equipoMayor = catalActivos.find(g => g.specs.flujo >= flujoNuevo);
+    if (equipoMayor) {
+      eqFinal   = equipoMayor;
+      cantFinal = 1;
+    } else {
+      // Ninguno individual cubre — usar el más grande y calcular cantidad
+      const elMasGrande = catalActivos[catalActivos.length - 1];
+      eqFinal   = elMasGrande;
+      cantFinal = Math.ceil(flujoNuevo / elMasGrande.specs.flujo);
+    }
+    hubo_cambio = eqFinal.id !== eqActual.id || cantFinal !== cantOriginal;
+  }
+
+  try {
+    const res = calcularCargaUVManual(eqFinal.specs.flujo, cantFinal, flujoNuevo);
+    if (!res || res.error) return null;
+    return {
+      cantidad:    cantFinal,
+      cantOriginal,
+      cambio:      hubo_cambio,
+      marca:       eqFinal.marca,
+      modelo:      eqFinal.modelo,
+      selId:       eqFinal.id,
+      cargaTotal:  res.cargaTotal,
+      sumaFinal:   res.cargaTotal,
+      resultadoHidraulico: res,
+    };
+  } catch { return null; }
+}
+
 export function calcularEquilibrio({
   bombaId, nBombas, flujoInicial, cargaInicial,
   estados, cargasIniciales, datosEmpotrable,
   tieneDesbordeCanal, usoGeneral,
+  excluirCloradorAutomatico = false, // true cuando instalación en línea y flujo > 90 GPM
 }) {
   const bomba = motobombas1v.find(b => b.id === bombaId);
   if (!bomba) return { error: "Motobomba no encontrada." };
@@ -245,9 +285,8 @@ export function calcularEquilibrio({
     return { error: "Flujo o carga de diseno no validos." };
 
   const cargaMaxBomba = curva[0].carga_ft;
-  if (cargaInicial > cargaMaxBomba) {
+  if (cargaInicial > cargaMaxBomba)
     return { error: `La motobomba no alcanza la CDT de diseno (${cargaInicial.toFixed(2)} ft > ${cargaMaxBomba} ft shut-off).` };
-  }
 
   const empotrablesConfig = {
     retorno:    { fn: (f,t,d,n) => retorno(f,t,d,n),    cat: retornos    },
@@ -266,9 +305,12 @@ export function calcularEquilibrio({
     ? ["retorno", "barredora", "drenFondo", "drenCanal"]
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
-  // Cargas de referencia al flujo de diseno
+  // Cargas de referencia al flujo de diseño
   function calcularCargasRef(flujoRef) {
     const ref = { ...cargasIniciales };
+    // Excluir clorador en línea de la referencia base
+    if (excluirCloradorAutomatico) ref.cloradorAutomatico = 0;
+
     for (const key of empKeys) {
       const est = estados[key];
       if (!est?.selId) continue;
@@ -286,9 +328,9 @@ export function calcularEquilibrio({
     return ref;
   }
 
-  // Recalcular equipos y obtener CDT del sistema al flujo dado
   function calcularCDTSistema(flujoNuevo, cargasRef) {
     const equiposRecalc = {};
+
     for (const key of empKeys) {
       const est = estados[key];
       if (!est?.selId) continue;
@@ -303,28 +345,22 @@ export function calcularEquilibrio({
       const rec = recalcularFiltro(key, est, flujoNuevo, cfg.fn, cfg.cat, usoGeneral);
       if (rec) equiposRecalc[key] = rec;
     }
+
+    // UV — FIX: busca equipo más grande si el flujo supera la capacidad
     if (estados?.lamparaUV?.selId) {
-      const est = estados.lamparaUV;
-      const cantOriginal = est.cantidad ?? 1;
-      try {
-        // flujoPorEquipo = capacidad unitaria, flujoRealSistema = flujo real del sistema
-        const res = calcularCargaUVManual(flujoNuevo / cantOriginal, cantOriginal, flujoNuevo);
-        if (res && !res.error) {
-          equiposRecalc.lamparaUV = {
-            cantidad: cantOriginal, cantOriginal, cambio: false,
-            cargaTotal: res.cargaTotal, sumaFinal: res.cargaTotal,
-            resultadoHidraulico: res,  // necesario para la memoria de calculo
-          };
-        }
-      } catch { /* sin cambio */ }
+      const rec = recalcularUV(estados.lamparaUV, flujoNuevo);
+      if (rec) equiposRecalc.lamparaUV = rec;
     }
 
     const keysRecalc = [
       ...empKeys.filter(k => equiposRecalc[k] != null),
       ...["filtroArena", "prefiltro", "filtroCartucho", "lamparaUV"].filter(k => equiposRecalc[k] != null),
     ];
+
     let deltaCargas = 0;
     for (const key of keysRecalc) {
+      // FIX: excluir clorador en línea del delta de cargas
+      if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
       const cargaRef   = parseFloat(cargasRef[key] ?? 0);
       const eq         = equiposRecalc[key];
       const cargaNueva = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
@@ -334,37 +370,21 @@ export function calcularEquilibrio({
     return { equiposRecalc, cdt };
   }
 
-  const cargasRef0      = calcularCargasRef(flujoInicial);
-  const cargaBombaEnDis = parseFloat((cargaEnCurva(curva, flujoInicial / nBombas) ?? cargaInicial).toFixed(2));
+  const cargasRef0 = calcularCargasRef(flujoInicial);
 
-  /* ============================================================
-     BUSQUEDA INCREMENTAL DEL PUNTO DE EQUILIBRIO
-
-     Partimos del flujo de diseño (flujoInicial) y avanzamos de
-     GPM en GPM (paso de 0.5 GPM) calculando en cada punto:
-       - CDT que da la bomba a ese flujo
-       - CDT que requiere el sistema a ese flujo
-
-     El equilibrio es donde CDT_bomba cruza CDT_sistema.
-     Después de encontrar el equilibrio, continuamos 10 pasos más
-     para ver cómo se comporta el sistema cerca del punto de operación.
-  ============================================================ */
-  const PASO = 0.5; // GPM por paso
-  const PASOS_POST_EQ = 10; // pasos a mostrar después del equilibrio
+  const PASO = 0.5;
   const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.3;
 
-  let flujoEq    = null;
-  let cdtEq      = null;
-  let equiposEq  = {};
-
-  const pasos = []; // todos los pasos evaluados
+  let flujoEq   = null;
+  let cdtEq     = null;
+  let equiposEq = {};
+  const pasos   = [];
 
   let cdtBombaAnterior = null;
   let cdtSistAnterior  = null;
   let flujoAnterior    = null;
-  let idxEquilibrio    = null; // índice en pasos donde ocurrió el cruce
 
-  // Fase 1: buscar el equilibrio avanzando de PASO en PASO
+  // Fase 1
   for (let q = flujoInicial; q <= qMaxBusqueda; q += PASO) {
     const qRound     = parseFloat(q.toFixed(2));
     const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
@@ -375,55 +395,38 @@ export function calcularEquilibrio({
 
     if (cdtBombaAnterior !== null && cdtSistAnterior !== null) {
       if (cdtBombaAnterior >= cdtSistAnterior && cdtBomba_q <= cdtSist_q) {
-        // Interpolacion del cruce exacto
         const diffAnterior = cdtBombaAnterior - cdtSistAnterior;
         const diffActual   = cdtBomba_q - cdtSist_q;
         const t = diffAnterior / (diffAnterior - diffActual);
         flujoEq = parseFloat((flujoAnterior + t * (qRound - flujoAnterior)).toFixed(2));
         cdtEq   = parseFloat((cdtSistAnterior + t * (cdtSist_q - cdtSistAnterior)).toFixed(2));
         const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
-        equiposEq  = eqFinal;
-        idxEquilibrio = pasos.length; // después de este índice van los post-eq
-        // Insertar el punto interpolado de equilibrio
-        pasos.push({
-          flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq,
-          equipos: eqFinal, esEquilibrio: true,
-        });
+        equiposEq = eqFinal;
+        pasos.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: eqFinal, esEquilibrio: true });
         break;
       }
     }
-
     cdtBombaAnterior = cdtBomba_q;
     cdtSistAnterior  = cdtSist_q;
     flujoAnterior    = qRound;
   }
 
-  // Si no hubo cruce
   if (flujoEq === null) {
     const ultimo = pasos[pasos.length - 1];
-    flujoEq   = ultimo?.flujo ?? flujoInicial;
-    cdtEq     = ultimo?.cdtSistema ?? cargaInicial;
+    flujoEq = ultimo?.flujo ?? flujoInicial;
+    cdtEq   = ultimo?.cdtSistema ?? cargaInicial;
     const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
     equiposEq = eqFinal;
     pasos.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: eqFinal, esEquilibrio: true });
-    idxEquilibrio = pasos.length - 1;
   }
 
-  // Fase 2: segunda iteracion
-  // Misma logica que iter 1, misma referencia de cargas (cargasRef0),
-  // partiendo desde flujoEq de iter 1.
-  // Si el primer paso ya supera la bomba, el sistema convergio — no buscar mas.
+  // Fase 2
   let flujoEq2   = flujoEq;
   let cdtEq2     = cdtEq;
   let equiposEq2 = equiposEq;
   const pasosIter2 = [];
-
-  let cdtBombaAnt2 = null;
-  let cdtSistAnt2  = null;
-  let flujoAnt2    = null;
+  let cdtBombaAnt2 = null, cdtSistAnt2 = null, flujoAnt2 = null;
   let encontradoIter2 = false;
-
-  // Limite de pasos para iter 2: suficiente para ver la tendencia
   const MAX_PASOS_ITER2 = 20;
   let contPasosIter2 = 0;
 
@@ -451,17 +454,13 @@ export function calcularEquilibrio({
       }
     }
 
-    // Si el sistema ya supera la bomba desde el primer paso -> convergido
     if (contPasosIter2 === 1 && cdtBomba_q < cdtSist_q) {
-      // La bomba no puede desde el inicio de iter 2 -> equilibrio es el de iter 1
       pasosIter2.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
       encontradoIter2 = true;
       break;
     }
 
-    // Limitar pasos de iter 2
     if (contPasosIter2 >= MAX_PASOS_ITER2) break;
-
     cdtBombaAnt2 = cdtBomba_q;
     cdtSistAnt2  = cdtSist_q;
     flujoAnt2    = qRound;
@@ -476,7 +475,6 @@ export function calcularEquilibrio({
 
   const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoEq2 / nBombas) ?? 0).toFixed(2));
 
-  // Construir iteraciones desde todos los pasos (incluye separador entre iter1 e iter2)
   let iterCount = 0;
   const iteraciones = pasos.map((p) => {
     if (p.separador) return { separador: true, label: p.label };

@@ -1,20 +1,22 @@
 /* ================================================================
-   memoriaCalculo.js — v4 fixed
-   Genera 3 reportes: diseño original, iter 1 (★), iter 2 (★)
-   Los puntos de iteración corresponden exactamente a los puntos
-   de equilibrio encontrados, con sus equipos recalculados.
+   memoriaCalculo.js — v5
+   Fix: clorador automático en línea excluido del CDT cuando
+   el flujo de operación supera 90 GPM. Aparece como nota
+   informativa en la memoria sin tabla hidráulica.
    ================================================================ */
 
 import { retorno }        from "./retorno";
-import { desnatador } from "./desnatador";
-import { barredora }  from "./barredora";
-import { drenFondo }  from "./drenFondo";
-import { drenCanal }  from "./drenCanal";
+import { desnatador }     from "./desnatador";
+import { barredora }      from "./barredora";
+import { drenFondo }      from "./drenFondo";
+import { drenCanal }      from "./drenCanal";
 import { calcularCargaFiltroArenaManual }        from "./filtroArena";
 import { calcularCargaPrefiltroManual }          from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual }     from "./filtroCartucho";
 import { calcularCargaUVManual }                 from "./generadorUV";
 import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
+
+const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 
 const f2 = (v) => (parseFloat(v) || 0).toFixed(2);
 
@@ -110,7 +112,6 @@ function empacarEmpotrable(res, tipo) {
     cargaDinamicaTotal: cdtTotal(st, tabDist, parseFloat(disparo?.cargaDisparoTotal ?? 0), sufijo),
     resumenTramos: resumenesTramos[tipo],
     resumenDisparos: resumenesDisparos[tipo] ?? null,
-    // seleccion: se agrega en generarReporte con datos del estado
   };
 }
 
@@ -126,13 +127,14 @@ function empacarFiltroRes(res, label, seleccion) {
   };
 }
 
-function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, tieneDesbordeCanal,
-  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador, equiposRecalcIter,
-  seleccionesAjustadas }) {
+function generarReporte({
+  label, flujo, flujoDiseno, estados, datosEmpotrable, tieneDesbordeCanal,
+  sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador,
+  equiposRecalcIter, seleccionesAjustadas,
+}) {
   const est  = (k) => estados?.[k];
   const tipo = (k) => est(k)?.tipo ?? null;
 
-  // Marca/modelo ajustados — prioridad: seleccionesAjustadas > equiposRecalcIter > estado
   const marcaAjustada  = (k) => seleccionesAjustadas?.[k]?.marca  ?? equiposRecalcIter?.[k]?.marca  ?? est(k)?.marca;
   const modeloAjustado = (k) => seleccionesAjustadas?.[k]?.modelo ?? equiposRecalcIter?.[k]?.modelo ?? est(k)?.modelo;
 
@@ -141,7 +143,6 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
     return est(k)?.cantidad ?? null;
   };
 
-  // Para diseño original usar flujoDiseno, para iteraciones usar flujo del equilibrio
   const flujoCalculo = equiposRecalcIter ? flujo : flujoDiseno;
 
   const empKeys = tieneDesbordeCanal
@@ -163,9 +164,6 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
     const res = resIter ?? fnsEmp[key](flujoCalculo, tipo(key), datosEmpotrable, cantParaKey(key));
     const data = empacarEmpotrable(res, key);
     if (data) {
-      // Agregar info de seleccion para el tab de equipos
-      // marca/modelo vienen de equiposRecalcIter (tiene los datos del catalogo)
-      // o del estado si el diseño original no los tiene
       const recKey = equiposRecalcIter?.[key];
       const cant   = cantParaKey(key) ?? est(key)?.cantidad ?? 1;
       data.seleccion = {
@@ -223,7 +221,6 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
 
   if (sistemasSeleccionadosSanit?.cloradorSalino) {
     const estCS = est("cloradorSalino");
-    // Usar resultadoClorador para la tabla hidráulica, pero sobrescribir seleccion con datos actuales
     if (resultadoClorador && !resultadoClorador.error) {
       const selCS = (estCS?.marca && estCS?.modelo)
         ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
@@ -235,47 +232,58 @@ function generarReporte({ label, flujo, flujoDiseno, estados, datosEmpotrable, t
 
   if (sistemasSeleccionadosSanit?.lamparaUV) {
     const eqUV = est("lamparaUV");
-    // lamparaUV no usa selId — verifica que tenga datos validos
     if (eqUV?.marca || eqUV?.modelo || eqUV?.cantidad) {
+      // En iteraciones usar el resultadoHidraulico recalculado (que ya tiene el equipo correcto)
       const resIter = equiposRecalcIter?.lamparaUV?.resultadoHidraulico;
-      const cant = eqUV?.cantidad ?? cantParaKey("lamparaUV") ?? 1;
-      // flujoTotal del estado UV (flujo por equipo × cantidad)
+      // Si en iteraciones cambió el equipo, usar marca/modelo del recalc
+      const marcaUV  = equiposRecalcIter?.lamparaUV?.marca  ?? eqUV?.marca;
+      const modeloUV = equiposRecalcIter?.lamparaUV?.modelo ?? eqUV?.modelo;
+      const cant = equiposRecalcIter?.lamparaUV?.cantidad ?? eqUV?.cantidad ?? cantParaKey("lamparaUV") ?? 1;
       const flujoTotalUV = eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo;
       const flujoPorUV = cant > 0 ? flujoTotalUV / cant : flujoCalculo;
       const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant, flujoCalculo);
-      const data = empacarFiltroRes(res, "Lampara UV", { marca: eqUV?.marca, modelo: eqUV?.modelo, cantidad: cant, flujoTotal: flujoTotalUV });
+      const data = empacarFiltroRes(res, "Lampara UV", { marca: marcaUV, modelo: modeloUV, cantidad: cant, flujoTotal: flujoTotalUV });
       if (data) sanitizacion.lamparaUV = data;
     }
   }
 
   if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
     const eqCA = est("cloradorAutomatico");
-    // cloradorAutomatico puede no tener selId — verificar datos minimos
     const tieneCA = eqCA?.selId || eqCA?.marca || eqCA?.modelo || eqCA?.cantidad;
+
     if (tieneCA) {
-      const cant = eqCA?.cantidad ?? cantParaKey("cloradorAutomatico") ?? 1;
-      const flujoTotalCA = eqCA?.flujoTotal ? parseFloat(eqCA.flujoTotal) : flujoCalculo;
-      const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
       const instalacion = eqCA?.instalacion ?? "enLinea";
-      const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, instalacion);
-      const data = empacarFiltroRes(res, "Clorador automatico", { marca: eqCA?.marca, modelo: eqCA?.modelo, cantidad: cant, flujoTotal: flujoTotalCA });
-      if (data) sanitizacion.cloradorAutomatico = data;
+      const flujoOp = parseFloat(flujoCalculo);
+
+      // FIX: si es en línea y el flujo de operación supera 90 GPM → excluir del CDT
+      const esEnLineaExcluido = instalacion === "enLinea" && flujoOp > FLUJO_MAX_CLORADOR_EN_LINEA;
+
+      if (esEnLineaExcluido) {
+        // Solo nota informativa — sin tabla hidráulica, sin carga
+        sanitizacion.cloradorAutomatico = {
+          label:    "Clorador automático (no aplicable)",
+          excluido: true,
+          motivo:   `Flujo de operación ${flujoOp.toFixed(1)} GPM supera el límite de ${FLUJO_MAX_CLORADOR_EN_LINEA} GPM para instalación en línea. No se incluye en el CDT del sistema.`,
+          seleccion: {
+            marca:      eqCA?.marca    ?? "—",
+            modelo:     eqCA?.modelo   ?? "—",
+            cantidad:   eqCA?.cantidad ?? 1,
+            instalacion,
+          },
+        };
+      } else {
+        // Incluir normalmente con tabla hidráulica
+        const cant = eqCA?.cantidad ?? cantParaKey("cloradorAutomatico") ?? 1;
+        const flujoTotalCA = eqCA?.flujoTotal ? parseFloat(eqCA.flujoTotal) : flujoCalculo;
+        const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
+        const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, instalacion);
+        const data = empacarFiltroRes(res, "Clorador automatico", { marca: eqCA?.marca, modelo: eqCA?.modelo, cantidad: cant, flujoTotal: flujoTotalCA });
+        if (data) sanitizacion.cloradorAutomatico = data;
+      }
     }
   }
 
   return { label, flujo: f2(flujo), empotrables, filtros, sanitizacion };
-}
-
-/* ── Genera las tablas de calentamiento para un reporte (carga fija, no cambia) ── */
-function generarCalentamientoReporte(calentamiento) {
-  if (!calentamiento) return [];
-  const calSistemas = calentamiento?.sistemasSeleccionados ?? {};
-  const result = [];
-  if (calSistemas.bombaCalor)          { const d = empacarCalentamiento("bombaCalor",          "Bomba de calor",        calentamiento); if (d) result.push(d); }
-  if (calSistemas.panelSolar)          { const d = empacarCalentamiento("panelSolar",           "Panel solar",           calentamiento); if (d) result.push(d); }
-  if (calSistemas.caldera)             { const d = empacarCalentamiento("caldera",              "Caldera de gas",        calentamiento); if (d) result.push(d); }
-  if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico",  "Calentador electrico",  calentamiento); if (d) result.push(d); }
-  return result;
 }
 
 function empacarCalentamiento(key, label, calentamiento) {
@@ -318,13 +326,9 @@ function empacarCalentamiento(key, label, calentamiento) {
   if (!res || res.error || !res.tablaTramos?.length) return null;
 
   let tablaDistancia = res.tablaDistancia ?? null;
-
-  // Limpiar tablaAltura: alturaMaxSist_m no debe mostrar valores > 999
-  // (el componente pasa alturaMax + 1000 cuando el equipo no gobierna)
   let tablaAltura = res.tablaAltura ?? null;
   if (tablaAltura) {
     const altMax = parseFloat(tablaAltura.alturaMaxSist_m ?? 0);
-    // Altura propia del equipo — buscar en todos los nombres posibles
     const altPropia = parseFloat(
       tablaAltura.alturaBDC_m ?? tablaAltura.alturaCE_m ??
       tablaAltura.alturaCaldera_m ?? tablaAltura.alturaPS_m ??
@@ -332,7 +336,6 @@ function empacarCalentamiento(key, label, calentamiento) {
     );
     tablaAltura = {
       ...tablaAltura,
-      // Si alturaMax > 999 es el truco del componente — mostrar la propia
       alturaMaxSist_m: f2(altMax > 999 ? altPropia : altMax),
       alturaBDC_m:     tablaAltura.alturaBDC_m     ?? undefined,
       alturaCE_m:      tablaAltura.alturaCE_m      ?? undefined,
@@ -346,8 +349,7 @@ function empacarCalentamiento(key, label, calentamiento) {
     key, label,
     seleccion: res.seleccion ?? null,
     tablaTramos: normEquipo(res.tablaTramos),
-    tablaDistancia,
-    tablaAltura,
+    tablaDistancia, tablaAltura,
     cargaTramos: res.cargaTramos, cargaDistanciaIda: res.cargaDistanciaIda,
     cargaDistanciaReg: res.cargaDistanciaReg, cargaEstatica: res.cargaEstatica,
     cargaFriccion: res.cargaFriccionAltura, cargaFija: res.cargaFija_ft,
@@ -368,17 +370,13 @@ export function generarMemoriaCalculo({
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas, equiposConfirmados, specsEquipos,
 }) {
-  // estadosActuales tiene marca/modelo/spec actuales
-  // estados (snapshot) tiene cantidades originales de diseño
-  // Combinar: cantidades del snapshot + marca/modelo/spec actuales
   const estadosMerged = {};
   const allKeys = new Set([...Object.keys(estados ?? {}), ...Object.keys(estadosActuales ?? {})]);
   for (const k of allKeys) {
-    const snap = estados?.[k] ?? {};
+    const snap   = estados?.[k]       ?? {};
     const actual = estadosActuales?.[k] ?? {};
     estadosMerged[k] = {
       ...snap,
-      // Sobreescribir marca/modelo/spec con los actuales
       marca:  actual.marca  ?? snap.marca,
       modelo: actual.modelo ?? snap.modelo,
       spec:   actual.spec   ?? snap.spec,
@@ -391,13 +389,9 @@ export function generarMemoriaCalculo({
 
   const calentamiento   = datosPorSistema?.calentamiento;
   const iteraciones     = equilibrio?.iteraciones ?? [];
-  const equilibrioFinal = equilibrio?.equilibrio ?? null;
+  const equilibrioFinal = equilibrio?.equilibrio  ?? null;
 
-  /* ── Buscar puntos de equilibrio ★ en iter1 e iter2
-     El array tiene: [pasos iter1...] [★ iter1] [separador] [pasos iter2...] [★ iter2]
-  ── */
-  let eqIter1 = null;
-  let eqIter2 = null;
+  let eqIter1 = null, eqIter2 = null;
   let pasadoSeparador = false;
   for (const it of iteraciones) {
     if (it.separador) { pasadoSeparador = true; continue; }
@@ -406,9 +400,8 @@ export function generarMemoriaCalculo({
       else if (pasadoSeparador && !eqIter2) eqIter2 = it;
     }
   }
-  if (!eqIter2) eqIter2 = eqIter1; // fallback: iter2 mismo punto que iter1
+  if (!eqIter2) eqIter2 = eqIter1;
 
-  /* ── Resumen general ── */
   const resumen = {
     area:        f2(datosEmpotrable?.area ?? 0),
     vol:         f2(vol ?? 0),
@@ -429,11 +422,9 @@ export function generarMemoriaCalculo({
     cdtIter2:    f2(eqIter2?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
     flujoIter1:  f2(eqIter1?.flujoEquilibrio ?? 0),
     flujoIter2:  f2(eqIter2?.flujoEquilibrio ?? 0),
-    // Flujos por sistema/proceso — para tabla de requerimientos
     flujosRequeridos: [
-      flujoFiltradoVal > 0   ? { label: "Filtrado",             valor: flujoFiltradoVal }  : null,
-      flujoInfinityVal > 0   ? { label: "Infinity",             valor: flujoInfinityVal }  : null,
-      // Calentamiento — se agrega después de construir calentamientoData
+      flujoFiltradoVal > 0 ? { label: "Filtrado",  valor: flujoFiltradoVal } : null,
+      flujoInfinityVal > 0 ? { label: "Infinity",  valor: flujoInfinityVal } : null,
     ].filter(Boolean),
   };
 
@@ -442,31 +433,27 @@ export function generarMemoriaCalculo({
     sistemasSeleccionadosFilt, sistemasSeleccionadosSanit, resultadoClorador,
   };
 
-  /* ── 3 Reportes ── */
   const reporteDiseno = generarReporte({
     ...ctx,
-    estados: estadosMerged,          // cantidades originales + marca/modelo actuales
+    estados: estadosMerged,
     label: "Diseno original",
     flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: null,
     seleccionesAjustadas: equiposConfirmados ?? null,
   });
 
-  // Iter 1: equipos exactamente en el punto ★ de iter 1
   const reporteIter1 = eqIter1 ? generarReporte({
     ...ctx, label: `Iter. 1 — ${f2(eqIter1.flujoEquilibrio)} GPM`,
     flujo: eqIter1.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: eqIter1.equiposRecalc,
   }) : null;
 
-  // Iter 2: siempre se genera si existe eqIter2 (aunque converja al mismo flujo que iter1)
   const reporteIter2 = eqIter2 ? generarReporte({
     ...ctx, label: `Iter. 2 — ${f2(eqIter2.flujoEquilibrio)} GPM`,
     flujo: eqIter2.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
     equiposRecalcIter: eqIter2.equiposRecalc,
   }) : null;
 
-  /* ── Calentamiento (igual en los 3 reportes) ── */
   const calentamientoData = [];
   const calSistemas = calentamiento?.sistemasSeleccionados ?? {};
   if (calSistemas.bombaCalor)          { const d = empacarCalentamiento("bombaCalor",          "Bomba de calor",       calentamiento); if (d) calentamientoData.push(d); }
@@ -474,71 +461,51 @@ export function generarMemoriaCalculo({
   if (calSistemas.caldera)             { const d = empacarCalentamiento("caldera",              "Caldera de gas",       calentamiento); if (d) calentamientoData.push(d); }
   if (calSistemas.calentadorElectrico) { const d = empacarCalentamiento("calentadorElectrico",  "Calentador electrico", calentamiento); if (d) calentamientoData.push(d); }
 
-  // Agregar flujos de calentamiento y sanitizacion a flujosRequeridos
   for (const c of calentamientoData) {
     const flujoC = parseFloat(c.seleccion?.flujoTotal ?? 0);
     if (flujoC > 0) resumen.flujosRequeridos.push({ label: c.label, valor: flujoC });
   }
-  // Sanitizacion — clorador salino
   if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
     const flujoCS = parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
     if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Cloro salino", valor: flujoCS });
   }
-  // UV y clorador automático — usan flujoMaxGlobal, no tienen flujo propio
-  // Los incluimos para que se vea que están en el sistema
-  if (sistemasSeleccionadosSanit?.lamparaUV)          resumen.flujosRequeridos.push({ label: "Lámpara UV",         valor: null });
+  if (sistemasSeleccionadosSanit?.lamparaUV)          resumen.flujosRequeridos.push({ label: "Lámpara UV",          valor: null });
   if (sistemasSeleccionadosSanit?.cloradorAutomatico) resumen.flujosRequeridos.push({ label: "Clorador automático", valor: null });
 
-  // Calentamiento para el resumen (cargaTotal para la tabla comparativa)
-  // Las tablas completas van en cada reporte para que aparezcan en todas las iteraciones
-  const calentamientoReporte = generarCalentamientoReporte(calentamiento);
+  const calentamientoReporte = calentamientoData; // ya construido arriba
+  if (reporteDiseno) reporteDiseno.calentamiento = calentamientoReporte;
+  if (reporteIter1)  reporteIter1.calentamiento  = calentamientoReporte;
+  if (reporteIter2)  reporteIter2.calentamiento  = calentamientoReporte;
 
-  // Agregar calentamiento a cada reporte para que aparezca en sus tabs
-  if (reporteDiseno)  reporteDiseno.calentamiento  = calentamientoReporte;
-  if (reporteIter1)   reporteIter1.calentamiento   = calentamientoReporte;
-  if (reporteIter2)   reporteIter2.calentamiento   = calentamientoReporte;
-
-  /* ── Perfil térmico — datos ya calculados en Calentamiento.jsx ── */
   let perfilTermico = null;
   if (calentamiento?.ciudad && calentamiento?.perdidasBTU) {
     perfilTermico = {
-      ciudad:         calentamiento.ciudad,
-      tempDeseada:    calentamiento.tempDeseada,
-      cubierta:       calentamiento.cubierta,
-      techada:        calentamiento.techada,
-      mesesCalentar:  calentamiento.mesesCalentar ?? {},
-      tablaClima:     calentamiento.tablaClima    ?? [],
-      mesMasFrio:     calentamiento.mesMasFrio    ?? null,
-      perdidasBTU:    calentamiento.perdidasBTU,
+      ciudad:          calentamiento.ciudad,
+      tempDeseada:     calentamiento.tempDeseada,
+      cubierta:        calentamiento.cubierta,
+      techada:         calentamiento.techada,
+      mesesCalentar:   calentamiento.mesesCalentar ?? {},
+      tablaClima:      calentamiento.tablaClima    ?? [],
+      mesMasFrio:      calentamiento.mesMasFrio    ?? null,
+      perdidasBTU:     calentamiento.perdidasBTU,
       perdidaTotalBTU: calentamiento.perdidaTotalBTU,
     };
   }
 
-  // Construir specs de calentamiento — capUnitaria de cada selección
   const specsCalentamiento = {};
   for (const item of calentamientoData) {
     const sel = item?.seleccion;
-    const cap = sel?.capUnitaria
-      ?? sel?.capUnitariaKcal
-      ?? sel?.capacidad
-      ?? null;
+    const cap = sel?.capUnitaria ?? sel?.capUnitariaKcal ?? sel?.capacidad ?? null;
     if (cap != null) specsCalentamiento[item.key] = `${Math.round(cap).toLocaleString("es-MX")} BTU/h`;
   }
-  // Panel solar: capUnitaria puede estar en el objeto psSeleccionado/psManual
   if (!specsCalentamiento.panelSolar && calentamiento?.psSeleccionado?.panel?.specs?.capacidadCalentamiento) {
-    const cap = calentamiento.psSeleccionado.panel.specs.capacidadCalentamiento;
-    specsCalentamiento.panelSolar = `${Math.round(cap).toLocaleString("es-MX")} BTU/h`;
+    specsCalentamiento.panelSolar = `${Math.round(calentamiento.psSeleccionado.panel.specs.capacidadCalentamiento).toLocaleString("es-MX")} BTU/h`;
   }
   if (!specsCalentamiento.panelSolar && calentamiento?.psManual?.panel?.specs?.capacidadCalentamiento) {
-    const cap = calentamiento.psManual.panel.specs.capacidadCalentamiento;
-    specsCalentamiento.panelSolar = `${Math.round(cap).toLocaleString("es-MX")} BTU/h`;
+    specsCalentamiento.panelSolar = `${Math.round(calentamiento.psManual.panel.specs.capacidadCalentamiento).toLocaleString("es-MX")} BTU/h`;
   }
-  // Caldera: buscar capOutputUnitario en la selección
   if (!specsCalentamiento.caldera) {
-    // Recomendado: calderaSeleccionada.seleccion.capOutputUnitario
-    const capRec = calentamiento?.calderaSeleccionada?.seleccion?.capOutputUnitario
-      ?? calentamiento?.calderaSeleccionada?.seleccion?.capUnitaria;
-    // Manual: calderaManual.caldera.specs.capacidadCalentamiento
+    const capRec = calentamiento?.calderaSeleccionada?.seleccion?.capOutputUnitario ?? calentamiento?.calderaSeleccionada?.seleccion?.capUnitaria;
     const capMan = calentamiento?.calderaManual?.caldera?.specs?.capacidadCalentamiento;
     const cap = capRec ?? capMan ?? null;
     if (cap != null) specsCalentamiento.caldera = `${Math.round(cap).toLocaleString("es-MX")} BTU/h`;
@@ -548,11 +515,10 @@ export function generarMemoriaCalculo({
     cloradorSalino: (() => {
       const estCS = estadosMerged?.cloradorSalino;
       if (estCS?.spec && estCS?.cantidad > 1) {
-        // spec tiene la capacidad total — dividir entre cantidad para obtener unitaria
         const match = estCS.spec.match(/^([\d.]+)\s*(.+)$/);
         if (match) {
-          const total = parseFloat(match[1]);
-          const unidad = match[2];
+          const total   = parseFloat(match[1]);
+          const unidad  = match[2];
           const unitaria = parseFloat((total / estCS.cantidad).toFixed(3));
           return `${unitaria} ${unidad}`;
         }
@@ -563,7 +529,7 @@ export function generarMemoriaCalculo({
           : null);
     })(),
     cloradorAutomatico: estadosMerged?.cloradorAutomatico?.spec ?? null,
-    lamparaUV:          estadosMerged?.lamparaUV?.spec ?? null,
+    lamparaUV:          estadosMerged?.lamparaUV?.spec          ?? null,
   };
 
   const memoria = {
@@ -572,8 +538,8 @@ export function generarMemoriaCalculo({
     calentamiento: calentamientoData,
     perfilTermico,
     equiposConfirmados: equiposConfirmados ?? null,
-    estadosDiseno: estadosMerged,   // cantidades snapshot + marca/modelo actuales
-    specsEquipos: specsEquipos ?? null,
+    estadosDiseno: estadosMerged,
+    specsEquipos:  specsEquipos ?? null,
     specsCalentamiento,
     specsSanitizacion,
   };

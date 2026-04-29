@@ -2307,6 +2307,18 @@ function ResumenEquiposConfirmacion({
 
         {sistemasSanitizacion?.cloradorAutomatico && (() => {
           const d = datosSanitizacion?.cloradorAutomatico;
+          if (cloradorEnLineaQuitado) {
+            // Mostrar como informativo — excede 90 GPM
+            return (
+              <FilaEquipo color="#94a3b8"
+                nombre="Clorador automático en línea"
+                subNombre="Excede límite de operación"
+                detalle={`Flujo op. ${parseFloat(flujoOperacion ?? 0).toFixed(1)} GPM > 90 GPM máx.`}
+                carga={null}
+                badge="info"
+              />
+            );
+          }
           return (
             <FilaEquipo color="#e2e8f0"
               nombre="Clorador automático"
@@ -2318,16 +2330,7 @@ function ResumenEquiposConfirmacion({
           );
         })()}
 
-        {/* Aviso cuando clorador en línea fue quitado por exceder 90 GPM */}
-        {cloradorEnLineaQuitado && (
-          <FilaEquipo color="#94a3b8"
-            nombre="Clorador automático en línea"
-            subNombre="Excede límite de operación"
-            detalle={`Flujo operación ${parseFloat(flujoOperacion ?? 0).toFixed(1)} GPM > 90 GPM máx.`}
-            carga={null}
-            badge="info"
-          />
-        )}
+        {/* Aviso cuando clorador en línea fue quitado — ya manejado arriba */}
 
         {sistemasSanitizacion?.lamparaUV && (() => {
           const d = datosSanitizacion?.lamparaUV;
@@ -2683,28 +2686,12 @@ export default function Equipamiento({
     } catch { /* mantener estado anterior */ }
   }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.lamparaUV]);
 
-  const [cloradorEnLineaQuitado, setCloradorEnLineaQuitado] = useState(false);
-
-  // Clorador en línea: límite de 90 GPM — si flujo de operación > 90 GPM, deseleccionarlo
+  // Detectar si el clorador en línea excede el límite — solo para mostrar aviso, no modificar estado
   const FLUJO_MAX_CLORADOR_EN_LINEA = 90;
-  useEffect(() => {
-    if (!sistemasSeleccionadosSanit?.cloradorAutomatico) {
-      // Si ya no está seleccionado pero lo quitamos antes, mantener el aviso
-      return;
-    }
-    const estCA = estados?.cloradorAutomatico;
-    if (estCA?.instalacion !== "enLinea") { setCloradorEnLineaQuitado(false); return; }
-    if (!flujoUVEfectivo || flujoUVEfectivo <= FLUJO_MAX_CLORADOR_EN_LINEA) { setCloradorEnLineaQuitado(false); return; }
-    // Flujo de operación excede el límite — deseleccionar y marcar
-    setCloradorEnLineaQuitado(true);
-    setSistemasSeleccionadosSanit(prev => {
-      const n = { ...prev };
-      delete n.cloradorAutomatico;
-      return n;
-    });
-    setCarga("cloradorAutomatico", null);
-    setEstado("cloradorAutomatico", null);
-  }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.cloradorAutomatico, estados?.cloradorAutomatico?.instalacion]);
+  const cloradorAutomaticoEsEnLinea = estados?.cloradorAutomatico?.instalacion === "enLinea";
+  const cloradorEnLineaExcede = sistemasSeleccionadosSanit?.cloradorAutomatico
+    && cloradorAutomaticoEsEnLinea
+    && flujoUVEfectivo > FLUJO_MAX_CLORADOR_EN_LINEA;
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
@@ -3124,7 +3111,7 @@ export default function Equipamiento({
                   modoCloradorSalino={modoCloradorSalino}
                   selCloradorSalinoId={selCloradorSalinoId}
                   selCloradorSalinoCant={selCloradorSalinoCant}
-                  cloradorEnLineaQuitado={cloradorEnLineaQuitado}
+                  cloradorEnLineaQuitado={cloradorEnLineaExcede}
                   flujoOperacion={flujoUVEfectivo}
                 />
               </div>
