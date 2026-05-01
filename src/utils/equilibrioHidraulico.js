@@ -84,7 +84,7 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
     cantMinNueva = Math.max(2, num);
   } else if (key === "drenCanal") {
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
-    let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
+    let num = flujoPorEq > 0 ? Math.ceil(flujoNuevo / flujoPorEq) : estado.cantidad;
     if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(1, num);
   } else {
@@ -235,11 +235,19 @@ function recalcularUV(estado, flujoNuevo) {
   let cantFinal  = cantOriginal;
   let hubo_cambio = false;
 
-  if (capacidadActual >= flujoNuevo) {
-    // El equipo actual ya cubre — sin cambio
-    eqFinal   = eqActual;
-    cantFinal = cantOriginal;
-  } else {
+    if (capacidadActual >= flujoNuevo) {
+      // El equipo actual cubre, pero verificar si hay uno más pequeño que también cubra
+      const equipoMinimo = catalActivos.find(g => g.specs.flujo >= flujoNuevo);
+      if (equipoMinimo && equipoMinimo.id !== eqActual.id && equipoMinimo.specs.flujo < capacidadActual) {
+        // Hay un equipo más pequeño que también cubre — usar ese
+        eqFinal    = equipoMinimo;
+        cantFinal  = 1;
+        hubo_cambio = true;
+      } else {
+        eqFinal   = eqActual;
+        cantFinal = cantOriginal;
+      }
+    } else {
     // Buscar el más pequeño que cubra el flujo con 1 unidad
     const equipoMayor = catalActivos.find(g => g.specs.flujo >= flujoNuevo);
     if (equipoMayor) {

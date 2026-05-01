@@ -578,9 +578,7 @@ export default function App() {
     if (cloradorSeleccionado && flujoClorador != null) lista.push({ label: "Gen. cloro salino", valor: flujoClorador });
     if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
       const estCA = estados?.cloradorAutomatico;
-      // Solo fuera de línea cuenta para flujo máximo (5 GPM × cantidad)
-      // En línea el agua ya circula en el sistema, no agrega flujo
-      if (estCA?.instalacion === "fueraLinea" && estCA?.flujoTotal != null) {
+      if (estCA?.flujoTotal != null) {
         const flujoCA = parseFloat(estCA.flujoTotal);
         if (flujoCA > 0) lista.push({ label: "Clorador automático", valor: flujoCA });
       }

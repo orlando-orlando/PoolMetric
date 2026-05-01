@@ -330,7 +330,8 @@ export function desnatador(flujoMaximo, tipoDesnatador, datos, numForzado = null
     diametroAnterior = diametroSeleccionado;
   }
 
-  const sumaFinal = sumaCargaTramos + cargaDisparoTotal;
+    const cargaCMD = tablaDistanciaCMD ? parseFloat(tablaDistanciaCMD.cargaTotalCMD) : 0;
+    const sumaFinal = sumaCargaTramos + cargaDisparoTotal + cargaCMD;
 
   return { resultadoD, sumaFinal, resumenTramosD, resumenDisparosD, tablaDistanciaCMD };
 }

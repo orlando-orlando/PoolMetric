@@ -33,6 +33,8 @@ import { panelesSolares }       from "../data/panelesSolares";
 import { calderasGas }          from "../data/calderasDeGas";
 import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
+const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
+
 /* =====================================================
    HELPERS
 ===================================================== */
@@ -1433,7 +1435,7 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     const eqCA = infoActiva ? cloradoresAutomaticos.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
     const specCA = eqCA?.specs?.capacidadComercial != null ? `${eqCA.specs.capacidadComercial} kg/día` : null;
     onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specCA } : null);
-  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
+      }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
 
   const labelInst = (i) => i === "enLinea" ? "En línea" : "Fuera de línea";
 
@@ -1573,8 +1575,8 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
     if (!onEstadoChange) return;
     const eqUV = infoActiva ? generadoresUV.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
     const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
-    onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specUV } : null);
-  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
+    const selId = eqUV?.id ?? (modoUV === "manual" ? selManualUVId : (generadoresUV.find(g => g.marca === infoActiva?.marca && g.modelo === infoActiva?.modelo)?.id ?? null));
+    onEstadoChange(infoActiva ? { selId, marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specUV } : null);  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, modoUV, selManualUVId]);
 
   if (!flujoMaxSistema || flujoMaxSistema <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
 
@@ -1944,11 +1946,16 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     // Calcular primero
     let res = null;
     try {
-      const cargasBase      = Object.fromEntries(Object.entries(cargas).map(([k, v]) => [k, parseFloat(v ?? 0)]));
+      const cargasBase = Object.fromEntries(
+        Object.entries(cargas).map(([k, v]) => {
+          if (k === "cloradorAutomatico" && cloradorEnLineaQuitado) return [k, 0];
+          return [k, parseFloat(v ?? 0)];
+        })
+      );
       const snapshotCargas  = { ...cargasBase };
       const snapshotCDT     = cargaTotalGlobal;
       const snapshotEstados = JSON.parse(JSON.stringify(estados)); // copia profunda de cantidades originales
-      res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral });
+      res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado });
       if (res && !res.error) { res._snapshotCargas = snapshotCargas; res._snapshotCDT = snapshotCDT; res._snapshotEstados = snapshotEstados; }
     } catch (e) { res = { error: e.message }; }
 
@@ -2173,7 +2180,9 @@ function ResumenEquiposConfirmacion({
   const [equiposConfirmados, setEquiposConfirmados] = useState(null);
 
   const equiposRecalc = resultado?.equilibrio?.equipos ?? {};
-  const hayCambiosCheck = Object.values(equiposRecalc).some(e => e?.cambio);
+  const uvRecalc = equiposRecalc?.lamparaUV ?? null;
+  const uvCambio = uvRecalc?.cambio === true;
+  const hayCambiosCheck = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
 
   // Guardar punto de operación automáticamente cuando no hay cambios pendientes
   useEffect(() => {
@@ -2196,47 +2205,129 @@ function ResumenEquiposConfirmacion({
   }, []);
 
   // ── Sección: grupo de filas ──
-  const FilaEquipo = ({ color, nombre, subNombre, detalle, carga, badge }) => {
-    // En oscuro: nombres en blanco claro; en claro: nombres en casi negro
-    const colorNombre = badge === "ajuste"
-      ? "#f97316"
-      : (color && color !== "#e2e8f0" && color !== "#94a3b8")
-        ? color  // color especial (azul motobomba, naranja ajuste)
-        : esClaro ? "#1e293b" : "#e2e8f0";
+    const FilaEquipo = ({ nombre, subNombre, diseño, equilibrio, excluido = false }) => {
+    const cambioCantidad = equilibrio?.cambioCantidad ?? false;
+    const cambioCarga    = equilibrio?.cambioCarga    ?? false;
+    const cambioEquipo   = equilibrio?.cambioEquipo   ?? false;
+    const hayAjuste      = cambioCantidad || cambioCarga || cambioEquipo || excluido;
+
+    const bg        = esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
+    const border    = esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
+    const colorBase = esClaro ? "#1e293b" : "#e2e8f0";
     const colorSub  = esClaro ? "#475569" : "#94a3b8";
-    const colorDet  = esClaro ? "#475569" : "#94a3b8";
-    const bgFila    = badge === "ajuste"
-      ? "rgba(249,115,22,0.07)"
-      : esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
-    const borderFila = badge === "ajuste"
-      ? "rgba(249,115,22,0.25)"
-      : esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
+    const colorValDis = esClaro ? "#1d6fa8" : "#60a5fa";
+    const colDivider  = `1px solid ${esClaro ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`;
+    const borderEq    = hayAjuste ? "1px solid rgba(249,115,22,0.35)" : colDivider;
+    const bgEq        = hayAjuste ? "rgba(249,115,22,0.06)" : "transparent";
+
     return (
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0.35rem 0.7rem", borderRadius: "6px", marginBottom: "0.25rem",
-        background: bgFila, border: `1px solid ${borderFila}`,
+        borderRadius: "6px", marginBottom: "0.2rem",
+        background: bg, border: `1px solid ${border}`,
         boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+        overflow: "hidden",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: "0.76rem", fontWeight: 500, color: colorNombre, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
-          {subNombre && <span style={{ fontSize: "0.65rem", color: colorSub }}>{subNombre}</span>}
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.25rem 0.6rem" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: 500, color: colorBase }}>{nombre}</span>
+            {subNombre && <span style={{ fontSize: "0.62rem", color: colorSub }}>{subNombre}</span>}
+          </div>
+          {hayAjuste
+            ? <span style={{ fontSize: "0.58rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "4px", background: "rgba(249,115,22,0.15)", color: "#f97316", flexShrink: 0 }}>↑ Ajuste</span>
+            : <span style={{ fontSize: "0.58rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "4px", background: "rgba(52,211,153,0.12)", color: "#34d399", flexShrink: 0 }}>✓ OK</span>
+          }
         </div>
-        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexShrink: 0, marginLeft: "0.5rem" }}>
-          {detalle && <span style={{ fontSize: "0.68rem", color: colorDet }}>{detalle}</span>}
-          {carga    && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: badge === "ajuste" ? "#f97316" : esClaro ? "#1d6fa8" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
-          {badge && (
-            <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "4px",
-              background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)",
-              color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b",
-            }}>
-              {badge === "ajuste" ? "↑ Ajuste" : badge === "ok" ? "✓ OK" : badge}
-            </span>
-          )}
+
+        {/* Columnas Diseño / Equilibrio */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: colDivider }}>
+
+          {/* ── DISEÑO ── */}
+          <div style={{ padding: "0.2rem 0.6rem 0.25rem", borderRight: colDivider }}>
+            <div style={{ fontSize: "0.54rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.15rem" }}>Diseño</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+              {diseño?.equipo && (
+                <span style={{ fontSize: "0.63rem", color: colorSub }}>{diseño.equipo}</span>
+              )}
+              {diseño?.cantidad != null && (
+                <span style={{ fontSize: "0.63rem", color: colorBase }}>{diseño.cantidad} uds</span>
+              )}
+              {diseño?.carga != null && (
+                <span style={{ fontSize: "0.68rem", fontWeight: 600, color: colorValDis }}>{parseFloat(diseño.carga).toFixed(2)} ft</span>
+              )}
+            </div>
+          </div>
+
+          {/* ── EQUILIBRIO ── */}
+          <div style={{ padding: "0.2rem 0.6rem 0.25rem", background: bgEq, border: hayAjuste ? `0 solid transparent` : "none", borderLeft: borderEq }}>
+            <div style={{ fontSize: "0.54rem", color: hayAjuste ? "#f97316" : "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.15rem" }}>Equilibrio</div>
+
+            {excluido ? (
+              <span style={{ fontSize: "0.62rem", color: "#f97316" }}>Excluido — flujo {">"} {FLUJO_MAX_CLORADOR_EN_LINEA} GPM</span>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                {/* Equipo */}
+                {equilibrio?.equipo && (
+                  <span style={{ fontSize: "0.63rem", color: cambioEquipo ? "#f97316" : colorSub }}>{equilibrio.equipo}</span>
+                )}
+                {/* Cantidad */}
+                {diseño?.cantidad != null && (
+                  cambioCantidad
+                    ? <span style={{ fontSize: "0.63rem" }}>
+                        <span style={{ color: colorBase, textDecoration: "line-through", marginRight: "0.2rem", opacity: 0.5 }}>{diseño.cantidad}</span>
+                        <span style={{ color: "#f97316", fontWeight: 600 }}>→ {equilibrio.cantidad} uds</span>
+                      </span>
+                    : <span style={{ fontSize: "0.63rem", color: colorBase }}>{diseño.cantidad} uds</span>
+                )}
+                {/* Carga */}
+                {equilibrio?.carga != null && (
+                  cambioCarga
+                    ? <span style={{ fontSize: "0.68rem", fontWeight: 600 }}>
+                        <span style={{ color: colorValDis, textDecoration: "line-through", marginRight: "0.2rem", opacity: 0.5, fontSize: "0.6rem" }}>{parseFloat(diseño.carga).toFixed(2)}</span>
+                        <span style={{ color: "#f97316" }}>{parseFloat(equilibrio.carga).toFixed(2)} ft</span>
+                      </span>
+                    : <span style={{ fontSize: "0.68rem", fontWeight: 600, color: colorValDis }}>{parseFloat(equilibrio.carga).toFixed(2)} ft</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   };
+
+    const FilaSimple = ({ color, nombre, subNombre, detalle, carga, badge }) => {
+      const colorNombre = badge === "ajuste" ? "#f97316" : esClaro ? "#1e293b" : "#e2e8f0";
+      const colorSub    = esClaro ? "#475569" : "#94a3b8";
+      const colorDet    = esClaro ? "#475569" : "#94a3b8";
+      const bg          = badge === "ajuste" ? "rgba(249,115,22,0.07)" : esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
+      const border      = badge === "ajuste" ? "rgba(249,115,22,0.25)" : esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
+      return (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0.35rem 0.7rem", borderRadius: "6px", marginBottom: "0.25rem",
+          background: bg, border: `1px solid ${border}`,
+          boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: "0.76rem", fontWeight: 500, color: colorNombre, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
+            {subNombre && <span style={{ fontSize: "0.65rem", color: colorSub }}>{subNombre}</span>}
+          </div>
+          <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexShrink: 0, marginLeft: "0.5rem" }}>
+            {detalle && <span style={{ fontSize: "0.68rem", color: colorDet }}>{detalle}</span>}
+            {carga   && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: badge === "ajuste" ? "#f97316" : esClaro ? "#1d6fa8" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
+            {badge && (
+              <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "4px",
+                background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)",
+                color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b",
+              }}>
+                {badge === "ajuste" ? "↑ Ajuste" : badge === "ok" ? "✓ OK" : badge === "excluido" ? "Excluido" : badge}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
 
   const SeccionTitulo = ({ emoji, titulo }) => (
     <div style={{ fontSize: "0.65rem", color: esClaro ? "#1d6fa8" : "#90cdf4", fontWeight: 700,
@@ -2247,7 +2338,12 @@ function ResumenEquiposConfirmacion({
     </div>
   );
 
-  const hayCambios = Object.values(equiposRecalc).some(e => e?.cambio);
+  const hayCambios = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
+  // Calcular exclusión del clorador directamente desde el flujo de equilibrio
+  const flujoEquilibrio = resultado?.equilibrio?.flujo ?? flujoMaxGlobal;
+  const cloradorExcluidoLocal = sistemasSeleccionadosSanit?.cloradorAutomatico
+    && estados?.cloradorAutomatico?.instalacion === "enLinea"
+    && flujoEquilibrio > FLUJO_MAX_CLORADOR_EN_LINEA;
 
   return (
     <div style={{ marginTop: "0.5rem" }}>
@@ -2265,25 +2361,44 @@ function ResumenEquiposConfirmacion({
       {/* ── Motobomba ── */}
       <SeccionTitulo emoji="⚙️" titulo="Motobomba" />
       <FilaEquipo
-        color="#7dd3fc"
         nombre={`${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`}
         subNombre={`${estadoBomba?.nBombas ?? 1} bomba${(estadoBomba?.nBombas ?? 1) > 1 ? "s" : ""} en paralelo`}
-        detalle={`Q = ${parseFloat(eq.flujoEq).toFixed(1)} GPM`}
-        carga={`${parseFloat(eq.cargaEq).toFixed(2)} ft CDT`}
-        badge="ok"
+        diseño={{
+          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
+          cantidad: estadoBomba?.nBombas ?? 1,
+          carga: cargaTotalGlobal != null ? parseFloat(cargaTotalGlobal) : null,
+        }}
+        equilibrio={{
+          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
+          cantidad: estadoBomba?.nBombas ?? 1,
+          carga: eq.cargaEq != null ? parseFloat(eq.cargaEq) : null,
+          cambioCantidad: false,
+          cambioEquipo: false,
+          cambioCarga: eq.cargaEq != null && cargaTotalGlobal != null
+            && Math.abs(parseFloat(eq.cargaEq) - parseFloat(cargaTotalGlobal)) > 0.01,
+        }}
       />
 
       {/* ── Calentamiento ── */}
       {equiposCalentamiento?.length > 0 && (<>
         <SeccionTitulo emoji="🔥" titulo="Calentamiento" />
-        {equiposCalentamiento.map(eq => (
-          <FilaEquipo key={eq.key}
-            color="#e2e8f0"
-            nombre={`${eq.marca} · ${eq.modelo}`}
-            subNombre={eq.label}
-            detalle={`${eq.cantidad} equipo${eq.cantidad > 1 ? "s" : ""} · ${parseFloat(eq.flujoTotal ?? 0).toFixed(1)} GPM`}
-            carga={eq.cargaTotal != null ? `${parseFloat(eq.cargaTotal).toFixed(2)} ft` : null}
-            badge="ok"
+        {equiposCalentamiento.map(eqCal => (
+          <FilaEquipo key={eqCal.key}
+            nombre={eqCal.label}
+            subNombre={`${eqCal.marca} · ${eqCal.modelo}`}
+            diseño={{
+              equipo: `${eqCal.marca} · ${eqCal.modelo}`,
+              cantidad: eqCal.cantidad,
+              carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null,
+            }}
+            equilibrio={{
+              equipo: `${eqCal.marca} · ${eqCal.modelo}`,
+              cantidad: eqCal.cantidad,
+              carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null,
+              cambioCantidad: false,
+              cambioEquipo: false,
+              cambioCarga: false,
+            }}
           />
         ))}
       </>)}
@@ -2292,129 +2407,163 @@ function ResumenEquiposConfirmacion({
       {Object.keys(sistemasSanitizacion ?? {}).some(k => sistemasSanitizacion[k]) && (<>
         <SeccionTitulo emoji="🧪" titulo="Sanitización" />
 
-        {sistemasSanitizacion?.cloradorSalino && (() => {
-          const d = datosSanitizacion?.cloradorSalino;
-          return (
-            <FilaEquipo color="#e2e8f0"
-              nombre="Generador de cloro salino"
-              subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
-              detalle={d?.cantidad != null ? `${d.cantidad} equipo${d.cantidad > 1 ? "s" : ""}${d.flujoTotal != null ? ` · ${parseFloat(d.flujoTotal).toFixed(1)} GPM` : ""}` : null}
-              carga={cargas?.cloradorSalino != null ? `${parseFloat(cargas.cloradorSalino).toFixed(2)} ft` : null}
-              badge="ok"
-            />
-          );
-        })()}
+            {sistemasSanitizacion?.cloradorSalino && (() => {
+              const d = datosSanitizacion?.cloradorSalino;
+              const carga = cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null;
+              return (
+                <FilaEquipo
+                  nombre="Generador de cloro salino"
+                  subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
+                  diseño={{
+                    equipo: d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null,
+                    cantidad: d?.cantidad,
+                    carga,
+                  }}
+                  equilibrio={{
+                    equipo: d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null,
+                    cantidad: d?.cantidad,
+                    carga,
+                    cambioCantidad: false,
+                    cambioEquipo: false,
+                    cambioCarga: false,
+                  }}
+                />
+              );
+            })()}
 
-        {sistemasSanitizacion?.cloradorAutomatico && (() => {
-          const d = datosSanitizacion?.cloradorAutomatico;
-          if (cloradorEnLineaQuitado) {
-            // Mostrar como informativo — excede 90 GPM
-            return (
-              <FilaEquipo color="#94a3b8"
-                nombre="Clorador automático en línea"
-                subNombre="Excede límite de operación"
-                detalle={`Flujo op. ${parseFloat(flujoOperacion ?? 0).toFixed(1)} GPM > 90 GPM máx.`}
-                carga={null}
-                badge="info"
-              />
-            );
-          }
-          return (
-            <FilaEquipo color="#e2e8f0"
-              nombre="Clorador automático"
-              subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
-              detalle={d?.cantidad != null ? `${d.cantidad} equipo${d.cantidad > 1 ? "s" : ""}${d.flujoTotal != null ? ` · ${parseFloat(d.flujoTotal).toFixed(1)} GPM` : ""}` : null}
-              carga={cargas?.cloradorAutomatico != null ? `${parseFloat(cargas.cloradorAutomatico).toFixed(2)} ft` : null}
-              badge="ok"
-            />
-          );
-        })()}
+            {sistemasSanitizacion?.cloradorAutomatico && (() => {
+              const d = datosSanitizacion?.cloradorAutomatico;
+              return (
+                <FilaEquipo
+                  nombre="Clorador automático"
+                  subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
+                  diseño={{
+                    equipo: d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null,
+                    cantidad: d?.cantidad,
+                    carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null,
+                  }}
+                  equilibrio={{
+                    equipo: d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null,
+                    cantidad: d?.cantidad,
+                    carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null,
+                    cambioCantidad: false,
+                    cambioCarga: false,
+                    cambioEquipo: false,
+                  }}
+                  excluido={cloradorExcluidoLocal}
+                />
+              );
+            })()}
 
         {/* Aviso cuando clorador en línea fue quitado — ya manejado arriba */}
 
         {sistemasSanitizacion?.lamparaUV && (() => {
           const d = datosSanitizacion?.lamparaUV;
-          // UV cambió si su flujoTotal es diferente al flujo máximo de diseño
-          // (el useEffect la recalculó con el flujo de operación)
-          const flujoDiseno = eq?.flujoEq != null ? flujoMaxGlobal : null;
-          const cantOrigUV = resultado?._snapshotEstados?.lamparaUV?.cantidad ?? null;
-          const cantActualUV = d?.cantidad;
-          // También detectar por flujoTotal vs flujo de diseño
-          const flujoTotalUV = d?.flujoTotal != null ? parseFloat(d.flujoTotal) : null;
-          const uvCambio = (cantOrigUV != null && cantActualUV != null && cantOrigUV !== cantActualUV)
-            || (flujoTotalUV != null && flujoMaxGlobal != null && flujoTotalUV > flujoMaxGlobal * 1.05);
+          const marcaUV  = d?.marca;
+          const modeloUV = d?.modelo;
+          const marcaEqUV  = uvRecalc?.marca  ?? marcaUV;
+          const modeloEqUV = uvRecalc?.modelo ?? modeloUV;
+          const cantOrigUV   = uvRecalc?.cantOriginal ?? d?.cantidad;
+          const cantActualUV = uvRecalc?.cantidad     ?? d?.cantidad;
+          const cargaDis = cargas?.lamparaUV != null ? parseFloat(cargas.lamparaUV) : null;
+          const cargaEq  = uvRecalc?.cargaTotal != null ? parseFloat(uvRecalc.cargaTotal) : cargaDis;
+          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
+          const cambioCantidad = uvRecalc?.cambio === true && cantOrigUV !== cantActualUV;
+          const cambioEquipo   = uvRecalc?.selId && estados?.lamparaUV?.selId && uvRecalc.selId !== estados.lamparaUV.selId;
           return (
-            <FilaEquipo color={uvCambio ? "#f97316" : "#e2e8f0"}
+            <FilaEquipo
               nombre="Lámpara UV"
-              subNombre={d?.marca && d?.modelo ? `${d.marca} · ${d.modelo}` : null}
-              detalle={uvCambio && cantOrigUV != null
-                ? `${cantOrigUV} → ${cantActualUV} uds`
-                : d?.cantidad != null ? `${d.cantidad} equipo${d.cantidad > 1 ? "s" : ""}${d.flujoTotal != null ? ` · ${parseFloat(d.flujoTotal).toFixed(1)} GPM` : ""}` : null}
-              carga={cargas?.lamparaUV != null ? `${parseFloat(cargas.lamparaUV).toFixed(2)} ft` : null}
-              badge={uvCambio ? "ajuste" : "ok"}
+              diseño={{
+                equipo: marcaUV && modeloUV ? `${marcaUV} · ${modeloUV}` : null,
+                cantidad: cantOrigUV,
+                carga: cargaDis,
+              }}
+              equilibrio={{
+                equipo: marcaEqUV && modeloEqUV ? `${marcaEqUV} · ${modeloEqUV}` : null,
+                cantidad: cantActualUV,
+                carga: cargaEq,
+                cambioCarga, cambioCantidad, cambioEquipo,
+              }}
             />
           );
         })()}
       </>)}
 
       {/* ── Empotrables ── */}
-      {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (<>
-        <SeccionTitulo emoji="💧" titulo="Empotrables" />
+        {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (
+          <SeccionTitulo emoji="💧" titulo="Empotrables" />
+        )}
         {["retorno","desnatador","barredora","drenFondo","drenCanal"].map(key => {
           const est = estados[key];
           const rec = equiposRecalc[key];
           if (!est && !rec) return null;
-          // Desnatador solo aparece si NO hay infinity/canal
           if (key === "desnatador" && tieneDesbordeCanal) return null;
-          // Dren canal solo aparece si HAY infinity/canal
-          if (key === "drenCanal" && !tieneDesbordeCanal) return null;
+          if (key === "drenCanal"  && !tieneDesbordeCanal) return null;
           const nombre   = NOMBRES_EQ[key];
-          const cantidad = rec ? rec.cantidad : est?.cantidad;
-          const marca    = rec?.marca  ?? est?.marca  ?? "—";
-          const modelo   = rec?.modelo ?? est?.modelo ?? "—";
-          const cargaVal = rec ? parseFloat(rec.sumaFinal ?? rec.cargaTotal ?? 0) : parseFloat(cargas[key] ?? 0);
-          const cambio   = rec?.cambio ?? false;
+          const marca    = est?.marca  ?? "—";
+          const modelo   = est?.modelo ?? "—";
+          const marcaEq  = rec?.marca  ?? marca;
+          const modeloEq = rec?.modelo ?? modelo;
+          const cantDis  = rec?.cantOriginal ?? est?.cantidad;
+          const cantEq   = rec?.cantidad     ?? est?.cantidad;
+          const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
+          const cargaEq  = rec?.sumaFinal != null ? parseFloat(rec.sumaFinal) : cargaDis;
+          const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
+          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
           return (
             <FilaEquipo key={key}
-              color={cambio ? "#f97316" : "#e2e8f0"}
               nombre={nombre}
-              subNombre={`${marca} · ${modelo}`}
-              detalle={cambio
-                ? `${rec.cantOriginal} → ${rec.cantidad} uds`
-                : `${cantidad ?? "—"} uds`}
-              carga={cargaVal > 0 ? `${cargaVal.toFixed(2)} ft` : null}
-              badge={cambio ? "ajuste" : "ok"}
+              diseño={{
+                equipo: `${marca} · ${modelo}`,
+                cantidad: cantDis,
+                carga: cargaDis,
+              }}
+              equilibrio={{
+                equipo: `${marcaEq} · ${modeloEq}`,
+                cantidad: cantEq,
+                carga: cargaEq,
+                cambioCantidad, cambioCarga, cambioEquipo: false,
+              }}
             />
           );
         })}
-      </>)}
-
+        
       {/* ── Filtración ── */}
       {Object.keys(sistemasFiltracion ?? {}).some(k => sistemasFiltracion[k]) && (<>
         <SeccionTitulo emoji="🧹" titulo="Filtración" />
-        {["filtroArena","prefiltro","filtroCartucho"].map(key => {
-          if (!sistemasFiltracion[key]) return null;
-          const est = estados[key];
-          const rec = equiposRecalc[key];
-          const nombre   = NOMBRES_EQ[key];
-          const cantidad = rec ? rec.cantidad : est?.cantidad;
-          const marca    = rec?.marca  ?? est?.marca  ?? "—";
-          const modelo   = rec?.modelo ?? est?.modelo ?? "—";
-          const cargaVal = rec ? parseFloat(rec.cargaTotal ?? rec.sumaFinal ?? 0) : parseFloat(cargas[key] ?? 0);
-          const cambio   = rec?.cambio ?? false;
-          return (
-            <FilaEquipo key={key}
-              color={cambio ? "#f97316" : "#e2e8f0"}
-              nombre={nombre}
-              subNombre={`${marca} · ${modelo}`}
-              detalle={cambio
-                ? `${rec.cantOriginal} → ${rec.cantidad} uds`
-                : `${cantidad ?? "—"} uds`}
-              carga={cargaVal > 0 ? `${cargaVal.toFixed(2)} ft` : null}
-              badge={cambio ? "ajuste" : "ok"}
-            />
-          );
-        })}
+          {["filtroArena","prefiltro","filtroCartucho"].map(key => {
+            if (!sistemasFiltracion[key]) return null;
+            const est = estados[key];
+            const rec = equiposRecalc[key];
+            const nombre   = NOMBRES_EQ[key];
+            const marca    = est?.marca  ?? "—";
+            const modelo   = est?.modelo ?? "—";
+            const marcaEq  = rec?.marca  ?? marca;
+            const modeloEq = rec?.modelo ?? modelo;
+            const cantDis  = rec?.cantOriginal ?? est?.cantidad;
+            const cantEq   = rec?.cantidad     ?? est?.cantidad;
+            const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
+            const cargaEq  = rec?.cargaTotal != null ? parseFloat(rec.cargaTotal) : cargaDis;
+            const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
+            const cambioEquipo   = rec?.cambio === true && (rec.marca !== est?.marca || rec.modelo !== est?.modelo);
+            const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
+            return (
+              <FilaEquipo key={key}
+                nombre={nombre}
+                diseño={{
+                  equipo: `${marca} · ${modelo}`,
+                  cantidad: cantDis,
+                  carga: cargaDis,
+                }}
+                equilibrio={{
+                  equipo: `${marcaEq} · ${modeloEq}`,
+                  cantidad: cantEq,
+                  carga: cargaEq,
+                  cambioCantidad, cambioEquipo, cambioCarga,
+                }}
+              />
+            );
+          })}
       </>)}
 
       {/* ── Botones de acción ── */}
@@ -2678,20 +2827,20 @@ export default function Equipamiento({
       const eqUV = generadoresUV.find(g => g.marca === r.seleccion?.marca && g.modelo === r.seleccion?.modelo);
       const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
       setEstado("lamparaUV", {
+        selId: eqUV?.id ?? null,
         marca: r.seleccion?.marca, modelo: r.seleccion?.modelo,
         cantidad: r.seleccion?.cantidad, flujoTotal: r.seleccion?.flujoTotal,
         spec: specUV,
       });
-      setCarga("lamparaUV", parseFloat(r.cargaTotal) || null);
     } catch { /* mantener estado anterior */ }
   }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.lamparaUV]);
 
   // Detectar si el clorador en línea excede el límite — solo para mostrar aviso, no modificar estado
-  const FLUJO_MAX_CLORADOR_EN_LINEA = 90;
   const cloradorAutomaticoEsEnLinea = estados?.cloradorAutomatico?.instalacion === "enLinea";
+  const flujoParaVerificarClorador = flujoUVEfectivo ?? flujoMaxGlobal;
   const cloradorEnLineaExcede = sistemasSeleccionadosSanit?.cloradorAutomatico
     && cloradorAutomaticoEsEnLinea
-    && flujoUVEfectivo > FLUJO_MAX_CLORADOR_EN_LINEA;
+    && flujoParaVerificarClorador > FLUJO_MAX_CLORADOR_EN_LINEA;
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);

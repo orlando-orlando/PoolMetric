@@ -15,6 +15,7 @@ import { calcularCargaPrefiltroManual }          from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual }     from "./filtroCartucho";
 import { calcularCargaUVManual }                 from "./generadorUV";
 import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
+import { generadoresUV } from "../data/generadoresUV";
 
 const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 
@@ -239,10 +240,17 @@ function generarReporte({
       const marcaUV  = equiposRecalcIter?.lamparaUV?.marca  ?? eqUV?.marca;
       const modeloUV = equiposRecalcIter?.lamparaUV?.modelo ?? eqUV?.modelo;
       const cant = equiposRecalcIter?.lamparaUV?.cantidad ?? eqUV?.cantidad ?? cantParaKey("lamparaUV") ?? 1;
-      const flujoTotalUV = eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo;
-      const flujoPorUV = cant > 0 ? flujoTotalUV / cant : flujoCalculo;
+      // Si hay recálculo, usar el flujo nominal del equipo nuevo (specs.flujo × cantidad)
+      // Si no, usar el flujo total del estado original
+      const eqNuevoEnCatalogo = equiposRecalcIter?.lamparaUV
+        ? generadoresUV.find(g => g.id === equiposRecalcIter.lamparaUV.selId)
+        : null;
+      const flujoNominalUV = eqNuevoEnCatalogo
+        ? eqNuevoEnCatalogo.specs.flujo * cant
+        : (eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo);
+      const flujoPorUV = cant > 0 ? flujoNominalUV / cant : flujoCalculo;
       const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant, flujoCalculo);
-      const data = empacarFiltroRes(res, "Lampara UV", { marca: marcaUV, modelo: modeloUV, cantidad: cant, flujoTotal: flujoTotalUV });
+      const data = empacarFiltroRes(res, "Lampara UV", { marca: marcaUV, modelo: modeloUV, cantidad: cant, flujoTotal: flujoNominalUV });
       if (data) sanitizacion.lamparaUV = data;
     }
   }
@@ -469,8 +477,13 @@ export function generarMemoriaCalculo({
     const flujoCS = parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
     if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Cloro salino", valor: flujoCS });
   }
-  if (sistemasSeleccionadosSanit?.lamparaUV)          resumen.flujosRequeridos.push({ label: "Lámpara UV",          valor: null });
-  if (sistemasSeleccionadosSanit?.cloradorAutomatico) resumen.flujosRequeridos.push({ label: "Clorador automático", valor: null });
+  if (sistemasSeleccionadosSanit?.lamparaUV)          
+    resumen.flujosRequeridos.push({ label: "Lámpara UV", valor: null });
+  if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
+    const eqCA = estadosMerged?.cloradorAutomatico;
+    const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
+    resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
+  }
 
   const calentamientoReporte = calentamientoData; // ya construido arriba
   if (reporteDiseno) reporteDiseno.calentamiento = calentamientoReporte;
