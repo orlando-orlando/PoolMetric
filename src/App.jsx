@@ -628,7 +628,18 @@ export default function App() {
     if (cargaCEft     != null) lista.push({ label: "Calent. eléctrico", valor: parseFloat(cargaCEft),     grupo: "calentamiento" });
     if (cloradorSeleccionado           && cargaClorador           != null) lista.push({ label: "Gen. cloro salino",  valor: parseFloat(cargaClorador),           grupo: "sanitizacion" });
     if (uvSeleccionado                 && cargaLamparaUV          != null) lista.push({ label: "Lámpara UV",          valor: parseFloat(cargaLamparaUV),          grupo: "sanitizacion" });
-    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) lista.push({ label: "Clorador automático", valor: parseFloat(cargaCloradorAutomatico), grupo: "sanitizacion" });
+    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+      const estCA = estados?.cloradorAutomatico;
+      const flujoCA = flujoMaxGlobal ?? 0;
+      const cloradorEnLineaDesdeDiseno = estCA?.instalacion === "enLinea" && flujoCA > 90;
+      lista.push({
+        label: "Clorador automático",
+        valor: parseFloat(cargaCloradorAutomatico),
+        grupo: "sanitizacion",
+        noSuma: cloradorEnLineaDesdeDiseno,
+        desc: cloradorEnLineaDesdeDiseno ? "excluido" : undefined,
+      });
+    }
     if (cargaRetorno != null) lista.push({ label: "Retornos", valor: cargaRetorno, grupo: "empotrables", desc: "descarga" });
     if (succionActiva != null) {
       const todosSuccion = tieneDesbordeCanal
@@ -859,6 +870,7 @@ export default function App() {
                         {c.gobierna   && <span className="desglose-badge desglose-badge--gobierna">↑ gobierna</span>}
                         {c.noSuma && c.desc !== "informativo" && <span className="desglose-badge desglose-badge--nosuma">no suma</span>}
                         {c.desc === "informativo" && <span className="desglose-badge desglose-badge--info">info</span>}
+                        {c.desc === "excluido"    && <span className="desglose-badge desglose-badge--nosuma">excluido</span>}
                         {!c.noSuma && !c.gobierna && <span className="desglose-badge desglose-badge--suma">✓</span>}
                       </span>
                       <span className="desglose-valor">{fmtFt(c.valor)}</span>

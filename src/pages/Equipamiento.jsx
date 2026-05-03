@@ -1249,7 +1249,9 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
    BLOQUE GENERADOR DE CLORO SALINO
 ===================================================== */
 function BloqueCloradorSalino({ resultadoClorador, onEstadoChange,
-  modoCL, setModoCL, selManualCLId, setSelManualCLId, selManualCLCant, setSelManualCLCant, usoGeneral = "residencial" }) {
+  modoCL, setModoCL, selManualCLId, setSelManualCLId, selManualCLCant, setSelManualCLCant,
+  usoGeneral = "residencial", volumenLitros = 0, kgDiaNecesario = null
+}) {
   const rec = resultadoClorador && !resultadoClorador.error ? resultadoClorador : null;
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
@@ -1404,18 +1406,46 @@ const infoActiva = useMemo(() => {
                 <div className="bdc-manual-resultado">
                   <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad</span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelManualCLCant(c => Math.max(1, c - 1))}>−</button><span>{selManualCLCant}</span><button onClick={() => setSelManualCLCant(c => c + 1)}>+</button></div></div>
                   {cloradorManual && (<>
-                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total</span><span className="bdc-demanda-valor">{parseFloat(cloradorManual.flujoTotal).toFixed(1)} GPM</span></div>
-                      <div className="bdc-demanda-fila">
-                        <span className="bdc-demanda-label">Cap. instalada</span>
-                        <span className="bdc-demanda-valor bdc-ok">
-                          {usoGeneral === "residencial"
-                            ? `${(cloradorManual.cantidad * (cloradorManual.equipo.specs.capacidadResidencial ?? 0)).toLocaleString("es-MX")} L`
-                            : `${parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3))} kg/día`
-                          }
-                        </span>
-                      </div>
+                    <div className="bdc-demanda-fila">
+                      <span className="bdc-demanda-label">Flujo total</span>
+                      <span className="bdc-demanda-valor">{parseFloat(cloradorManual.flujoTotal).toFixed(1)} GPM</span>
+                    </div>
+                    {(() => {
+                      const capInstalada = usoGeneral === "residencial"
+                        ? cloradorManual.cantidad * (cloradorManual.equipo.specs.capacidadResidencial ?? 0)
+                        : parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3));
+                      const demanda = usoGeneral === "residencial" ? volumenLitros : kgDiaNecesario;
+                      const insuficiente = demanda != null && demanda > 0 && capInstalada < demanda;
+                      return (
+                        <>
+                          <div className="bdc-demanda-fila">
+                            <span className="bdc-demanda-label">Cap. instalada</span>
+                            <span className={`bdc-demanda-valor ${insuficiente ? "bdc-insuf" : "bdc-ok"}`}>
+                              {usoGeneral === "residencial"
+                                ? `${capInstalada.toLocaleString("es-MX")} L`
+                                : `${capInstalada} kg/día`
+                              }
+                            </span>
+                          </div>
+                          {insuficiente && (
+                            <div style={{ width: "100%", marginTop: "0.25rem" }}>
+                              <div className="bdc-manual-aviso">
+                                ⚠ Capacidad insuficiente — necesitas cubrir{" "}
+                                {usoGeneral === "residencial"
+                                  ? `${(volumenLitros ?? 0).toLocaleString("es-MX")} L`
+                                  : `${kgDiaNecesario} kg/día`
+                                }
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
-                    <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{cloradorManual.hidraulica?.cargaTotal} ft · {cloradorManual.hidraulica?.cargaTotalPSI} PSI</span></div>
+                    <div className="bdc-auto-fila bdc-auto-total">
+                      <span className="bdc-auto-label">Carga total</span>
+                      <span className="bdc-auto-val bdc-hid-val-highlight">{cloradorManual.hidraulica?.cargaTotal} ft · {cloradorManual.hidraulica?.cargaTotalPSI} PSI</span>
+                    </div>
                   </>)}
                 </div>
               )}
@@ -1617,6 +1647,35 @@ const infoActiva = useMemo(() => {
                   <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad</span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelManualCLCant(c => Math.max(1, c - 1))}>−</button><span>{selManualCLCant}</span><button onClick={() => setSelManualCLCant(c => c + 1)}>+</button></div></div>
                   {cloradorManual && (<>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total</span><span className="bdc-demanda-valor">{parseFloat(cloradorManual.flujoTotal).toFixed(1)} GPM</span></div>
+                    {(() => {
+                      const capInstalada = usoGeneral === "residencial"
+                        ? cloradorManual.cantidad * (cloradorManual.equipo.specs.capacidadResidencial ?? 0)
+                        : parseFloat((cloradorManual.cantidad * cloradorManual.equipo.specs.capacidadComercial).toFixed(3));
+                      const demanda = usoGeneral === "residencial" ? volumenLitros : (rec?.kgDiaNecesario ?? null);
+                      const insuficiente = demanda != null && demanda > 0 && capInstalada < demanda;
+                      return (
+                        <>
+                          <div className="bdc-demanda-fila">
+                            <span className="bdc-demanda-label">Cap. instalada</span>
+                            <span className={`bdc-demanda-valor ${insuficiente ? "bdc-insuf" : "bdc-ok"}`}>
+                              {usoGeneral === "residencial"
+                                ? `${capInstalada.toLocaleString("es-MX")} L`
+                                : `${capInstalada} kg/día`
+                              }
+                            </span>
+                          </div>
+                          {insuficiente && (
+                            <div className="bdc-manual-aviso">
+                              ⚠ Capacidad insuficiente — necesitas cubrir{" "}
+                              {usoGeneral === "residencial"
+                                ? `${(volumenLitros ?? 0).toLocaleString("es-MX")} L`
+                                : `${rec?.kgDiaNecesario} kg/día`
+                              }
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
                     <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Carga total</span><span className="bdc-auto-val bdc-hid-val-highlight">{cloradorManual.hidraulica?.cargaTotal} ft · {cloradorManual.hidraulica?.cargaTotalPSI} PSI</span></div>
                   </>)}
@@ -3121,6 +3180,8 @@ export default function Equipamiento({
                     selManualCLId={selCloradorSalinoId} setSelManualCLId={setSelCloradorSalinoId}
                     selManualCLCant={selCloradorSalinoCant} setSelManualCLCant={setSelCloradorSalinoCant}
                     usoGeneral={usoGeneral}
+                    volumenLitros={volumenLitros}
+                    kgDiaNecesario={resultadoClorador?.kgDiaNecesario ?? null}
                   />
                 </div>
               </div>

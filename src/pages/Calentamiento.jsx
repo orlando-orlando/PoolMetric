@@ -1881,9 +1881,19 @@ export default function Calentamiento({
                             <span className="bdc-auto-label">Paneles totales</span>
                             <span className="bdc-auto-val">{psSeleccionado.seleccion.cantidad}</span>
                           </div>
-                          <div className="bdc-auto-fila">
-                            <span className="bdc-auto-label">Distribución tándems</span>
-                            <span className="bdc-auto-val">{psSeleccionado.seleccion.tandems.join(" + ")} paneles</span>
+                          <div className="bdc-auto-fila" style={{ alignItems: "flex-start" }}>
+                            <span className="bdc-auto-label" style={{ paddingTop: "0.1rem" }}>Distribución tándems</span>
+                            <span className="bdc-auto-val" style={{ textAlign: "right", lineHeight: "1.5" }}>
+                              {(() => {
+                                const tandems = psSeleccionado.seleccion.tandems;
+                                const counts = {};
+                                tandems.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+                                const resumen = Object.entries(counts)
+                                  .map(([n, c]) => c > 1 ? `${c} tándems de ${n}` : `1 tándem de ${n}`)
+                                  .join(", ");
+                                return `${tandems.length} tándems (${resumen}) paneles`;
+                              })()}
+                            </span>
                           </div>
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Flujo total</span>
@@ -1982,9 +1992,19 @@ export default function Calentamiento({
                                 {psManual.cubre ? "+" : "-"}{fmtBTU(Math.abs(parseFloat(psManual.exceso)))} BTU/h
                               </span>
                             </div>
-                            <div className="bdc-demanda-fila">
-                              <span className="bdc-demanda-label">Tándems</span>
-                              <span className="bdc-demanda-valor">{(psManual.tandems ?? []).join(" + ")} paneles</span>
+                            <div className="bdc-demanda-fila" style={{ alignItems: "flex-start" }}>
+                              <span className="bdc-demanda-label" style={{ paddingTop: "0.1rem" }}>Tándems</span>
+                              <span className="bdc-demanda-valor" style={{ textAlign: "right", lineHeight: "1.5" }}>
+                                {(() => {
+                                  const tandems = psManual.tandems ?? [];
+                                  const counts = {};
+                                  tandems.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+                                  const resumen = Object.entries(counts)
+                                    .map(([n, c]) => c > 1 ? `${c} tándems de ${n}` : `1 tándem de ${n}`)
+                                    .join(", ");
+                                  return `${tandems.length} tándems (${resumen}) paneles`;
+                                })()}
+                              </span>
                             </div>
                             <div className="bdc-demanda-fila">
                               <span className="bdc-demanda-label">Flujo total</span>
