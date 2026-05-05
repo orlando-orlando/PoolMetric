@@ -341,6 +341,7 @@ export default function App() {
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const [temaOscuro, setTemaOscuro]                 = useState(true);
   const [datosPorSistema, setDatosPorSistema]       = useState({});
+  const ORDEN = { dimensiones: 0, calentamiento: 1, equipamiento: 2 };
   const [sistemaActivo, setSistemaActivo]           = useState(null);
   const dimensionesRef                              = useRef(null);
 
@@ -520,6 +521,7 @@ export default function App() {
 
   const estados = datosPorSistema?.equipamiento?.estados ?? {};
   const puntoOperacion = datosPorSistema?.equipamiento?.puntoOperacion ?? null;
+  const tabActivaEq = datosPorSistema?.equipamiento?.tabActiva ?? "sanitizacion";
 
   const tieneDesbordeCanal = useMemo(() => {
     const d = datosDim?.desborde;
@@ -692,11 +694,21 @@ export default function App() {
             <span className="nav-icon"><Ruler size={16} strokeWidth={1.5} /></span>
             {!panelColapsado && <span className="nav-text">Dimensiones</span>}
           </button>
-          <button className={`nav-item ${seccion === "calentamiento" ? "activo" : ""}`} onClick={() => setSeccion("calentamiento")}>
+          <button
+            className={`nav-item ${seccion === "calentamiento" ? "activo" : ""}`}
+            onClick={() => ORDEN["calentamiento"] <= ORDEN[seccion] && setSeccion("calentamiento")}
+            disabled={ORDEN["calentamiento"] > ORDEN[seccion]}
+            style={{ opacity: ORDEN["calentamiento"] > ORDEN[seccion] ? 0.35 : 1, cursor: ORDEN["calentamiento"] > ORDEN[seccion] ? "not-allowed" : "pointer" }}
+          >
             <span className="nav-icon"><Flame size={16} strokeWidth={1.5} /></span>
             {!panelColapsado && <span className="nav-text">Calentamiento</span>}
           </button>
-          <button className={`nav-item ${seccion === "equipamiento" ? "activo" : ""}`} onClick={() => setSeccion("equipamiento")}>
+          <button
+            className={`nav-item ${seccion === "equipamiento" ? "activo" : ""}`}
+            onClick={() => ORDEN["equipamiento"] <= ORDEN[seccion] && setSeccion("equipamiento")}
+            disabled={ORDEN["equipamiento"] > ORDEN[seccion]}
+            style={{ opacity: ORDEN["equipamiento"] > ORDEN[seccion] ? 0.35 : 1, cursor: ORDEN["equipamiento"] > ORDEN[seccion] ? "not-allowed" : "pointer" }}
+          >
             <span className="nav-icon"><Wrench size={16} strokeWidth={1.5} /></span>
             {!panelColapsado && <span className="nav-text">Equipamiento</span>}
           </button>
@@ -769,8 +781,8 @@ export default function App() {
               </ResultadoToggle>
             </FadeInBloque>
 
-            <FadeInBloque visible={hayAlgunCalentamiento}>
-              <ResultadoToggle variante="calentamiento" emoji="🔥" label="Calentamiento" abierto={toggleCalentamiento} onToggle={() => setToggleCalentamiento(v => !v)}>
+              <FadeInBloque visible={hayAlgunCalentamiento && (seccion === "calentamiento" || seccion === "equipamiento")}>
+                <ResultadoToggle variante="calentamiento" emoji="🔥" label="Calentamiento" abierto={toggleCalentamiento} onToggle={() => setToggleCalentamiento(v => !v)}>
                 <div className="resultado-subheader resultado-subheader--perdidas">Pérdidas energéticas</div>
                 <table className="tabla-resultados"><tbody>
                   <tr><th className="th-indent">Evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
@@ -791,8 +803,8 @@ export default function App() {
               </ResultadoToggle>
             </FadeInBloque>
 
-            <FadeInBloque visible={cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado}>
-              <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización" abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}>
+              <FadeInBloque visible={(cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) && seccion === "equipamiento"}>
+                <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización" abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}>
                 {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Gen. cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
                 {cloradorSeleccionado && cloradorListo && kgDiaCloroNecesario != null && (<table className="tabla-resultados"><tbody><tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr></tbody></table>)}
                 {uvSeleccionado && cargaLamparaUV != null && (<><div className="resultado-subheader resultado-subheader--cloro">Lámpara UV</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaLamparaUV)}</td></tr></tbody></table></>)}
@@ -801,8 +813,8 @@ export default function App() {
               </ResultadoToggle>
             </FadeInBloque>
 
-            <FadeInBloque visible={cargaRetorno != null || succionActiva != null || cargaBarredora != null}>
-              <ResultadoToggle variante="filtrado" emoji="🔩" label="Empotrables" abierto={toggleEmpotrables} onToggle={() => setToggleEmpotrables(v => !v)}>
+              <FadeInBloque visible={(cargaRetorno != null || succionActiva != null || cargaBarredora != null) && seccion === "equipamiento" && ["empotrables","motobomba"].includes(tabActivaEq)}>
+                <ResultadoToggle variante="filtrado" emoji="🔩" label="Empotrables" abierto={toggleEmpotrables} onToggle={() => setToggleEmpotrables(v => !v)}>
                 {cargaRetorno != null && (<><div className="resultado-subheader resultado-subheader--equipo">Retornos</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaRetorno)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadRetorno)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaRetorno)}</td></tr></tbody></table></>)}
                 {tieneDesbordeCanal ? (<>
                   {cargaDrenCanal != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren canal{succionActiva?.key === "drenCanal" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenCanal)}</td></tr></tbody></table></>)}
@@ -816,8 +828,8 @@ export default function App() {
               </ResultadoToggle>
             </FadeInBloque>
 
-            <FadeInBloque visible={cargaSumaFiltracion != null}>
-              <ResultadoToggle variante="filtrado" emoji="🧹" label="Filtración" abierto={toggleFiltracion} onToggle={() => setToggleFiltracion(v => !v)}>
+              <FadeInBloque visible={cargaSumaFiltracion != null && seccion === "equipamiento" && ["filtracion","empotrables","motobomba"].includes(tabActivaEq)}>
+                <ResultadoToggle variante="filtrado" emoji="🧹" label="Filtración" abierto={toggleFiltracion} onToggle={() => setToggleFiltracion(v => !v)}>
                 {cargaFiltroArena != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro de arena</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroArena)}</td></tr></tbody></table></>)}
                 {cargaPrefiltro != null && (<><div className="resultado-subheader resultado-subheader--equipo">Prefiltro</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaPrefiltro)}</td></tr></tbody></table></>)}
                 {cargaFiltroCartucho != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro cartucho</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroCartucho)}</td></tr></tbody></table></>)}
@@ -825,8 +837,8 @@ export default function App() {
               </ResultadoToggle>
             </FadeInBloque>
 
-            <FadeInBloque visible={flujoMaxGlobal != null}>
-            {flujoMaxGlobal != null && (
+            <FadeInBloque visible={flujoMaxGlobal != null && seccion === "equipamiento" && tabActivaEq === "motobomba"}>
+              {flujoMaxGlobal != null && (
             <div className="resultado-totales-bloque">
               <button className={`resultado-total-btn resultado-total-btn--flujo ${toggleFlujoMax ? "abierto" : ""}`} onClick={() => setToggleFlujoMax(v => !v)}>
                 <span className="resultado-total-btn-label">

@@ -1462,9 +1462,8 @@ const infoActiva = useMemo(() => {
    BLOQUE CLORADOR AUTOMÁTICO
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null }) {
+function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, instalacion = null, setInstalacion }) {
   const [modoCL, setModoCL]               = useState("recomendado");
-  const [instalacion, setInstalacion]     = useState(null);
   const [selManualCLId, setSelManualCLId] = useState(null);
   const [selManualCLCant, setSelManualCLCant] = useState(1);
   const [filtroMarca, setFiltroMarca]     = useState("todas");
@@ -2924,7 +2923,7 @@ export default function Equipamiento({
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
 
-  const [tabActiva, setTabActiva] = useState(eqPrev.tabActiva ?? "sanitizacion");
+  const [tabActiva, setTabActiva] = useState("sanitizacion");
 
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
@@ -2937,6 +2936,7 @@ export default function Equipamiento({
   const [modoCloradorSalino,    setModoCloradorSalino]    = useState(eqPrev.modoCloradorSalino    ?? "recomendado");
   const [selCloradorSalinoId,   setSelCloradorSalinoId]   = useState(eqPrev.selCloradorSalinoId   ?? null);
   const [selCloradorSalinoCant, setSelCloradorSalinoCant] = useState(eqPrev.selCloradorSalinoCant ?? 1);
+  const [instalacionCloradorAutomatico, setInstalacionCloradorAutomatico] = useState(eqPrev.instalacionCloradorAutomatico ?? null);
 
   const setCarga = (key, valor) => setCargas(prev => prev[key] === valor ? prev : { ...prev, [key]: valor });
   const setEstado = (key, valor) => setEstados(prev => {
@@ -2971,8 +2971,8 @@ export default function Equipamiento({
   }, [estadoBomba]);
 
   useEffect(() => {
-    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant } }));
-  }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant]);
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico } }));
+  }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico]);
 
   // Recalcular UV con el flujo de operación real cuando se confirma el punto de equilibrio
   const flujoUVEfectivo = datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal;
@@ -3085,6 +3085,7 @@ export default function Equipamiento({
   const sanitCount = Object.values(sistemasSeleccionadosSanit).filter(Boolean).length;
   const filtCount  = Object.values(sistemasSeleccionadosFilt).filter(Boolean).length;
   const calCount   = equiposCalentamiento.length;
+  const ORDEN_TABS = { sanitizacion: 0, calentamiento: 1, filtracion: 2, empotrables: 3, motobomba: 4 };
 
   const TABS = [
     { key: "sanitizacion",  label: "Sanitización",  Icon: IconoTabSanitizacion,  count: sanitCount },
@@ -3127,8 +3128,15 @@ export default function Equipamiento({
             <div className="eq-tabs">
               {TABS.map(({ key, label, Icon, count }) => {
                 const activa = tabActiva === key;
+                const bloqueada = ORDEN_TABS[key] > ORDEN_TABS[tabActiva];
                 return (
-                  <button key={key} className={`eq-tab ${activa ? "eq-tab--activa" : ""}`} onClick={() => setTabActiva(key)}>
+                  <button
+                    key={key}
+                    className={`eq-tab ${activa ? "eq-tab--activa" : ""} ${bloqueada ? "eq-tab--bloqueada" : ""}`}
+                    onClick={() => !bloqueada && setTabActiva(key)}
+                    disabled={bloqueada}
+                    style={{ opacity: bloqueada ? 0.35 : 1, cursor: bloqueada ? "not-allowed" : "pointer" }}
+                  >
                     <span className="eq-tab-icon"><Icon /></span>
                     <span className="eq-tab-label">{label}</span>
                     {count > 0 && <span className="eq-tab-badge eq-tab-badge--count">{count}</span>}
@@ -3193,8 +3201,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoCloradorAutomatico /></span>
                     <span className="sistema-detalle-titulo">Clorador automático</span>
                   </div>
-                  <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} />
-                </div>
+                <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} />                </div>
               </div>
             )}
             {sistemasSeleccionadosSanit.lamparaUV && (
@@ -3208,10 +3215,15 @@ export default function Equipamiento({
                 </div>
               </div>
             )}
-            {!Object.values(sistemasSeleccionadosSanit).some(Boolean) && (
-              <div className="sanitizacion-pendiente">Selecciona uno o más sistemas de sanitización para configurarlos</div>
-            )}
-          </>)}
+              {!Object.values(sistemasSeleccionadosSanit).some(Boolean) && (
+                <div className="sanitizacion-pendiente">Selecciona uno o más sistemas de sanitización para configurarlos</div>
+              )}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
+                    <button className="btn-primario" style={{ whiteSpace: "nowrap" }} onClick={() => setTabActiva("calentamiento")}>
+                    Continuar a Calentamiento →
+                  </button>
+                </div>
+              </>)}
 
           {/* ══ CALENTAMIENTO ══ */}
           {tabActiva === "calentamiento" && (<>
@@ -3236,6 +3248,11 @@ export default function Equipamiento({
                 </button>
               </div>
             )}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
+                <button className="btn-primario" style={{ whiteSpace: "nowrap" }} onClick={() => setTabActiva("filtracion")}>
+                Continuar a Filtración →
+              </button>
+            </div>
           </>)}
 
           {/* ══ FILTRACIÓN ══ */}
@@ -3292,10 +3309,15 @@ export default function Equipamiento({
                 </div>
               </div>
             )}
-            {!Object.values(sistemasSeleccionadosFilt).some(Boolean) && (
-              <div className="sanitizacion-pendiente">Selecciona uno o más sistemas de filtración para configurarlos</div>
-            )}
-          </>)}
+              {!Object.values(sistemasSeleccionadosFilt).some(Boolean) && (
+                <div className="sanitizacion-pendiente">Selecciona uno o más sistemas de filtración para configurarlos</div>
+              )}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
+                    <button className="btn-primario" style={{ whiteSpace: "nowrap" }} onClick={() => setTabActiva("empotrables")}>
+                    Continuar a Empotrables →
+                  </button>
+                </div>
+              </>)}
 
           {/* ══ EMPOTRABLES ══ */}
           {tabActiva === "empotrables" && (<>
@@ -3356,9 +3378,14 @@ export default function Equipamiento({
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Solo informativo</span>
                 </div>
                 <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} />
-              </div>
-            </div>
-          </>)}
+                              </div>
+                            </div>
+                              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
+                                <button className="btn-primario" style={{ whiteSpace: "nowrap" }} onClick={() => setTabActiva("motobomba")}>
+                                Continuar a Motobomba →
+                              </button>
+                            </div>
+                          </>)}
 
           {/* ══ MOTOBOMBA ══ */}
           {tabActiva === "motobomba" && (<>
