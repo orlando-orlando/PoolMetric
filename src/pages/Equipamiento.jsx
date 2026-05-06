@@ -3218,10 +3218,20 @@ export default function Equipamiento({
               {!Object.values(sistemasSeleccionadosSanit).some(Boolean) && (
                 <div className="sanitizacion-pendiente">Selecciona uno o más sistemas de sanitización para configurarlos</div>
               )}
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
-                    <button className="btn-primario" style={{ whiteSpace: "nowrap" }} onClick={() => setTabActiva("calentamiento")}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem", gap: "0.4rem" }}>
+                  <button
+                    className="btn-primario"
+                    style={{ whiteSpace: "nowrap", opacity: flujoMaxGlobal != null && flujoMaxGlobal > 4490 ? 0.5 : 1, cursor: flujoMaxGlobal != null && flujoMaxGlobal > 4490 ? "not-allowed" : "pointer" }}
+                    disabled={flujoMaxGlobal != null && flujoMaxGlobal > 4490}
+                    onClick={() => { if (!(flujoMaxGlobal != null && flujoMaxGlobal > 4490)) setTabActiva("calentamiento"); }}
+                  >
                     Continuar a Calentamiento →
                   </button>
+                  {flujoMaxGlobal != null && flujoMaxGlobal > 4490 && (
+                    <div style={{ fontSize: "0.7rem", color: "#f97316", background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)", borderRadius: "6px", padding: "0.3rem 0.6rem" }}>
+                      Flujo máximo excede 4,490 GPM — reduce las dimensiones del sistema
+                    </div>
+                  )}
                 </div>
               </>)}
 

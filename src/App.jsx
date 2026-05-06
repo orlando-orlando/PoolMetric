@@ -498,9 +498,6 @@ export default function App() {
   const kgDiaCloroNecesario = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaNecesario ?? null), [resultadoClorador]);
   const kgDiaCloroInstalado = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaInstalado ?? null), [resultadoClorador]);
   const flujoClorador  = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.seleccion?.flujoTotal) || null), [resultadoClorador]);
-  const cargaClorador  = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.cargaTotal) || null), [resultadoClorador]);
-  const tuberiaClorador   = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.tablaTramos?.[0]?.tuberia ?? null), [resultadoClorador]);
-  const velocidadClorador = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.tablaTramos?.[0]?.velocidad ?? null), [resultadoClorador]);
 
   const cloradorSeleccionado           = !!sanitizacionSeleccionada?.cloradorSalino;
   const cloradorListo                  = volumenTotal > 0 && areaCalculada > 0 && flujoClorador != null;
@@ -520,6 +517,38 @@ export default function App() {
   const cargaFiltroCartucho = cargasEquipamiento.filtroCartucho != null ? parseFloat(cargasEquipamiento.filtroCartucho) : null;
 
   const estados = datosPorSistema?.equipamiento?.estados ?? {};
+
+  const tuberiaClorador = (() => {
+    const flujoCS = estados?.cloradorSalino?.flujoTotal != null
+      ? parseFloat(estados.cloradorSalino.flujoTotal)
+      : ((!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.seleccion?.flujoTotal) || null));
+    if (!flujoCS || flujoCS <= 0) return null;
+    const { velocidadFlujo } = velocidadCargaFlujo(flujoCS);
+    const tubRaw = tuberiaSeleccionada(velocidadFlujo, "descarga");
+    const match = tubRaw.match(/^(tuberia [\d.]+)\s+\(([\d.]+)\s+ft\/s\)/);
+    return match ? match[1] : null;
+  })();
+
+  const velocidadClorador = (() => {
+    const flujoCS = estados?.cloradorSalino?.flujoTotal != null
+      ? parseFloat(estados.cloradorSalino.flujoTotal)
+      : ((!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.seleccion?.flujoTotal) || null));
+    if (!flujoCS || flujoCS <= 0) return null;
+    const { velocidadFlujo } = velocidadCargaFlujo(flujoCS);
+    const tubRaw = tuberiaSeleccionada(velocidadFlujo, "descarga");
+    const match = tubRaw.match(/^(tuberia [\d.]+)\s+\(([\d.]+)\s+ft\/s\)/);
+    return match ? parseFloat(match[2]) : null;
+  })();
+
+  const cargaClorador = (() => {
+    // Si hay selección manual, usar la carga del estado manual
+    if (estados?.cloradorSalino?.cargaTotal != null) {
+      return parseFloat(estados.cloradorSalino.cargaTotal) || null;
+    }
+    // Si no, usar el automático
+    return (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.cargaTotal) || null);
+  })();
+
   const puntoOperacion = datosPorSistema?.equipamiento?.puntoOperacion ?? null;
   const tabActivaEq = datosPorSistema?.equipamiento?.tabActiva ?? "sanitizacion";
 
@@ -577,7 +606,13 @@ export default function App() {
     if (flujoPS       != null)    lista.push({ label: "Panel solar",           valor: flujoPS });
     if (flujoCaldera  != null)    lista.push({ label: "Caldera",               valor: flujoCaldera });
     if (flujoCE       != null)    lista.push({ label: "Calent. eléctrico",     valor: flujoCE });
-    if (cloradorSeleccionado && flujoClorador != null) lista.push({ label: "Gen. cloro salino", valor: flujoClorador });
+    if (cloradorSeleccionado) {
+      // Priorizar flujo del estado manual si existe, si no usar el automático
+      const flujoCS = estados?.cloradorSalino?.flujoTotal != null
+        ? parseFloat(estados.cloradorSalino.flujoTotal)
+        : flujoClorador;
+      if (flujoCS != null && flujoCS > 0) lista.push({ label: "Gen. cloro salino", valor: flujoCS });
+    }
     if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
       const estCA = estados?.cloradorAutomatico;
       if (estCA?.flujoTotal != null) {
@@ -805,10 +840,23 @@ export default function App() {
 
               <FadeInBloque visible={(cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) && seccion === "equipamiento"}>
                 <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización" abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}>
-                {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Gen. cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
+                {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Gen. cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(estados?.cloradorSalino?.flujoTotal ?? flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
                 {cloradorSeleccionado && cloradorListo && kgDiaCloroNecesario != null && (<table className="tabla-resultados"><tbody><tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr></tbody></table>)}
                 {uvSeleccionado && cargaLamparaUV != null && (<><div className="resultado-subheader resultado-subheader--cloro">Lámpara UV</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaLamparaUV)}</td></tr></tbody></table></>)}
-                {cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && (<><div className="resultado-subheader resultado-subheader--cloro">Clorador automático</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCloradorAutomatico)}</td></tr></tbody></table></>)}
+                {cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && (() => {
+                  const flujoCA = estados?.cloradorAutomatico?.flujoTotal != null ? parseFloat(estados.cloradorAutomatico.flujoTotal) : flujoMaxGlobal;
+                  const { velocidadFlujo: velCA } = flujoCA ? velocidadCargaFlujo(flujoCA) : { velocidadFlujo: {} };
+                  const tubCAraw = flujoCA ? tuberiaSeleccionada(velCA, "descarga") : null;
+                  const matchCA = tubCAraw?.match(/^(tuberia [\d.]+)\s+\(([\d.]+)\s+ft\/s\)/);
+                  const tubCA = matchCA ? matchCA[1] : null;
+                  const velCAval = matchCA ? parseFloat(matchCA[2]) : null;
+                  return (<><div className="resultado-subheader resultado-subheader--cloro">Clorador automático</div><table className="tabla-resultados"><tbody>
+                    <tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCA)}</td></tr>
+                    <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tubCA)}</td></tr>
+                    <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velCAval)}</td></tr>
+                    <tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCloradorAutomatico)}</td></tr>
+                  </tbody></table></>);
+                })()}
                 {cargaSumaSanitizacion != null && (cloradorSeleccionado ? 1 : 0) + (uvSeleccionado ? 1 : 0) + (cloradorAutomaticoSeleccionado ? 1 : 0) > 1 && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaSanitizacion)}</td></tr></tbody></table>)}
               </ResultadoToggle>
             </FadeInBloque>
