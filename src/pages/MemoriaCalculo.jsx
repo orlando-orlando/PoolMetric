@@ -353,7 +353,12 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
     return d.seleccion?.flujoTotal ?? null;
   };
 
-  const equiposPresentes = equiposOrden.filter(k => reportes.some(r => getEquipoData(r, k)));
+  const equiposPresentes = equiposOrden.filter(k => reportes.some(r => {
+    const d = getEquipoData(r, k);
+    if (!d) return false;
+    if (k === "cloradorAutomatico" && d.excluido === true) return false;
+    return true;
+  }));
   // Para flujos solo mostramos el reporte de diseño (reportes[0])
   const rDis = reportes[0];
 
@@ -566,14 +571,26 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
     }
     const data = getEquipoData(r, key);
     if (!data) return null;
+
+    // Si el clorador está excluido en CUALQUIER reporte (flujo operación > 90 GPM), no mostrarlo
+    if (key === "cloradorAutomatico") {
+      const excluido = reportes.some(rep => getEquipoData(rep, "cloradorAutomatico")?.excluido === true);
+      if (excluido) {
+        const sel = data.seleccion ?? {};
+        return {
+          marca:    sel.marca    ?? "—",
+          modelo:   sel.modelo   ?? "—",
+          cantidad: sel.cantidad ?? "—",
+          excluido: true,
+        };
+      }
+    }
+
     const conf = equiposConfirmados?.[key];
     const sel  = data.seleccion ?? {};
-
-    // Cantidad ajustada final — conf?.cantidad si hubo ajuste, sino la del reporte
     const cantidad = conf?.cantidad ?? sel?.cantidad ?? "—";
     const marca    = conf?.marca    ?? sel?.marca    ?? "—";
     const modelo   = conf?.modelo   ?? sel?.modelo   ?? "—";
-
     return { marca, modelo, cantidad };
   };
 
@@ -666,7 +683,10 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
                   return (
                     <tr key={key} style={{ borderBottom:"1px solid #e2e8f0", background: i%2===0 ? "#fff" : "#f8fafc" }}>
                       <td style={{ padding:"9px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, fontSize:"0.75rem", borderRight:"1px solid #e2e8f0" }}>{itemNum}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>{nombres[key]}</td>
+                      <td style={{ padding:"9px 10px", textAlign:"left", color: info.excluido ? "#94a3b8" : "#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>
+                        {nombres[key]}
+                        {info.excluido && <span style={{ marginLeft:"8px", fontSize:"0.7rem", fontWeight:600, color:"#ef4444", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:"4px", padding:"1px 6px" }}>excluido</span>}
+                      </td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.marca}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#334155", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
                       <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1d6fa8", fontWeight:500, borderRight:"1px solid #e2e8f0", fontSize:"0.78rem" }}>{getSpec(key, info) ?? "—"}</td>
@@ -1160,7 +1180,12 @@ export default function MemoriaCalculo() {
     { key:"panelSolar",         label:"Panel solar",      tipo:"calentamiento" },
     { key:"caldera",            label:"Caldera de gas",   tipo:"calentamiento" },
     { key:"calentadorElectrico",label:"Calent. eléctrico",tipo:"calentamiento" },
-  ].filter(eq => reportes.some(r => getEquipoData(r, eq.key)));
+    ].filter(eq => reportes.some(r => {
+      const data = getEquipoData(r, eq.key);
+      if (!data) return false;
+      if (eq.key === "cloradorAutomatico" && data.excluido === true) return false;
+      return true;
+    }));
 
   const tabs = [
     { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },

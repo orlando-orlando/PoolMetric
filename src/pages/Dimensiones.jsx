@@ -278,7 +278,7 @@ function InputLimitado({ value, onChange, min, max, placeholder, className, onMo
   );
 }
 
-const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, datosPorSistema, setDatosPorSistema }, ref) => {
+  const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, datosPorSistema, setDatosPorSistema, flujoMaxGlobal }, ref) => {
   const [tipoSeleccionado, setTipoSeleccionado]   = useState(null);
   const [hoveredField, setHoveredField]           = useState(null);
   const [animandoSalida, setAnimandoSalida]       = useState(false);
@@ -730,6 +730,9 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
     );
   };
 
+  const FLUJO_MAX_PERMITIDO = 4490;
+  const flujoExcedido = flujoMaxGlobal != null && flujoMaxGlobal > FLUJO_MAX_PERMITIDO;
+
   return (
     <div className="form-section hero-wrapper">
       <div className="selector-tecnico modo-experto">
@@ -759,10 +762,14 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
             }}>
               ← Volver a Dimensiones
             </button>
+
             <div className="aviso-wrapper">
               <button
-                className={`btn-primario ${mostrarAviso ? "error" : ""}`}
+                className={`btn-primario ${mostrarAviso || flujoExcedido ? "error" : ""}`}
+                disabled={flujoExcedido}
+                style={{ opacity: flujoExcedido ? 0.5 : 1, cursor: flujoExcedido ? "not-allowed" : "pointer" }}
                 onClick={() => {
+                  if (flujoExcedido) return;
                   if (Object.keys(errores).length > 0) {
                     setMostrarErrores(true); setMostrarAviso(true);
                     setTimeout(() => setMostrarAviso(false), 2500);
@@ -773,7 +780,12 @@ const Dimensiones = forwardRef(({ setSeccion, sistemaActivo, setSistemaActivo, d
               >
                 Ir a Calentamiento →
               </button>
-              {mostrarAviso && (
+              {flujoExcedido && (
+                <div className="aviso-validacion">
+                  Flujo máximo excede 4,500 GPM — reduce las dimensiones del sistema
+                </div>
+              )}
+              {mostrarAviso && !flujoExcedido && (
                 <div className="aviso-validacion">Llena toda la información solicitada</div>
               )}
             </div>

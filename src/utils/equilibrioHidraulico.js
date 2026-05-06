@@ -337,46 +337,69 @@ export function calcularEquilibrio({
   }
 
   function calcularCDTSistema(flujoNuevo, cargasRef) {
-    const equiposRecalc = {};
+  const equiposRecalc = {};
 
-    for (const key of empKeys) {
-      const est = estados[key];
-      if (!est?.selId) continue;
-      const cfg = empotrablesConfig[key];
-      const rec = recalcularEmpotrable(key, est, flujoNuevo, datosEmpotrable, cfg.fn, cfg.cat);
-      if (rec) equiposRecalc[key] = rec;
-    }
-    for (const key of ["filtroArena", "prefiltro", "filtroCartucho"]) {
-      const est = estados[key];
-      if (!est?.selId) continue;
-      const cfg = filtrosConfig[key];
-      const rec = recalcularFiltro(key, est, flujoNuevo, cfg.fn, cfg.cat, usoGeneral);
-      if (rec) equiposRecalc[key] = rec;
-    }
-
-    // UV — FIX: busca equipo más grande si el flujo supera la capacidad
-    if (estados?.lamparaUV?.selId) {
-      const rec = recalcularUV(estados.lamparaUV, flujoNuevo);
-      if (rec) equiposRecalc.lamparaUV = rec;
-    }
-
-    const keysRecalc = [
-      ...empKeys.filter(k => equiposRecalc[k] != null),
-      ...["filtroArena", "prefiltro", "filtroCartucho", "lamparaUV"].filter(k => equiposRecalc[k] != null),
-    ];
-
-    let deltaCargas = 0;
-    for (const key of keysRecalc) {
-      // FIX: excluir clorador en línea del delta de cargas
-      if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
-      const cargaRef   = parseFloat(cargasRef[key] ?? 0);
-      const eq         = equiposRecalc[key];
-      const cargaNueva = parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
-      deltaCargas += (cargaNueva - cargaRef);
-    }
-    const cdt = Math.max(0.1, cargaInicial + deltaCargas);
-    return { equiposRecalc, cdt };
+  for (const key of empKeys) {
+    const est = estados[key];
+    if (!est?.selId) continue;
+    const cfg = empotrablesConfig[key];
+    const rec = recalcularEmpotrable(key, est, flujoNuevo, datosEmpotrable, cfg.fn, cfg.cat);
+    if (rec) equiposRecalc[key] = rec;
   }
+  for (const key of ["filtroArena", "prefiltro", "filtroCartucho"]) {
+    const est = estados[key];
+    if (!est?.selId) continue;
+    const cfg = filtrosConfig[key];
+    const rec = recalcularFiltro(key, est, flujoNuevo, cfg.fn, cfg.cat, usoGeneral);
+    if (rec) equiposRecalc[key] = rec;
+  }
+
+  if (estados?.lamparaUV?.selId) {
+    const rec = recalcularUV(estados.lamparaUV, flujoNuevo);
+    if (rec) equiposRecalc.lamparaUV = rec;
+  }
+
+  const keysRecalc = [
+    ...empKeys.filter(k => equiposRecalc[k] != null),
+    ...["filtroArena", "prefiltro", "filtroCartucho", "lamparaUV"].filter(k => equiposRecalc[k] != null),
+  ];
+
+  // Determinar cuál equipo de succión gobierna
+  const succKeys = tieneDesbordeCanal
+    ? ["drenCanal", "drenFondo"]
+    : ["desnatador", "drenFondo"];
+
+  const succVals = succKeys
+    .filter(k => equiposRecalc[k] != null)
+    .map(k => ({ k, carga: parseFloat(equiposRecalc[k].sumaFinal ?? equiposRecalc[k].cargaTotal ?? 0) }));
+  const succGobierna = succVals.length > 0
+    ? succVals.reduce((a, b) => b.carga > a.carga ? b : a).k
+    : null;
+
+  // Restar de cargaInicial las refs de los equipos recalculados que SÍ suman
+  let cargaBaseAjustada = cargaInicial;
+  for (const key of keysRecalc) {
+    if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
+    if (key === "barredora") continue;
+    if (succKeys.includes(key) && key !== succGobierna) continue;
+    cargaBaseAjustada -= parseFloat(cargasRef[key] ?? 0);
+  }
+  // Restar también el clorador automático que no se recalcula pero está en cargaInicial
+  cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
+
+  // Sumar las cargas nuevas de los equipos que sí suman
+  let cargaRecalc = 0;
+  for (const key of keysRecalc) {
+    if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
+    if (key === "barredora") continue;
+    if (succKeys.includes(key) && key !== succGobierna) continue;
+    const eq = equiposRecalc[key];
+    cargaRecalc += parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
+  }
+
+  const cdt = Math.max(0.1, cargaBaseAjustada + cargaRecalc);
+  return { equiposRecalc, cdt };
+}
 
   const cargasRef0 = calcularCargasRef(flujoInicial);
 

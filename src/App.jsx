@@ -956,10 +956,27 @@ export default function App() {
       <div className="panel-derecho">
         <div className="panel-derecho-contenido">
           {seccion === "dimensiones" && (
-            <Dimensiones ref={dimensionesRef} setSeccion={setSeccion} sistemaActivo={sistemaActivo} setSistemaActivo={setSistemaActivo} datosPorSistema={datosPorSistema} setDatosPorSistema={setDatosPorSistema} />
+          <Dimensiones
+            ref={dimensionesRef}
+            setSeccion={setSeccion}
+            sistemaActivo={sistemaActivo}
+            setSistemaActivo={setSistemaActivo}
+            datosPorSistema={datosPorSistema}
+            setDatosPorSistema={setDatosPorSistema}
+            flujoMaxGlobal={flujoMaxGlobal}
+          />
           )}
           {seccion === "calentamiento" && (
-            <Calentamiento setSeccion={setSeccion} tipoSistema={sistemaActivo} datosPorSistema={datosPorSistema} setDatosPorSistema={setDatosPorSistema} areaTotal={areaCalculada} volumenTotal={volumenTotal} profundidadPromedio={profundidadPromedio} />
+          <Calentamiento
+            setSeccion={setSeccion}
+            tipoSistema={sistemaActivo}
+            datosPorSistema={datosPorSistema}
+            setDatosPorSistema={setDatosPorSistema}
+            areaTotal={areaCalculada}
+            volumenTotal={volumenTotal}
+            profundidadPromedio={profundidadPromedio}
+            flujoMaxGlobal={flujoMaxGlobal}
+          />
           )}
           {seccion === "equipamiento" && (
             <Equipamiento setSeccion={setSeccion} sistemaActivo={sistemaActivo} datosPorSistema={datosPorSistema} setDatosPorSistema={setDatosPorSistema} configBombas={configBombas} resultadoClorador={resultadoClorador} flujoMaxGlobal={flujoMaxGlobal} cargaTotalGlobal={cargaTotalGlobal} onSanitizacionChange={handleSanitizacionChange} flujoInfinityVal={flujoInfinitySistema > 0 ? flujoInfinitySistema : null} flujoFiltradoVal={flujoFiltrado > 0 ? flujoFiltrado : null} volumenTotalVal={volumenTotal > 0 ? volumenTotal : null} />

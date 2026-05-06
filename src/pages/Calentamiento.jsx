@@ -275,6 +275,7 @@ const fmtBTU = (v) => v ? Math.round(parseFloat(v)).toLocaleString("es-MX") + " 
 export default function Calentamiento({
   setSeccion, tipoSistema, datosPorSistema, setDatosPorSistema,
   areaTotal, volumenTotal, profundidadPromedio, tipoRetornoExterno,
+  flujoMaxGlobal,
 }) {
   const sistemaActivo = datosPorSistema?.[tipoSistema];
 
@@ -380,6 +381,8 @@ export default function Calentamiento({
   };
 
   const errores = obtenerErroresCalentamiento();
+  const FLUJO_MAX_PERMITIDO = 4490;
+  const flujoExcedido = flujoMaxGlobal != null && flujoMaxGlobal > FLUJO_MAX_PERMITIDO;
 
   const ciudadesMexico = [
     { key: "guadalajara", label: "Guadalajara" }, { key: "mexicali", label: "Mexicali" },
@@ -1134,8 +1137,11 @@ export default function Calentamiento({
           </button>
           <div className="aviso-wrapper">
             <button
-              className={`btn-primario ${mostrarAviso ? "error" : ""}`}
+              className={`btn-primario ${mostrarAviso || flujoExcedido ? "error" : ""}`}
+              disabled={flujoExcedido}
+              style={{ opacity: flujoExcedido ? 0.5 : 1, cursor: flujoExcedido ? "not-allowed" : "pointer" }}
               onClick={() => {
+                if (flujoExcedido) return;
                 if (decision === null) { setMostrarAviso(true); setTimeout(() => setMostrarAviso(false), 2500); return; }
                 if (decision === "omitir") { cambiarSeccionConAnimacion("equipamiento"); return; }
                 if (!calentamientoCompleto()) { setMostrarErrores(true); setMostrarAviso(true); setTimeout(() => setMostrarAviso(false), 2500); return; }
@@ -1144,7 +1150,12 @@ export default function Calentamiento({
             >
               Ir a Equipamiento →
             </button>
-            {mostrarAviso && (
+            {flujoExcedido && (
+              <div className="aviso-validacion">
+                Flujo máximo excede 4,500 GPM — reduce las dimensiones del sistema
+              </div>
+            )}
+            {mostrarAviso && !flujoExcedido && (
               <div className="aviso-validacion">
                 {decision === null ? "Elige si deseas configurar o omitir el calentamiento" : "Llena toda la información solicitada"}
               </div>
