@@ -550,10 +550,14 @@ function tipoParaCalculo(eq) {
 /* =====================================================
    BLOQUE EMPOTRABLE GENÉRICO
 ===================================================== */
-function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1 }) {
-  const [modo, setModo]               = useState("recomendado");
-  const [selId, setSelId]             = useState(null);
-  const [selCant, setSelCant]         = useState(null);
+function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1,
+  modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
+  const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
+  const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
+  const [selCant, setSelCantLocal] = useState(selCantExterno ?? null);
+  const setModo    = (v) => { setModoLocal(v);    setModoExterno?.(v);    };
+  const setSelId   = (v) => { setSelIdLocal(v);   setSelIdExterno?.(v);   };
+  const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
   const fnCalcRef = useRef(fnCalculo);
   fnCalcRef.current = fnCalculo;
@@ -744,10 +748,14 @@ const SISTEMAS_FILTRACION = [
 /* =====================================================
    BLOQUE PREFILTRO
 ===================================================== */
-function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = null }) {
-  const [modo, setModo]               = useState("recomendado");
-  const [selId, setSelId]             = useState(null);
-  const [selCant, setSelCant]         = useState(null);
+function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = null,
+  modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
+  const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
+  const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
+  const [selCant, setSelCantLocal] = useState(selCantExterno ?? null);
+  const setModo    = (v) => { setModoLocal(v);    setModoExterno?.(v);    };
+  const setSelId   = (v) => { setSelIdLocal(v);   setSelIdExterno?.(v);   };
+  const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
   const rec = useMemo(() => {
@@ -781,7 +789,7 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
     const p = prefiltros.find(pi => pi.id === selId);
     if (p) {
       try {
-        const res = calcularCargaPrefiltroManual(p.specs.maxFlow, selCant);
+        const res = calcularCargaPrefiltroManual(p.specs.maxFlow, selCant, flujoMaximo);
         if (!res?.error) manualCalc = { prefiltroEq: p, cantidad: selCant, flujoPorPrefiltro: p.specs.maxFlow, flujoTotal: parseFloat((p.specs.maxFlow * selCant).toFixed(2)), ...res };
       } catch { manualCalc = null; }
     }
@@ -907,10 +915,14 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
 /* =====================================================
    BLOQUE FILTRO CARTUCHO
 ===================================================== */
-function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, onEstadoChange = null }) {
-  const [modo, setModo]               = useState("recomendado");
-  const [selId, setSelId]             = useState(null);
-  const [selCant, setSelCant]         = useState(null);
+function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, onEstadoChange = null,
+  modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
+  const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
+  const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
+  const [selCant, setSelCantLocal] = useState(selCantExterno ?? null);
+  const setModo    = (v) => { setModoLocal(v);    setModoExterno?.(v);    };
+  const setSelId   = (v) => { setSelIdLocal(v);   setSelIdExterno?.(v);   };
+  const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
   const rec = useMemo(() => {
@@ -948,7 +960,7 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
     const fe = f ? flujoEfectivo(f, usoGeneral) : null;
     if (f && fe) {
       try {
-        const res = calcularCargaFiltroCartuchoManual(fe, selCant);
+        const res = calcularCargaFiltroCartuchoManual(fe, selCant, flujoMaximo);
         if (!res?.error) manualCalc = { filtroEq: f, flujoEf: fe, cantidad: selCant, flujoTotal: parseFloat((fe * selCant).toFixed(2)), ...res };
       } catch { manualCalc = null; }
     }
@@ -1077,10 +1089,14 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
 /* =====================================================
    BLOQUE FILTRO DE ARENA
 ===================================================== */
-function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange = null }) {
-  const [modo, setModo]               = useState("recomendado");
-  const [selId, setSelId]             = useState(null);
-  const [selCant, setSelCant]         = useState(null);
+function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange = null,
+  modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
+  const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
+  const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
+  const [selCant, setSelCantLocal] = useState(selCantExterno ?? null);
+  const setModo    = (v) => { setModoLocal(v);    setModoExterno?.(v);    };
+  const setSelId   = (v) => { setSelIdLocal(v);   setSelIdExterno?.(v);   };
+  const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
   const rec = useMemo(() => {
@@ -1114,7 +1130,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
     const f = filtrosArena.find(fi => fi.id === selId);
     if (f) {
       try {
-        const res = calcularCargaFiltroArenaManual(f.specs.maxFlow, selCant);
+        const res = calcularCargaFiltroArenaManual(f.specs.maxFlow, selCant, flujoMaximo);
         if (!res?.error) manualCalc = { filtro: f, cantidad: selCant, flujoPorFiltro: f.specs.maxFlow, flujoTotal: parseFloat((f.specs.maxFlow * selCant).toFixed(2)), ...res };
       } catch { manualCalc = null; }
     }
@@ -1248,7 +1264,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
 /* =====================================================
    BLOQUE GENERADOR DE CLORO SALINO
 ===================================================== */
-function BloqueCloradorSalino({ resultadoClorador, onEstadoChange,
+function BloqueCloradorSalino({ resultadoClorador, flujoMaximo, onEstadoChange,
   modoCL, setModoCL, selManualCLId, setSelManualCLId, selManualCLCant, setSelManualCLCant,
   usoGeneral = "residencial", volumenLitros = 0, kgDiaNecesario = null
 }) {
@@ -1267,7 +1283,7 @@ function BloqueCloradorSalino({ resultadoClorador, onEstadoChange,
     const equipo = generadoresDeCloro.find(g => g.id === selManualCLId);
     if (!equipo) return null;
     try {
-      const hidraulica = calcularCargaCloradorManual(equipo.specs.flujo, selManualCLCant);
+      const hidraulica = calcularCargaCloradorManual(equipo.specs.flujo, selManualCLCant, flujoMaximo);
       if (hidraulica?.error) return null;
       return { equipo, cantidad: selManualCLCant, flujoTotal: equipo.specs.flujo * selManualCLCant, hidraulica };
     } catch { return null; }
@@ -1462,10 +1478,14 @@ const infoActiva = useMemo(() => {
    BLOQUE CLORADOR AUTOMÁTICO
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, instalacion = null, setInstalacion }) {
-  const [modoCL, setModoCL]               = useState("recomendado");
-  const [selManualCLId, setSelManualCLId] = useState(null);
-  const [selManualCLCant, setSelManualCLCant] = useState(1);
+function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, instalacion = null, setInstalacion,
+  modoExterno, setModoExterno, selManualCLIdExterno, setSelManualCLIdExterno, selManualCLCantExterno, setSelManualCLCantExterno }) {
+  const [modoCL,          setModoCLLocal]         = useState(modoExterno              ?? "recomendado");
+  const [selManualCLId,   setSelManualCLIdLocal]   = useState(selManualCLIdExterno    ?? null);
+  const [selManualCLCant, setSelManualCLCantLocal] = useState(selManualCLCantExterno  ?? 1);
+  const setModoCL          = (v) => { setModoCLLocal(v);          setModoExterno?.(v);             };
+  const setSelManualCLId   = (v) => { setSelManualCLIdLocal(v);   setSelManualCLIdExterno?.(v);   };
+  const setSelManualCLCant = (v) => { setSelManualCLCantLocal(v); setSelManualCLCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca]     = useState("todas");
 
   const rec = useMemo(() => {
@@ -1541,7 +1561,13 @@ const infoActiva = useMemo(() => {
     if (!onEstadoChange) return;
     const eqCA = infoActiva ? cloradoresAutomaticos.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
     const specCA = eqCA?.specs?.capacidadComercial != null ? `${eqCA.specs.capacidadComercial} kg/día` : null;
-    onEstadoChange(infoActiva ? { marca: infoActiva.marca, modelo: infoActiva.modelo, instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specCA } : null);
+    onEstadoChange(infoActiva ? { 
+      marca: infoActiva.marca, modelo: infoActiva.modelo, 
+      instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, 
+      flujoTotal: infoActiva.flujoTotal, 
+      cargaTotal: parseFloat(infoActiva.cargaTotal) || null,  // ← agregar
+      spec: specCA 
+    } : null);
       }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
 
   const labelInst = (i) => i === "enLinea" ? "En línea" : "Fuera de línea";
@@ -1693,10 +1719,14 @@ const infoActiva = useMemo(() => {
    BLOQUE LÁMPARA UV
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange = null }) {
-  const [modoUV, setModoUV]               = useState("recomendado");
-  const [selManualUVId, setSelManualUVId] = useState(null);
-  const [selManualUVCant, setSelManualUVCant] = useState(1);
+function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange = null,
+  modoExterno, setModoExterno, selManualUVIdExterno, setSelManualUVIdExterno, selManualUVCantExterno, setSelManualUVCantExterno }) {
+  const [modoUV,         setModoUVLocal]         = useState(modoExterno             ?? "recomendado");
+  const [selManualUVId,  setSelManualUVIdLocal]   = useState(selManualUVIdExterno   ?? null);
+  const [selManualUVCant,setSelManualUVCantLocal] = useState(selManualUVCantExterno ?? 1);
+  const setModoUV         = (v) => { setModoUVLocal(v);          setModoExterno?.(v);              };
+  const setSelManualUVId  = (v) => { setSelManualUVIdLocal(v);   setSelManualUVIdExterno?.(v);    };
+  const setSelManualUVCant= (v) => { setSelManualUVCantLocal(v); setSelManualUVCantExterno?.(v);  };
 
   const rec = useMemo(() => {
     if (!flujoMaxSistema || flujoMaxSistema <= 0) return null;
@@ -1709,7 +1739,7 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
     const equipo = generadoresUV.find(g => g.id === selManualUVId);
     if (!equipo) return null;
     try {
-      const hidraulica = calcularCargaUVManual(equipo.specs.flujo, selManualUVCant);
+      const hidraulica = calcularCargaUVManual(equipo.specs.flujo, selManualUVCant, flujoMaxSistema);
       if (hidraulica?.error) return null;
       return { equipo, cantidad: selManualUVCant, flujoTotal: equipo.specs.flujo * selManualUVCant, hidraulica };
     } catch { return null; }
@@ -1733,7 +1763,13 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
     const eqUV = infoActiva ? generadoresUV.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
     const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
     const selId = eqUV?.id ?? (modoUV === "manual" ? selManualUVId : (generadoresUV.find(g => g.marca === infoActiva?.marca && g.modelo === infoActiva?.modelo)?.id ?? null));
-    onEstadoChange(infoActiva ? { selId, marca: infoActiva.marca, modelo: infoActiva.modelo, cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, spec: specUV } : null);  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, modoUV, selManualUVId]);
+    onEstadoChange(infoActiva ? { 
+      selId, marca: infoActiva.marca, modelo: infoActiva.modelo, 
+      cantidad: infoActiva.cantidad, flujoTotal: infoActiva.flujoTotal, 
+      cargaTotal: parseFloat(infoActiva.cargaTotal) || null,  // ← agregar
+      spec: specUV 
+    } : null);
+  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, modoUV, selManualUVId]);
 
   if (!flujoMaxSistema || flujoMaxSistema <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
 
@@ -2938,6 +2974,39 @@ export default function Equipamiento({
   const [selCloradorSalinoCant, setSelCloradorSalinoCant] = useState(eqPrev.selCloradorSalinoCant ?? 1);
   const [instalacionCloradorAutomatico, setInstalacionCloradorAutomatico] = useState(eqPrev.instalacionCloradorAutomatico ?? null);
 
+  // Modos y selecciones manuales — persisten entre tabs
+  const [modoCloradorAutomatico, setModoCloradorAutomatico] = useState(eqPrev.modoCloradorAutomatico ?? "recomendado");
+  const [modoLamparaUV,          setModoLamparaUV]          = useState(eqPrev.modoLamparaUV          ?? "recomendado");
+  const [modoFiltroArena,        setModoFiltroArena]        = useState(eqPrev.modoFiltroArena        ?? "recomendado");
+  const [selFiltroArenaId,       setSelFiltroArenaId]       = useState(eqPrev.selFiltroArenaId       ?? null);
+  const [selFiltroArenaCant,     setSelFiltroArenaCant]     = useState(eqPrev.selFiltroArenaCant     ?? null);
+  const [modoPrefiltro,          setModoPrefiltro]          = useState(eqPrev.modoPrefiltro          ?? "recomendado");
+  const [selPrefiltroId,         setSelPrefiltroId]         = useState(eqPrev.selPrefiltroId         ?? null);
+  const [selPrefiltroCant,       setSelPrefiltroCant]       = useState(eqPrev.selPrefiltroCant       ?? null);
+  const [modoFiltroCartucho,     setModoFiltroCartucho]     = useState(eqPrev.modoFiltroCartucho     ?? "recomendado");
+  const [selFiltroCartuchoId,    setSelFiltroCartuchoId]    = useState(eqPrev.selFiltroCartuchoId    ?? null);
+  const [selFiltroCartuchoCant,  setSelFiltroCartuchoCant]  = useState(eqPrev.selFiltroCartuchoCant  ?? null);
+  const [selManualUVId,          setSelManualUVId]          = useState(eqPrev.selManualUVId          ?? null);
+  const [selManualUVCant,        setSelManualUVCant]        = useState(eqPrev.selManualUVCant        ?? 1);
+  // Empotrables
+  const [modoRetorno,       setModoRetorno]       = useState(eqPrev.modoRetorno       ?? "recomendado");
+  const [selRetornoId,      setSelRetornoId]      = useState(eqPrev.selRetornoId      ?? null);
+  const [selRetornoCant,    setSelRetornoCant]    = useState(eqPrev.selRetornoCant    ?? null);
+  const [modoDesnatador,    setModoDesnatador]    = useState(eqPrev.modoDesnatador    ?? "recomendado");
+  const [selDesnatadorId,   setSelDesnatadorId]   = useState(eqPrev.selDesnatadorId   ?? null);
+  const [selDesnatadorCant, setSelDesnatadorCant] = useState(eqPrev.selDesnatadorCant ?? null);
+  const [modoBarredora,     setModoBarredora]     = useState(eqPrev.modoBarredora     ?? "recomendado");
+  const [selBarredoraId,    setSelBarredoraId]    = useState(eqPrev.selBarredoraId    ?? null);
+  const [selBarredoraCant,  setSelBarredoraCant]  = useState(eqPrev.selBarredoraCant  ?? null);
+  const [modoDrenFondo,     setModoDrenFondo]     = useState(eqPrev.modoDrenFondo     ?? "recomendado");
+  const [selDrenFondoId,    setSelDrenFondoId]    = useState(eqPrev.selDrenFondoId    ?? null);
+  const [selDrenFondoCant,  setSelDrenFondoCant]  = useState(eqPrev.selDrenFondoCant  ?? null);
+  const [modoDrenCanal,     setModoDrenCanal]     = useState(eqPrev.modoDrenCanal     ?? "recomendado");
+  const [selDrenCanalId,    setSelDrenCanalId]    = useState(eqPrev.selDrenCanalId    ?? null);
+  const [selDrenCanalCant,  setSelDrenCanalCant]  = useState(eqPrev.selDrenCanalCant  ?? null);
+  const [selCloradorAutomaticoId,   setSelCloradorAutomaticoId]   = useState(eqPrev.selCloradorAutomaticoId   ?? null);
+  const [selCloradorAutomaticoCant, setSelCloradorAutomaticoCant] = useState(eqPrev.selCloradorAutomaticoCant ?? 1);
+
   const setCarga = (key, valor) => setCargas(prev => prev[key] === valor ? prev : { ...prev, [key]: valor });
   const setEstado = (key, valor) => setEstados(prev => {
     if (JSON.stringify(prev[key]) === JSON.stringify(valor)) return prev;
@@ -2971,8 +3040,30 @@ export default function Equipamiento({
   }, [estadoBomba]);
 
   useEffect(() => {
-    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico } }));
-  }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico]);
+      setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}),
+        modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico,
+        modoCloradorAutomatico, modoLamparaUV, selManualUVId, selManualUVCant,
+        modoFiltroArena, selFiltroArenaId, selFiltroArenaCant,
+        modoPrefiltro, selPrefiltroId, selPrefiltroCant,
+        modoFiltroCartucho, selFiltroCartuchoId, selFiltroCartuchoCant,
+        modoRetorno, selRetornoId, selRetornoCant,
+        modoDesnatador, selDesnatadorId, selDesnatadorCant,
+        modoBarredora, selBarredoraId, selBarredoraCant,
+        modoDrenFondo, selDrenFondoId, selDrenFondoCant,
+        modoDrenCanal, selDrenCanalId, selDrenCanalCant,
+        selCloradorAutomaticoId, selCloradorAutomaticoCant,
+      }}));
+    }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico,
+        modoCloradorAutomatico, modoLamparaUV, selManualUVId, selManualUVCant,
+        modoFiltroArena, selFiltroArenaId, selFiltroArenaCant,
+        modoPrefiltro, selPrefiltroId, selPrefiltroCant,
+        modoFiltroCartucho, selFiltroCartuchoId, selFiltroCartuchoCant,
+        modoRetorno, selRetornoId, selRetornoCant,
+        modoDesnatador, selDesnatadorId, selDesnatadorCant,
+        modoBarredora, selBarredoraId, selBarredoraCant,
+        modoDrenFondo, selDrenFondoId, selDrenFondoCant,
+        modoDrenCanal, selDrenCanalId, selDrenCanalCant,
+        selCloradorAutomaticoId, selCloradorAutomaticoCant]);
 
   // Recalcular UV con el flujo de operación real cuando se confirma el punto de equilibrio
   const flujoUVEfectivo = datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal;
@@ -3067,8 +3158,12 @@ export default function Equipamiento({
       panelSolar:          ss.panelSolar          ? cargaCal("modoPS",      "psManual",      m => m.hidraulica?.cargaTotal, "psSeleccionado",      s => s.hidraulica?.cargaTotal) : null,
       caldera:             ss.caldera             ? cargaCal("modoCaldera", "calderaManual", m => m.hidraulica?.cargaTotal, "calderaSeleccionada", s => s.cargaTotal)            : null,
       calentadorElectrico: ss.calentadorElectrico ? cargaCal("modoCE",      "ceManual",      m => m.hidraulica?.cargaTotal, "ceSeleccionado",      s => s.cargaTotal)            : null,
-      cloradorSalino:      sistemasSeleccionadosSanit.cloradorSalino && resultadoClorador && !resultadoClorador.error ? (parseFloat(resultadoClorador.cargaTotal) || null) : null,
-      cloradorAutomatico:  sistemasSeleccionadosSanit.cloradorAutomatico ? (cargas.cloradorAutomatico ?? null) : null,
+      cloradorSalino: sistemasSeleccionadosSanit.cloradorSalino
+        ? (estados?.cloradorSalino?.cargaTotal != null
+          ? parseFloat(estados.cloradorSalino.cargaTotal)
+          : (resultadoClorador && !resultadoClorador.error ? parseFloat(resultadoClorador.cargaTotal) || null : null))
+        : null,
+        cloradorAutomatico:  sistemasSeleccionadosSanit.cloradorAutomatico ? (cargas.cloradorAutomatico ?? null) : null,
       lamparaUV:           sistemasSeleccionadosSanit.lamparaUV          ? (cargas.lamparaUV          ?? null) : null,
       retorno:        cargas.retorno        ?? null,
       desnatador:     cargas.desnatador     ?? null,
@@ -3183,6 +3278,7 @@ export default function Equipamiento({
                   </div>
                   <BloqueCloradorSalino
                     resultadoClorador={resultadoClorador}
+                    flujoMaximo={flujoMaxGlobal}   
                     onEstadoChange={e => setEstado("cloradorSalino", e)}
                     modoCL={modoCloradorSalino} setModoCL={setModoCloradorSalino}
                     selManualCLId={selCloradorSalinoId} setSelManualCLId={setSelCloradorSalinoId}
@@ -3201,7 +3297,8 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoCloradorAutomatico /></span>
                     <span className="sistema-detalle-titulo">Clorador automático</span>
                   </div>
-                <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} />                </div>
+                  <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} modoExterno={modoCloradorAutomatico} setModoExterno={setModoCloradorAutomatico} selManualCLIdExterno={selCloradorAutomaticoId} setSelManualCLIdExterno={setSelCloradorAutomaticoId} selManualCLCantExterno={selCloradorAutomaticoCant} setSelManualCLCantExterno={setSelCloradorAutomaticoCant} />
+                 </div>
               </div>
             )}
             {sistemasSeleccionadosSanit.lamparaUV && (
@@ -3211,7 +3308,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoLamparaUV /></span>
                     <span className="sistema-detalle-titulo">Lámpara UV</span>
                   </div>
-                  <BloqueLamparaUV flujoMaxSistema={datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal} onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} />
+                  <BloqueLamparaUV flujoMaxSistema={datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal} onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} modoExterno={modoLamparaUV} setModoExterno={setModoLamparaUV} selManualUVIdExterno={selManualUVId} setSelManualUVIdExterno={setSelManualUVId} selManualUVCantExterno={selManualUVCant} setSelManualUVCantExterno={setSelManualUVCant} />
                 </div>
               </div>
             )}
@@ -3293,7 +3390,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoFiltroArena /></span>
                     <span className="sistema-detalle-titulo">Filtro de arena</span>
                   </div>
-                  <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("filtroArena", v)} onEstadoChange={e => setEstado("filtroArena", e)} />
+                <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("filtroArena", v)} onEstadoChange={e => setEstado("filtroArena", e)} modoExterno={modoFiltroArena} setModoExterno={setModoFiltroArena} selIdExterno={selFiltroArenaId} setSelIdExterno={setSelFiltroArenaId} selCantExterno={selFiltroArenaCant} setSelCantExterno={setSelFiltroArenaCant} />
                 </div>
               </div>
             )}
@@ -3304,7 +3401,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoPrefiltro /></span>
                     <span className="sistema-detalle-titulo">Prefiltro</span>
                   </div>
-                  <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("prefiltro", v)} onEstadoChange={e => setEstado("prefiltro", e)} />
+                <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("prefiltro", v)} onEstadoChange={e => setEstado("prefiltro", e)} modoExterno={modoPrefiltro} setModoExterno={setModoPrefiltro} selIdExterno={selPrefiltroId} setSelIdExterno={setSelPrefiltroId} selCantExterno={selPrefiltroCant} setSelCantExterno={setSelPrefiltroCant} />
                 </div>
               </div>
             )}
@@ -3315,7 +3412,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoFiltroCartucho /></span>
                     <span className="sistema-detalle-titulo">Filtro de cartucho</span>
                   </div>
-                  <BloqueFiltroCartucho flujoMaximo={flujoMaxGlobal} usoGeneral={usoGeneral} onCargaChange={v => setCarga("filtroCartucho", v)} onEstadoChange={e => setEstado("filtroCartucho", e)} />
+                  <BloqueFiltroCartucho flujoMaximo={flujoMaxGlobal} usoGeneral={usoGeneral} onCargaChange={v => setCarga("filtroCartucho", v)} onEstadoChange={e => setEstado("filtroCartucho", e)} modoExterno={modoFiltroCartucho} setModoExterno={setModoFiltroCartucho} selIdExterno={selFiltroCartuchoId} setSelIdExterno={setSelFiltroCartuchoId} selCantExterno={selFiltroCartuchoCant} setSelCantExterno={setSelFiltroCartuchoCant} />
                 </div>
               </div>
             )}
@@ -3338,7 +3435,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Retornos</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Suma al CDT</span>
                 </div>
-                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" rec={recRetorno} catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => retorno(flujo, tipo, dat, num)} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} mostrarPuerto />
+                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" rec={recRetorno} catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => retorno(flujo, tipo, dat, num)} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} mostrarPuerto modoExterno={modoRetorno} setModoExterno={setModoRetorno} selIdExterno={selRetornoId} setSelIdExterno={setSelRetornoId} selCantExterno={selRetornoCant} setSelCantExterno={setSelRetornoCant} />
               </div>
             </div>
 
@@ -3353,14 +3450,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDrenCanal /></span>
                     <span className="sistema-detalle-titulo">Dren canal</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" rec={recDrenCanal} catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenCanal(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} />
+                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" rec={recDrenCanal} catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenCanal(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} modoExterno={modoDrenCanal} setModoExterno={setModoDrenCanal} selIdExterno={selDrenCanalId} setSelIdExterno={setSelDrenCanalId} selCantExterno={selDrenCanalCant} setSelCantExterno={setSelDrenCanalCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>) : (<>
                 <div className="sistema-detalle-card" style={{ marginBottom: "0.5rem" }}>
@@ -3368,14 +3465,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDesnatador /></span>
                     <span className="sistema-detalle-titulo">Desnatadores</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" rec={recDesnatador} catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} />
+                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" rec={recDesnatador} catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} modoExterno={modoDesnatador} setModoExterno={setModoDesnatador} selIdExterno={selDesnatadorId} setSelIdExterno={setSelDesnatadorId} selCantExterno={selDesnatadorCant} setSelCantExterno={setSelDesnatadorCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>)}
             </div>
@@ -3387,7 +3484,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Barredoras</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Solo informativo</span>
                 </div>
-                <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} />
+                  <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} modoExterno={modoBarredora} setModoExterno={setModoBarredora} selIdExterno={selBarredoraId} setSelIdExterno={setSelBarredoraId} selCantExterno={selBarredoraCant} setSelCantExterno={setSelBarredoraCant} />
                               </div>
                             </div>
                               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>

@@ -16,6 +16,8 @@ import { calcularCargaFiltroCartuchoManual }     from "./filtroCartucho";
 import { calcularCargaUVManual }                 from "./generadorUV";
 import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
 import { generadoresUV } from "../data/generadoresUV";
+import { calcularCargaCloradorManual } from "./generadorDeCloro";
+import { generadoresDeCloro }          from "../data/generadoresDeCloro";
 
 const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 
@@ -221,15 +223,37 @@ function generarReporte({
   const sanitizacion = {};
 
   if (sistemasSeleccionadosSanit?.cloradorSalino) {
-    const estCS = est("cloradorSalino");
-    if (resultadoClorador && !resultadoClorador.error) {
-      const selCS = (estCS?.marca && estCS?.modelo)
-        ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
-        : null;
-      const data = empacarFiltroRes(resultadoClorador, "Generador de cloro salino", selCS);
-      if (data) sanitizacion.cloradorSalino = data;
-    }
-  }
+      const estCS = est("cloradorSalino");
+      if (resultadoClorador && !resultadoClorador.error) {
+        const tieneManual = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
+
+        let resCS, selCS;
+        if (tieneManual && !equiposRecalcIter) {
+          const cant = estCS.cantidad ?? 1;
+          const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
+          const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
+          resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
+          selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
+          } else {
+                  const tieneManualIter = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
+                  if (tieneManualIter) {
+                    const cant = estCS.cantidad ?? 1;
+                    const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
+                    const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
+                    resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
+                    selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
+                  } else {
+                    resCS = resultadoClorador;
+                    selCS = (estCS?.marca && estCS?.modelo)
+                      ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
+                      : null;
+                  }
+                }
+
+                  const data = empacarFiltroRes(resCS ?? resultadoClorador, "Generador de cloro salino", selCS);
+                  if (data) sanitizacion.cloradorSalino = data;
+                }
+              }
 
   if (sistemasSeleccionadosSanit?.lamparaUV) {
     const eqUV = est("lamparaUV");
@@ -251,7 +275,13 @@ function generarReporte({
       const flujoPorUV = cant > 0 ? flujoNominalUV / cant : flujoCalculo;
       const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant, flujoCalculo);
       const data = empacarFiltroRes(res, "Lampara UV", { marca: marcaUV, modelo: modeloUV, cantidad: cant, flujoTotal: flujoNominalUV });
-      if (data) sanitizacion.lamparaUV = data;
+      if (data) {
+        if (!equiposRecalcIter && eqUV?.cargaTotal != null) {
+          data.cargaTotal    = parseFloat(eqUV.cargaTotal).toFixed(2);
+          data.cargaTotalPSI = eqUV.cargaTotalPSI ?? data.cargaTotalPSI;
+        }
+        sanitizacion.lamparaUV = data;
+      }
     }
   }
 
@@ -286,7 +316,13 @@ function generarReporte({
         const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
         const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, instalacion);
         const data = empacarFiltroRes(res, "Clorador automatico", { marca: eqCA?.marca, modelo: eqCA?.modelo, cantidad: cant, flujoTotal: flujoTotalCA });
-        if (data) sanitizacion.cloradorAutomatico = data;
+        if (data) {
+          if (!equiposRecalcIter && eqCA?.cargaTotal != null) {
+            data.cargaTotal    = parseFloat(eqCA.cargaTotal).toFixed(2);
+            data.cargaTotalPSI = eqCA.cargaTotalPSI ?? data.cargaTotalPSI;
+          }
+          sanitizacion.cloradorAutomatico = data;
+        }
       }
     }
   }

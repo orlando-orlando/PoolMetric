@@ -333,7 +333,11 @@ export function calcularEquilibrio({
       const rec = recalcularFiltro(key, est, flujoRef, cfg.fn, cfg.cat, usoGeneral);
       if (rec) ref[key] = parseFloat(rec.cargaTotal ?? 0);
     }
-    return ref;
+  // Usar carga manual del clorador salino si existe
+      if (estados?.cloradorSalino?.cargaTotal != null) {
+        ref["cloradorSalino"] = parseFloat(estados.cloradorSalino.cargaTotal);
+      }
+      return ref;
   }
 
   function calcularCDTSistema(flujoNuevo, cargasRef) {
@@ -386,6 +390,11 @@ export function calcularEquilibrio({
   }
   // Restar también el clorador automático que no se recalcula pero está en cargaInicial
   cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
+  // Ajustar clorador salino con carga manual si existe
+    const cargaCSRef    = parseFloat(cargasRef["cloradorSalino"] ?? 0);
+    const cargaCSActual = parseFloat(estados?.cloradorSalino?.cargaTotal ?? cargasRef["cloradorSalino"] ?? 0);
+    cargaBaseAjustada -= cargaCSRef;
+    cargaBaseAjustada += cargaCSActual;
 
   // Sumar las cargas nuevas de los equipos que sí suman
   let cargaRecalc = 0;
