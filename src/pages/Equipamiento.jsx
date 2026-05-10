@@ -3257,16 +3257,23 @@ export default function Equipamiento({
                 <span className="selector-subtitulo-hint">Selecciona uno o más sistemas</span>
               </div>
               <div className="sistemas-calentamiento-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-                {SISTEMAS_SANITIZACION.map(({ key, label, Icon }) => {
-                  const activo = !!sistemasSeleccionadosSanit[key];
-                  return (
-                    <div key={key} className={`sistema-cal-card ${activo ? "activo" : ""}`} onClick={() => toggleSanitizacion(key)}>
-                      <div className="sistema-cal-icon"><Icon /></div>
-                      <div className="sistema-cal-label">{label}</div>
-                      <div className={`sistema-cal-check ${activo ? "checked" : ""}`}>{activo ? "✓" : ""}</div>
-                    </div>
-                  );
-                })}
+              {SISTEMAS_SANITIZACION.map(({ key, label, Icon }) => {
+                const activo = !!sistemasSeleccionadosSanit[key];
+                const bloqueado =
+                  (key === "cloradorSalino"     && !!sistemasSeleccionadosSanit.cloradorAutomatico) ||
+                  (key === "cloradorAutomatico" && !!sistemasSeleccionadosSanit.cloradorSalino);
+                return (
+                  <div key={key}
+                    className={`sistema-cal-card ${activo ? "activo" : ""} ${bloqueado ? "sistema-cal-card--bloqueado" : ""}`}
+                    onClick={() => !bloqueado && toggleSanitizacion(key)}
+                    style={{ opacity: bloqueado ? 0.35 : 1, cursor: bloqueado ? "not-allowed" : "pointer" }}
+                  >
+                    <div className="sistema-cal-icon"><Icon /></div>
+                    <div className="sistema-cal-label">{label}</div>
+                    <div className={`sistema-cal-check ${activo ? "checked" : ""}`}>{activo ? "✓" : ""}</div>
+                  </div>
+                );
+              })}
               </div>
             </div>
 
@@ -3372,16 +3379,23 @@ export default function Equipamiento({
                 <span className="selector-subtitulo-hint">Selecciona uno o más sistemas</span>
               </div>
               <div className="sistemas-calentamiento-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-                {SISTEMAS_FILTRACION.map(({ key, label, Icon }) => {
-                  const activo = !!sistemasSeleccionadosFilt[key];
-                  return (
-                    <div key={key} className={`sistema-cal-card ${activo ? "activo" : ""}`} onClick={() => toggleFiltracion(key)}>
-                      <div className="sistema-cal-icon"><Icon /></div>
-                      <div className="sistema-cal-label">{label}</div>
-                      <div className={`sistema-cal-check ${activo ? "checked" : ""}`}>{activo ? "✓" : ""}</div>
-                    </div>
-                  );
-                })}
+              {SISTEMAS_FILTRACION.map(({ key, label, Icon }) => {
+                const activo = !!sistemasSeleccionadosFilt[key];
+                const bloqueado =
+                  (key === "filtroArena"    && !!sistemasSeleccionadosFilt.filtroCartucho) ||
+                  (key === "filtroCartucho" && !!sistemasSeleccionadosFilt.filtroArena);
+                return (
+                  <div key={key}
+                    className={`sistema-cal-card ${activo ? "activo" : ""} ${bloqueado ? "sistema-cal-card--bloqueado" : ""}`}
+                    onClick={() => !bloqueado && toggleFiltracion(key)}
+                    style={{ opacity: bloqueado ? 0.35 : 1, cursor: bloqueado ? "not-allowed" : "pointer" }}
+                  >
+                    <div className="sistema-cal-icon"><Icon /></div>
+                    <div className="sistema-cal-label">{label}</div>
+                    <div className={`sistema-cal-check ${activo ? "checked" : ""}`}>{activo ? "✓" : ""}</div>
+                  </div>
+                );
+              })}
               </div>
             </div>
 
