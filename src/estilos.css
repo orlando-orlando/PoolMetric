@@ -454,7 +454,7 @@ select option:hover { background-color: #d1d5db; }
   height: auto; max-height: none; padding: 0; overflow-y: visible;
 }
 .bdc-inset { background: transparent; border: none; padding: 0; border-radius: 0; }
-.bdc-selector-manual.bdc-inset { background: transparent; border: none; border-radius: 0; padding: 0; max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.65rem; }
+.bdc-selector-manual.bdc-inset { background: transparent; border: none; border-radius: 0; padding: 0; max-height: none; overflow-y: visible; display: flex; flex-direction: column; gap: 0.65rem; }
 
 .columna-clima-tabla { display: flex; flex-direction: column; gap: 0.6rem; }
 .th-calentar { vertical-align: top; text-align: center; padding-top: 8px; }
@@ -1830,3 +1830,7 @@ body.tema-claro .resumen-equipos-header { color: #334155 !important; }
 .eq-tabs-indicador { transition: left 0.22s cubic-bezier(0.4,0,0.2,1), width 0.22s cubic-bezier(0.4,0,0.2,1), background-color 0.35s ease !important; }
 .resultado-toggle-chevron { transition: transform 0.2s !important; }
 .toggle-boton svg { transition: transform .25s ease !important; }
+
+.calentamiento .selector-contenido .selector-grupo + .selector-grupo {
+  margin-top: 1rem;
+}

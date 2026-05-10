@@ -740,8 +740,8 @@ const SISTEMAS_SANITIZACION = [
   { key: "lamparaUV",          label: "Lámpara UV",                Icon: IconoLamparaUV          },
 ];
 const SISTEMAS_FILTRACION = [
-  { key: "filtroArena",    label: "Filtro de arena",    Icon: IconoFiltroArena    },
   { key: "prefiltro",      label: "Prefiltro",          Icon: IconoPrefiltro      },
+  { key: "filtroArena",    label: "Filtro de arena",    Icon: IconoFiltroArena    },
   { key: "filtroCartucho", label: "Filtro de cartucho", Icon: IconoFiltroCartucho },
 ];
 
@@ -3066,12 +3066,13 @@ export default function Equipamiento({
         selCloradorAutomaticoId, selCloradorAutomaticoCant]);
 
   // Recalcular UV con el flujo de operación real cuando se confirma el punto de equilibrio
-  const flujoUVEfectivo = datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal;
+  const flujoUVEfectivo = flujoMaxGlobal;
   useEffect(() => {
-    if (!sistemasSeleccionadosSanit?.lamparaUV) return;
-    if (!flujoUVEfectivo || flujoUVEfectivo <= 0) return;
-    try {
-      const r = generadorUV(flujoUVEfectivo, flujoUVEfectivo);
+      if (!sistemasSeleccionadosSanit?.lamparaUV) return;
+      if (!flujoUVEfectivo || flujoUVEfectivo <= 0) return;
+      if (modoLamparaUV === "manual") return;  // ← no sobreescribir en modo manual
+      try {
+        const r = generadorUV(flujoUVEfectivo, flujoUVEfectivo);
       if (!r || r.error) return;
       const eqUV = generadoresUV.find(g => g.marca === r.seleccion?.marca && g.modelo === r.seleccion?.modelo);
       const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
@@ -3308,7 +3309,8 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoLamparaUV /></span>
                     <span className="sistema-detalle-titulo">Lámpara UV</span>
                   </div>
-                  <BloqueLamparaUV flujoMaxSistema={datosPorSistema?.equipamiento?.puntoOperacion?.flujo ?? flujoMaxGlobal} onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} modoExterno={modoLamparaUV} setModoExterno={setModoLamparaUV} selManualUVIdExterno={selManualUVId} setSelManualUVIdExterno={setSelManualUVId} selManualUVCantExterno={selManualUVCant} setSelManualUVCantExterno={setSelManualUVCant} />
+                  <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal}
+                  onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} modoExterno={modoLamparaUV} setModoExterno={setModoLamparaUV} selManualUVIdExterno={selManualUVId} setSelManualUVIdExterno={setSelManualUVId} selManualUVCantExterno={selManualUVCant} setSelManualUVCantExterno={setSelManualUVCant} />
                 </div>
               </div>
             )}
@@ -3383,17 +3385,6 @@ export default function Equipamiento({
               </div>
             </div>
 
-            {sistemasSeleccionadosFilt.filtroArena && (
-              <div className="selector-grupo sistemas-detalle-wrapper">
-                <div className="sistema-detalle-card">
-                  <div className="sistema-detalle-header">
-                    <span className="sistema-detalle-icon-svg"><IconoFiltroArena /></span>
-                    <span className="sistema-detalle-titulo">Filtro de arena</span>
-                  </div>
-                <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("filtroArena", v)} onEstadoChange={e => setEstado("filtroArena", e)} modoExterno={modoFiltroArena} setModoExterno={setModoFiltroArena} selIdExterno={selFiltroArenaId} setSelIdExterno={setSelFiltroArenaId} selCantExterno={selFiltroArenaCant} setSelCantExterno={setSelFiltroArenaCant} />
-                </div>
-              </div>
-            )}
             {sistemasSeleccionadosFilt.prefiltro && (
               <div className="selector-grupo sistemas-detalle-wrapper">
                 <div className="sistema-detalle-card">
@@ -3402,6 +3393,17 @@ export default function Equipamiento({
                     <span className="sistema-detalle-titulo">Prefiltro</span>
                   </div>
                 <BloquePrefiltro flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("prefiltro", v)} onEstadoChange={e => setEstado("prefiltro", e)} modoExterno={modoPrefiltro} setModoExterno={setModoPrefiltro} selIdExterno={selPrefiltroId} setSelIdExterno={setSelPrefiltroId} selCantExterno={selPrefiltroCant} setSelCantExterno={setSelPrefiltroCant} />
+                </div>
+              </div>
+            )}
+            {sistemasSeleccionadosFilt.filtroArena && (
+              <div className="selector-grupo sistemas-detalle-wrapper">
+                <div className="sistema-detalle-card">
+                  <div className="sistema-detalle-header">
+                    <span className="sistema-detalle-icon-svg"><IconoFiltroArena /></span>
+                    <span className="sistema-detalle-titulo">Filtro de arena</span>
+                  </div>
+                <BloqueFiltroArena flujoMaximo={flujoMaxGlobal} onCargaChange={v => setCarga("filtroArena", v)} onEstadoChange={e => setEstado("filtroArena", e)} modoExterno={modoFiltroArena} setModoExterno={setModoFiltroArena} selIdExterno={selFiltroArenaId} setSelIdExterno={setSelFiltroArenaId} selCantExterno={selFiltroArenaCant} setSelCantExterno={setSelFiltroArenaCant} />
                 </div>
               </div>
             )}

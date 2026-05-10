@@ -220,8 +220,8 @@ const IconoCheck = () => (
 
 const SISTEMAS_CALENTAMIENTO = [
   { key: "bombaCalor",          label: "Bomba de calor",        Icon: IconoBombaCalor },
-  { key: "caldera",             label: "Caldera",               Icon: IconoCaldera },
   { key: "panelSolar",          label: "Panel solar",           Icon: IconoPanelSolar },
+  { key: "caldera",             label: "Caldera",               Icon: IconoCaldera },
   { key: "calentadorElectrico", label: "Calentador eléctrico",  Icon: IconoCalentadorElectrico },
 ];
 
@@ -1412,39 +1412,45 @@ export default function Calentamiento({
               </div>
             </div>
 
-            {/* ── FILA 2: BDC ── */}
-            {sistemasSeleccionados.bombaCalor && (
-              <div
-                className="layout-clima-bdc-fila2"
-                onMouseEnter={() => !formularioBloqueado && setHoveredField("modoBDC")}
-                onMouseLeave={() => setHoveredField(null)}
-              >
-                <div className="bdc-modo-toggle-wrapper">
-                  <div className="bdc-modo-toggle">
-                    <button
-                      type="button"
-                      className={`bdc-modo-btn ${modoBDC === "recomendado" ? "bdc-modo-activo" : ""}`}
-                      onClick={() => setModoBDC("recomendado")}
-                    >
-                      {modoBDC === "recomendado" && <IconoCheck />}
-                      <span>Recomendado</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`bdc-modo-btn ${modoBDC === "manual" ? "bdc-modo-activo" : ""}`}
-                      onClick={() => setModoBDC("manual")}
-                    >
-                      {modoBDC === "manual" && <IconoCheck />}
-                      <span>Selección manual</span>
-                    </button>
-                  </div>
-                  {modoBDC === "manual" && bdcManual && !bdcManual.cubre && (
-                    <div className="bdc-modo-aviso-deficit">
-                      ⚠ La selección manual no cubre la demanda. Los cálculos usarán esta configuración.
-                    </div>
-                  )}
-                </div>
+</div>{/* fin selector-grupo análisis climático */}
 
+          {/* ── BOMBA DE CALOR ── */}
+          {sistemasSeleccionados.bombaCalor && (
+            <div
+              className="selector-grupo"
+              onMouseEnter={() => !formularioBloqueado && setHoveredField("modoBDC")}
+              onMouseLeave={() => setHoveredField(null)}
+            >
+              <div className="selector-subtitulo">
+                Bomba de calor
+                <span className="selector-subtitulo-hint">Selección y cálculo hidráulico</span>
+              </div>
+              <div className="bdc-modo-toggle-wrapper">
+                <div className="bdc-modo-toggle">
+                  <button
+                    type="button"
+                    className={`bdc-modo-btn ${modoBDC === "recomendado" ? "bdc-modo-activo" : ""}`}
+                    onClick={() => setModoBDC("recomendado")}
+                  >
+                    {modoBDC === "recomendado" && <IconoCheck />}
+                    <span>Recomendado</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bdc-modo-btn ${modoBDC === "manual" ? "bdc-modo-activo" : ""}`}
+                    onClick={() => setModoBDC("manual")}
+                  >
+                    {modoBDC === "manual" && <IconoCheck />}
+                    <span>Selección manual</span>
+                  </button>
+                </div>
+                {modoBDC === "manual" && bdcManual && !bdcManual.cubre && (
+                  <div className="bdc-modo-aviso-deficit">
+                    ⚠ La selección manual no cubre la demanda. Los cálculos usarán esta configuración.
+                  </div>
+                )}
+              </div>
+              <div className="layout-clima-bdc-fila2" style={{ marginTop: 0 }}>
                 <div className="layout-clima-bdc-celda celda-bdc-rec">
                   {infoActivaParaMostrar ? (
                     <div className={`bdc-recomendada-card bdc-inset ${modoBDC === "manual" ? "bdc-card-manual-activa" : ""}`}>
@@ -1462,8 +1468,6 @@ export default function Calentamiento({
                           {modoBDC === "manual" ? "Manual" : "Auto"}
                         </span>
                       </div>
-
-                      {/* ── PATCH 1: BDC stats — cantidad · BTU/h c/u · BTU/h total · GPM total ── */}
                       <div className="bdc-rec-stats">
                         <div className="bdc-stat">
                           <span className="bdc-stat-valor">{infoActivaParaMostrar.cantidad}</span>
@@ -1485,7 +1489,6 @@ export default function Calentamiento({
                           <span className="bdc-stat-label">GPM total</span>
                         </div>
                       </div>
-
                       <div className="bdc-rec-demanda">
                         <div className="bdc-demanda-fila">
                           <span className="bdc-demanda-label">Demanda</span>
@@ -1505,7 +1508,6 @@ export default function Calentamiento({
                             {infoActivaParaMostrar.cubre ? "+" : "-"}{fmtBTU(Math.abs(infoActivaParaMostrar.exceso))} BTU/h
                           </span>
                         </div>
-                        {/* flujoTotal ya está en stats, se elimina de demanda para evitar duplicado */}
                       </div>
                       {infoActivaParaMostrar.cargaTotal != null && (
                         <div className="bdc-rec-hidraulica">
@@ -1740,9 +1742,8 @@ export default function Calentamiento({
                   )}
                 </div>
               </div>
-            )}
-
-          </div>{/* fin selector-grupo análisis climático */}
+            </div>
+          )}
 
           {/* ── PANEL SOLAR ── */}
           {sistemasSeleccionados.panelSolar && (
