@@ -2346,8 +2346,8 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
    RESUMEN COMPLETO DE EQUIPOS — confirmación final
 ===================================================== */
 const NOMBRES_EQ = {
-  retorno: "Retornos", desnatador: "Desnatadores", barredora: "Barredoras",
-  drenFondo: "Drenes de fondo", drenCanal: "Drenes de canal",
+  retorno: "Retorno", desnatador: "Desnatador", barredora: "Barredora",
+  drenFondo: "Dren de fondo", drenCanal: "Dren de canal",
   filtroArena: "Filtro de arena", prefiltro: "Prefiltro", filtroCartucho: "Filtro de cartucho",
 };
 
@@ -2551,27 +2551,6 @@ function ResumenEquiposConfirmacion({
         )}
       </div>
 
-      {/* ── Motobomba ── */}
-      <SeccionTitulo emoji="⚙️" titulo="Motobomba" />
-      <FilaEquipo
-        nombre={`${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`}
-        subNombre={`${estadoBomba?.nBombas ?? 1} bomba${(estadoBomba?.nBombas ?? 1) > 1 ? "s" : ""} en paralelo`}
-        diseño={{
-          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
-          cantidad: estadoBomba?.nBombas ?? 1,
-          carga: cargaTotalGlobal != null ? parseFloat(cargaTotalGlobal) : null,
-        }}
-        equilibrio={{
-          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
-          cantidad: estadoBomba?.nBombas ?? 1,
-          carga: eq.cargaEq != null ? parseFloat(eq.cargaEq) : null,
-          cambioCantidad: false,
-          cambioEquipo: false,
-          cambioCarga: eq.cargaEq != null && cargaTotalGlobal != null
-            && Math.abs(parseFloat(eq.cargaEq) - parseFloat(cargaTotalGlobal)) > 0.01,
-        }}
-      />
-
       {/* ── Calentamiento ── */}
       {equiposCalentamiento?.length > 0 && (<>
         <SeccionTitulo emoji="🔥" titulo="Calentamiento" />
@@ -2681,50 +2660,11 @@ function ResumenEquiposConfirmacion({
           );
         })()}
       </>)}
-
-      {/* ── Empotrables ── */}
-        {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (
-          <SeccionTitulo emoji="💧" titulo="Empotrables" />
-        )}
-        {["retorno","desnatador","barredora","drenFondo","drenCanal"].map(key => {
-          const est = estados[key];
-          const rec = equiposRecalc[key];
-          if (!est && !rec) return null;
-          if (key === "desnatador" && tieneDesbordeCanal) return null;
-          if (key === "drenCanal"  && !tieneDesbordeCanal) return null;
-          const nombre   = NOMBRES_EQ[key];
-          const marca    = est?.marca  ?? "—";
-          const modelo   = est?.modelo ?? "—";
-          const marcaEq  = rec?.marca  ?? marca;
-          const modeloEq = rec?.modelo ?? modelo;
-          const cantDis  = rec?.cantOriginal ?? est?.cantidad;
-          const cantEq   = rec?.cantidad     ?? est?.cantidad;
-          const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
-          const cargaEq  = rec?.sumaFinal != null ? parseFloat(rec.sumaFinal) : cargaDis;
-          const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
-          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
-          return (
-            <FilaEquipo key={key}
-              nombre={nombre}
-              diseño={{
-                equipo: `${marca} · ${modelo}`,
-                cantidad: cantDis,
-                carga: cargaDis,
-              }}
-              equilibrio={{
-                equipo: `${marcaEq} · ${modeloEq}`,
-                cantidad: cantEq,
-                carga: cargaEq,
-                cambioCantidad, cambioCarga, cambioEquipo: false,
-              }}
-            />
-          );
-        })}
-        
+       
       {/* ── Filtración ── */}
       {Object.keys(sistemasFiltracion ?? {}).some(k => sistemasFiltracion[k]) && (<>
         <SeccionTitulo emoji="🧹" titulo="Filtración" />
-          {["filtroArena","prefiltro","filtroCartucho"].map(key => {
+          {["prefiltro","filtroArena","filtroCartucho"].map(key => {
             if (!sistemasFiltracion[key]) return null;
             const est = estados[key];
             const rec = equiposRecalc[key];
@@ -2758,6 +2698,66 @@ function ResumenEquiposConfirmacion({
             );
           })}
       </>)}
+
+      {/* ── Empotrables ── */}
+        {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (
+          <SeccionTitulo emoji="💧" titulo="Empotrables" />
+        )}
+          {["retorno","desnatador","drenCanal","drenFondo","barredora"].map(key => {
+          const est = estados[key];
+          const rec = equiposRecalc[key];
+          if (!est && !rec) return null;
+          if (key === "desnatador" && tieneDesbordeCanal) return null;
+          if (key === "drenCanal"  && !tieneDesbordeCanal) return null;
+          const nombre   = NOMBRES_EQ[key];
+          const marca    = est?.marca  ?? "—";
+          const modelo   = est?.modelo ?? "—";
+          const marcaEq  = rec?.marca  ?? marca;
+          const modeloEq = rec?.modelo ?? modelo;
+          const cantDis  = rec?.cantOriginal ?? est?.cantidad;
+          const cantEq   = rec?.cantidad     ?? est?.cantidad;
+          const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
+          const cargaEq  = rec?.sumaFinal != null ? parseFloat(rec.sumaFinal) : cargaDis;
+          const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
+          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
+          return (
+            <FilaEquipo key={key}
+              nombre={nombre}
+              diseño={{
+                equipo: `${marca} · ${modelo}`,
+                cantidad: cantDis,
+                carga: cargaDis,
+              }}
+              equilibrio={{
+                equipo: `${marcaEq} · ${modeloEq}`,
+                cantidad: cantEq,
+                carga: cargaEq,
+                cambioCantidad, cambioCarga, cambioEquipo: false,
+              }}
+            />
+          );
+        })}
+
+      {/* ── Motobomba ── */}
+      <SeccionTitulo emoji="⚙️" titulo="Motobomba" />
+      <FilaEquipo
+        nombre={`${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`}
+        subNombre={`${estadoBomba?.nBombas ?? 1} bomba${(estadoBomba?.nBombas ?? 1) > 1 ? "s" : ""} en paralelo`}
+        diseño={{
+          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
+          cantidad: estadoBomba?.nBombas ?? 1,
+          carga: cargaTotalGlobal != null ? parseFloat(cargaTotalGlobal) : null,
+        }}
+        equilibrio={{
+          equipo: `${estadoBomba?.marca ?? "—"} · ${estadoBomba?.modelo ?? "—"}`,
+          cantidad: estadoBomba?.nBombas ?? 1,
+          carga: eq.cargaEq != null ? parseFloat(eq.cargaEq) : null,
+          cambioCantidad: false,
+          cambioEquipo: false,
+          cambioCarga: eq.cargaEq != null && cargaTotalGlobal != null
+            && Math.abs(parseFloat(eq.cargaEq) - parseFloat(cargaTotalGlobal)) > 0.01,
+        }}
+      />
 
       {/* ── Botones de acción ── */}
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexDirection: "column" }}>

@@ -338,8 +338,24 @@ function getEquipoData(reporte, key) {
 /* ═══════════ TAB RESUMEN ═══════════ */
 function TabResumen({ reportes, calentamiento, resumen = {} }) {
   const tieneDesbordeCanal = reportes.some(r => getEquipoData(r, "drenCanal") != null);
-  const equiposOrden = ["retorno","desnatador","drenFondo","drenCanal","barredora","filtroArena","prefiltro","filtroCartucho","cloradorSalino","lamparaUV","cloradorAutomatico"];
-  const nombresEq = { retorno:"Retornos", desnatador:"Desnatadores", drenFondo:"Drenes fondo", drenCanal:"Drenes canal", barredora:"Barredoras", filtroArena:"Filtro arena", prefiltro:"Prefiltro", filtroCartucho:"F. cartucho", cloradorSalino:"Cloro salino", lamparaUV:"Lámpara UV", cloradorAutomatico:"Clorador auto" };
+  const equiposOrden = ["bombaCalor","panelSolar","caldera","calentadorElectrico","cloradorSalino","cloradorAutomatico","lamparaUV","prefiltro","filtroArena","filtroCartucho","retorno","desnatador","drenCanal","drenFondo","barredora"];
+  const nombresEq = {
+    bombaCalor:          "Bomba de calor",
+    panelSolar:          "Panel solar",
+    caldera:             "Caldera de gas",
+    calentadorElectrico: "Calentador eléctrico",
+    cloradorSalino:      "Generador de cloro salino",
+    cloradorAutomatico:  "Clorador automático",
+    lamparaUV:           "Lámpara UV",
+    filtroArena:         "Filtro de arena",
+    prefiltro:           "Prefiltro",
+    filtroCartucho:      "Filtro de cartucho",
+    retorno:             "Retorno",
+    desnatador:          "Desnatador",
+    drenCanal:           "Dren de canal",
+    drenFondo:           "Dren de fondo",
+    barredora:           "Barredora",
+  };
 
   const getCDT = (reporte, key) => {
     const d = getEquipoData(reporte, key);
@@ -353,12 +369,18 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
     return d.seleccion?.flujoTotal ?? null;
   };
 
-  const equiposPresentes = equiposOrden.filter(k => reportes.some(r => {
-    const d = getEquipoData(r, k);
-    if (!d) return false;
-    if (k === "cloradorAutomatico" && d.excluido === true) return false;
-    return true;
-  }));
+  const equiposPresentes = equiposOrden.filter(k => {
+    // Calentamiento viene del array separado, no de reportes
+    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(k)) {
+      return Array.isArray(calentamiento) && calentamiento.some(c => c?.key === k);
+    }
+    return reportes.some(r => {
+      const d = getEquipoData(r, k);
+      if (!d) return false;
+      if (k === "cloradorAutomatico" && d.excluido === true) return false;
+      return true;
+    });
+  });
   // Para flujos solo mostramos el reporte de diseño (reportes[0])
   const rDis = reportes[0];
 
@@ -460,7 +482,16 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                     {nombresEq[key]}
                     {esBarredora && <span style={{ fontSize:"0.65rem", color:"#475569", marginLeft:"6px" }}>informativo</span>}
                   </td>
-                  {reportes.filter(Boolean).map((r, i) => {
+                    {reportes.filter(Boolean).map((r, i) => {
+                    // Calentamiento: la carga viene del array calentamiento, no de reportes
+                    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(key)) {
+                      const item = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
+                      const v = item?.cargaTotal != null ? parseFloat(item.cargaTotal) : null;
+                      const noSuma = false;
+                      return <td key={i} style={{ ...td, color: v==null?"#334155":"#fbbf24", padding:"6px 12px", textAlign:"center" }}>
+                        <span>{v!=null ? f2(v)+" ft" : "—"}</span>
+                      </td>;
+                    }
                     const v = getCDT(r, key);
                     // Succión: verificar si gobierna
                     const succKeys = tieneDesbordeCanal ? ["drenCanal","drenFondo"] : ["desnatador","drenFondo"];
@@ -485,18 +516,6 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                 </tr>
               );
             })}
-            {/* Filas de calentamiento — carga fija, igual en todas las iteraciones */}
-            {calentamiento?.length > 0 && calentamiento.map((c, ci) => (
-              <tr key={"cal-"+ci} style={{ background: ci%2===0?"rgba(251,191,36,0.04)":"rgba(251,191,36,0.02)", borderTop: ci===0?"1px solid rgba(251,191,36,0.15)":"none" }}>
-                <td style={{ ...td, textAlign:"left", color:"#fbbf24", fontWeight:500, padding:"6px 12px" }}>
-                  {c.label}
-                  <span style={{ fontSize:"0.65rem", color:"#92400e", marginLeft:"6px" }}>fijo</span>
-                </td>
-                {reportes.filter(Boolean).map((r, i) => (
-                  <td key={i} style={{ ...td, color:"#fbbf24", padding:"6px 12px", textAlign:"center" }}>{f2(c.cargaTotal)} ft</td>
-                ))}
-              </tr>
-            ))}
             {/* Fila CDT Total — usa los valores reales del equilibrio hidráulico */}
             <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
               <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>CDT Total sistema</td>

@@ -510,16 +510,18 @@ export function generarMemoriaCalculo({
     if (flujoC > 0) resumen.flujosRequeridos.push({ label: c.label, valor: flujoC });
   }
   if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
-    const flujoCS = parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
-    if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Cloro salino", valor: flujoCS });
-  }
-  if (sistemasSeleccionadosSanit?.lamparaUV)          
-    resumen.flujosRequeridos.push({ label: "Lámpara UV", valor: null });
-  if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
-    const eqCA = estadosMerged?.cloradorAutomatico;
-    const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
-    resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
-  }
+      // Usar flujo del equipo manual si existe, si no el automático
+      const estCS = estadosMerged?.cloradorSalino;
+      const flujoCS = estCS?.flujoTotal != null && parseFloat(estCS.flujoTotal) > 0
+        ? parseFloat(estCS.flujoTotal)
+        : parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
+      if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Generador de cloro salino", valor: flujoCS });
+    }
+    if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
+      const eqCA = estadosMerged?.cloradorAutomatico;
+      const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
+      resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
+    }
 
   const calentamientoReporte = calentamientoData; // ya construido arriba
   if (reporteDiseno) reporteDiseno.calentamiento = calentamientoReporte;

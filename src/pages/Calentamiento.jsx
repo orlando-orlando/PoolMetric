@@ -221,7 +221,7 @@ const IconoCheck = () => (
 const SISTEMAS_CALENTAMIENTO = [
   { key: "bombaCalor",          label: "Bomba de calor",        Icon: IconoBombaCalor },
   { key: "panelSolar",          label: "Panel solar",           Icon: IconoPanelSolar },
-  { key: "caldera",             label: "Caldera",               Icon: IconoCaldera },
+  { key: "caldera",             label: "Caldera de gas",               Icon: IconoCaldera },
   { key: "calentadorElectrico", label: "Calentador eléctrico",  Icon: IconoCalentadorElectrico },
 ];
 
