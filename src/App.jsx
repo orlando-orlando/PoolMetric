@@ -211,10 +211,9 @@ function extraerFlujoCarga(calentamiento, {
   return { flujo: null, carga: null, tuberia: null, velocidad: null };
 }
 
-/* ── AnimatedToggle: anima con grid-template-rows — más suave que max-height ── */
+/* ── AnimatedToggle ── */
 function AnimatedToggleCuerpo({ abierto, variante, children }) {
   const [mounted, setMounted] = useState(abierto);
-
   useEffect(() => {
     if (abierto) {
       setMounted(true);
@@ -223,17 +222,9 @@ function AnimatedToggleCuerpo({ abierto, variante, children }) {
       return () => clearTimeout(t);
     }
   }, [abierto]);
-
   if (!mounted) return null;
-
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateRows: abierto ? "1fr" : "0fr",
-        transition: "grid-template-rows 280ms cubic-bezier(0.25,0.46,0.45,0.94)",
-      }}
-    >
+    <div style={{ display: "grid", gridTemplateRows: abierto ? "1fr" : "0fr", transition: "grid-template-rows 280ms cubic-bezier(0.25,0.46,0.45,0.94)" }}>
       <div style={{ overflow: "hidden" }} className={`resultado-toggle-cuerpo resultado-toggle-cuerpo--${variante}`}>
         {children}
       </div>
@@ -241,56 +232,32 @@ function AnimatedToggleCuerpo({ abierto, variante, children }) {
   );
 }
 
-/* ── FadeIn: anima la aparición del bloque completo del toggle ── */
-function FadeInBloque({ children, visible }) {
-  const [mounted, setMounted] = useState(false);
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      requestAnimationFrame(() => requestAnimationFrame(() => setShow(true)));
-    } else {
-      setShow(false);
-      const timer = setTimeout(() => setMounted(false), 250);
-      return () => clearTimeout(timer);
-    }
-  }, [visible]);
-
-  if (!mounted) return null;
-
-  return (
-    <div style={{
-      opacity: show ? 1 : 0,
-      transform: show ? "translateY(0)" : "translateY(-6px)",
-      transition: "opacity 250ms ease, transform 250ms ease",
-    }}>
-      {children}
-    </div>
-  );
+function FadeInBloque({ children }) {
+  return <>{children}</>;
 }
 
-/* ── ResultadoToggle con animación en el cuerpo ── */
-function ResultadoToggle({ variante, emoji, label, abierto, onToggle, children }) {
+function ResultadoToggle({ variante, emoji, label, abierto, onToggle, children, deshabilitado = false }) {
   return (
     <div className={`resultado-toggle-bloque resultado-toggle-bloque--${variante}`}>
       <button
-        onClick={onToggle}
+        onClick={!deshabilitado ? onToggle : undefined}
         className={`resultado-toggle-btn resultado-toggle-btn--${variante} ${abierto ? "abierto" : ""}`}
+        style={{ opacity: deshabilitado ? 0.35 : 1, cursor: deshabilitado ? "not-allowed" : "pointer" }}
       >
         <span className="resultado-toggle-btn-label">
           <span>{emoji}</span> {label}
         </span>
-        <ChevronDown size={12} className={`resultado-toggle-chevron ${abierto ? "abierto" : ""}`} />
+        {!deshabilitado && <ChevronDown size={12} className={`resultado-toggle-chevron ${abierto ? "abierto" : ""}`} />}
       </button>
-      <AnimatedToggleCuerpo abierto={abierto} variante={variante}>
-        {children}
-      </AnimatedToggleCuerpo>
+      {!deshabilitado && (
+        <AnimatedToggleCuerpo abierto={abierto} variante={variante}>
+          {children}
+        </AnimatedToggleCuerpo>
+      )}
     </div>
   );
 }
 
-/* ── FlashValue: destella brevemente cuando el valor cambia ── */
 function FlashValue({ value, children }) {
   const [flashing, setFlashing] = useState(false);
   const prevRef = useRef(value);
@@ -316,32 +283,12 @@ function FlashValue({ value, children }) {
   );
 }
 
-/* ── PlaceholderResultados: estado vacío del panel ── */
-function PlaceholderResultados() {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", gap: "0.6rem",
-      padding: "1.5rem 1rem", textAlign: "center",
-      opacity: 0.5,
-    }}>
-      <svg width="32" height="36" viewBox="0 0 90 108" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.4 }}>
-        <path d="M45 4C45 4 9 46 9 68A36 36 0 0 0 81 68C81 46 45 4 45 4Z" fill="none" stroke="#2d88e0" strokeWidth="3" strokeDasharray="6 4" />
-      </svg>
-      <div style={{ fontSize: "0.72rem", color: "#475569", lineHeight: 1.5 }}>
-        Ingresa las dimensiones<br/>para ver los resultados
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const [seccion, setSeccion]                       = useState("dimensiones");
   const [panelColapsado, setPanelColapsado]         = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const [temaOscuro, setTemaOscuro]                 = useState(true);
   const [datosPorSistema, setDatosPorSistema]       = useState({});
-  const ORDEN = { dimensiones: 0, calentamiento: 1, equipamiento: 2 };
   const [sistemaActivo, setSistemaActivo]           = useState(null);
   const dimensionesRef                              = useRef(null);
 
@@ -350,13 +297,15 @@ export default function App() {
     setSanitizacionSeleccionada(sistemas);
   }, []);
 
-  const [toggleFiltrado,      setToggleFiltrado]      = useState(false);
-  const [toggleCalentamiento, setToggleCalentamiento] = useState(false);
-  const [toggleSanitizacion,  setToggleSanitizacion]  = useState(false);
-  const [toggleEmpotrables,   setToggleEmpotrables]   = useState(false);
-  const [toggleFiltracion,    setToggleFiltracion]    = useState(false);
-  const [toggleFlujoMax,      setToggleFlujoMax]      = useState(false);
-  const [toggleCDTTotal,      setToggleCDTTotal]      = useState(false);
+  const [toggleDimensiones,  setToggleDimensiones]  = useState(false);
+  const [toggleFiltrado,     setToggleFiltrado]     = useState(false);
+  const [toggleCalentamiento,setToggleCalentamiento]= useState(false);
+  const [toggleSanitizacion, setToggleSanitizacion] = useState(false);
+  const [toggleEmpotrables,  setToggleEmpotrables]  = useState(false);
+  const [toggleFiltracion,   setToggleFiltracion]   = useState(false);
+  const [toggleFlujoMax,     setToggleFlujoMax]     = useState(false);
+  const [toggleCDTTotal,     setToggleCDTTotal]     = useState(false);
+
   const handleHome = () => {
     setSeccion("dimensiones");
     setSistemaActivo(null);
@@ -382,18 +331,13 @@ export default function App() {
     return { tasaGeneral: datosDim.tasaGeneral, tasaJacuzzi: datosDim.tasaJacuzzi, cuerpos: datosDim.cuerpos.map(c => ({ tipo: c.tipoCuerpo, volumen: volumen(c) })) };
   }, [datosDim]);
 
-  const flujoFiltrado        = useMemo(() => datosFlujo ? flujoFinal(datosFlujo) : 0, [datosFlujo]);
+  const flujoFiltrado = useMemo(() => datosFlujo ? flujoFinal(datosFlujo) : 0, [datosFlujo]);
 
-  // Desglose de flujos: alberca (circuito general) + jacuzzi (hidromasaje independiente)
   const flujosPorCircuito = useMemo(() => {
     if (!datosDim?.cuerpos) return null;
-    // volumenPorCircuito espera { volumen, tipo }
-    const cuerposNorm = datosDim.cuerpos.map(c => ({
-      volumen: volumen(c),
-      tipo: c.tipoCuerpo ?? c.tipo ?? "alberca",
-    }));
+    const cuerposNorm = datosDim.cuerpos.map(c => ({ volumen: volumen(c), tipo: c.tipoCuerpo ?? c.tipo ?? "alberca" }));
     const { general, jacuzzis } = volumenPorCircuito(cuerposNorm);
-    if (jacuzzis.length === 0) return null; // sin jacuzzi, no hay desglose
+    if (jacuzzis.length === 0) return null;
     const resultado = [];
     if (general > 0 && Number.isFinite(Number(datosDim.tasaGeneral))) {
       const f = flujoPorVolumen(general, Number(datosDim.tasaGeneral));
@@ -407,6 +351,7 @@ export default function App() {
     }
     return resultado.length > 1 ? resultado : null;
   }, [datosDim]);
+
   const flujoInfinitySistema = useMemo(() => {
     if (!datosDim || !(datosDim.desborde === "infinity" || datosDim.desborde === "ambos")) return 0;
     return flujoInfinity(datosDim);
@@ -497,26 +442,27 @@ export default function App() {
 
   const kgDiaCloroNecesario = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaNecesario ?? null), [resultadoClorador]);
   const kgDiaCloroInstalado = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaInstalado ?? null), [resultadoClorador]);
-  const flujoClorador  = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.seleccion?.flujoTotal) || null), [resultadoClorador]);
+  const flujoClorador       = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.seleccion?.flujoTotal) || null), [resultadoClorador]);
 
   const cloradorSeleccionado           = !!sanitizacionSeleccionada?.cloradorSalino;
   const cloradorListo                  = volumenTotal > 0 && areaCalculada > 0 && flujoClorador != null;
   const cargasEquipamiento             = datosPorSistema?.equipamiento?.cargas ?? {};
 
-  const cargaRetorno    = cargasEquipamiento.retorno    != null ? parseFloat(cargasEquipamiento.retorno)    : null;
-  const cargaDesnatador = cargasEquipamiento.desnatador != null ? parseFloat(cargasEquipamiento.desnatador) : null;
-  const cargaDrenCanal  = cargasEquipamiento.drenCanal  != null ? parseFloat(cargasEquipamiento.drenCanal)  : null;
-  const cargaBarredora  = cargasEquipamiento.barredora  != null ? parseFloat(cargasEquipamiento.barredora)  : null;
-  const cargaDrenFondo  = cargasEquipamiento.drenFondo  != null ? parseFloat(cargasEquipamiento.drenFondo)  : null;
+  const cargaRetorno        = cargasEquipamiento.retorno        != null ? parseFloat(cargasEquipamiento.retorno)        : null;
+  const cargaDesnatador     = cargasEquipamiento.desnatador     != null ? parseFloat(cargasEquipamiento.desnatador)     : null;
+  const cargaDrenCanal      = cargasEquipamiento.drenCanal      != null ? parseFloat(cargasEquipamiento.drenCanal)      : null;
+  const cargaBarredora      = cargasEquipamiento.barredora      != null ? parseFloat(cargasEquipamiento.barredora)      : null;
+  const cargaDrenFondo      = cargasEquipamiento.drenFondo      != null ? parseFloat(cargasEquipamiento.drenFondo)      : null;
   const cargaLamparaUV          = cargasEquipamiento.lamparaUV          != null ? parseFloat(cargasEquipamiento.lamparaUV)          : null;
   const cargaCloradorAutomatico = cargasEquipamiento.cloradorAutomatico != null ? parseFloat(cargasEquipamiento.cloradorAutomatico) : null;
-  const uvSeleccionado              = !!sanitizacionSeleccionada?.lamparaUV;
+  const uvSeleccionado                 = !!sanitizacionSeleccionada?.lamparaUV;
   const cloradorAutomaticoSeleccionado = !!sanitizacionSeleccionada?.cloradorAutomatico;
   const cargaFiltroArena    = cargasEquipamiento.filtroArena    != null ? parseFloat(cargasEquipamiento.filtroArena)    : null;
   const cargaPrefiltro      = cargasEquipamiento.prefiltro      != null ? parseFloat(cargasEquipamiento.prefiltro)      : null;
   const cargaFiltroCartucho = cargasEquipamiento.filtroCartucho != null ? parseFloat(cargasEquipamiento.filtroCartucho) : null;
 
-  const estados = datosPorSistema?.equipamiento?.estados ?? {};
+  const estados    = datosPorSistema?.equipamiento?.estados ?? {};
+  const tabActivaEq = datosPorSistema?.equipamiento?.tabActiva ?? "sanitizacion";
 
   const tuberiaClorador = (() => {
     const flujoCS = estados?.cloradorSalino?.flujoTotal != null
@@ -541,16 +487,11 @@ export default function App() {
   })();
 
   const cargaClorador = (() => {
-    // Si hay selección manual, usar la carga del estado manual
-    if (estados?.cloradorSalino?.cargaTotal != null) {
-      return parseFloat(estados.cloradorSalino.cargaTotal) || null;
-    }
-    // Si no, usar el automático
+    if (estados?.cloradorSalino?.cargaTotal != null) return parseFloat(estados.cloradorSalino.cargaTotal) || null;
     return (!resultadoClorador || resultadoClorador.error) ? null : (parseFloat(resultadoClorador.cargaTotal) || null);
   })();
 
   const puntoOperacion = datosPorSistema?.equipamiento?.puntoOperacion ?? null;
-  const tabActivaEq = datosPorSistema?.equipamiento?.tabActiva ?? "sanitizacion";
 
   const tieneDesbordeCanal = useMemo(() => {
     const d = datosDim?.desborde;
@@ -598,30 +539,83 @@ export default function App() {
     return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
   }, [cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico]);
 
+  // ══════════════════════════════════════════════════════════
+  // VISIBILIDAD CONTEXTUAL POR PASO ACTIVO
+  // ══════════════════════════════════════════════════════════
+  // Orden de tabs en Equipamiento
+  const ORDEN_TAB = { sanitizacion: 0, calentamiento: 1, filtracion: 2, empotrables: 3, motobomba: 4 };
+  const tabIdxActual = ORDEN_TAB[tabActivaEq] ?? 0;
+
+  // Calentamiento "configura algo": decision==="configurar" Y al menos un sistema seleccionado
+  const calentamientoConfigura = useMemo(() => {
+    const cal = datosPorSistema?.calentamiento;
+    return cal?.decision === "configurar"
+      && Object.keys(cal?.sistemasSeleccionados ?? {}).length > 0;
+  }, [datosPorSistema?.calentamiento]);
+
+  // vis: objeto con booleanos que controlan qué bloque de resultados es visible
+  // Reglas:
+  //   Dimensiones      → dimensiones + filtrado + flujoMax
+  //   Calentamiento    → + calentamiento + cdtTotal  (solo si configura algo)
+  //   Eq › sanit+      → + sanitizacion
+  //   Eq › filtracion+ → + filtracion
+  //   Eq › empotr+     → + empotrables
+  //   Eq › motobomba+  → + puntoOperacion
+  const vis = useMemo(() => {
+    const enEq  = seccion === "equipamiento";
+    const enCal = seccion === "calentamiento" || enEq;
+    return {
+      dimensiones:    hayDatos,
+      filtrado:       hayDatos && flujoFiltrado > 0,
+      flujoMax:       hayDatos && flujoFiltrado > 0,
+      calentamiento:  enCal && calentamientoConfigura && hayAlgunCalentamiento,
+      cdtTotal:       enCal && calentamientoConfigura,
+      sanitizacion:   enEq && tabIdxActual >= ORDEN_TAB["sanitizacion"],
+      filtracion:     enEq && tabIdxActual >= ORDEN_TAB["filtracion"],
+      empotrables:    enEq && tabIdxActual >= ORDEN_TAB["empotrables"],
+      puntoOperacion: enEq && tabIdxActual >= ORDEN_TAB["motobomba"],
+    };
+  }, [seccion, tabIdxActual, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
+
+  // flujosCandidatos: solo incluye equipos del paso activo o anteriores
   const flujosCandidatos = useMemo(() => {
     const lista = [];
-    if (flujoFiltrado > 0)        lista.push({ label: "Filtrado",              valor: flujoFiltrado });
-    if (flujoInfinitySistema > 0) lista.push({ label: "Infinity",              valor: flujoInfinitySistema });
-    if (flujoBDC      != null)    lista.push({ label: "Bomba de calor",        valor: flujoBDC });
-    if (flujoPS       != null)    lista.push({ label: "Panel solar",           valor: flujoPS });
-    if (flujoCaldera  != null)    lista.push({ label: "Caldera de gas",               valor: flujoCaldera });
-    if (flujoCE       != null)    lista.push({ label: "Calentador eléctrico",     valor: flujoCE });
-    if (cloradorSeleccionado) {
-      // Priorizar flujo del estado manual si existe, si no usar el automático
-      const flujoCS = estados?.cloradorSalino?.flujoTotal != null
-        ? parseFloat(estados.cloradorSalino.flujoTotal)
-        : flujoClorador;
-      if (flujoCS != null && flujoCS > 0) lista.push({ label: "Generador de cloro salino", valor: flujoCS });
+    // Filtrado + Infinity: siempre disponibles desde Dimensiones
+    if (flujoFiltrado > 0)        lista.push({ label: "Filtrado",  valor: flujoFiltrado });
+    if (flujoInfinitySistema > 0) lista.push({ label: "Infinity",  valor: flujoInfinitySistema });
+
+    // Calentamiento: solo si estamos en Calentamiento o Equipamiento Y configura algo
+    if (vis.calentamiento) {
+      if (flujoBDC     != null) lista.push({ label: "Bomba de calor",       valor: flujoBDC });
+      if (flujoPS      != null) lista.push({ label: "Panel solar",          valor: flujoPS });
+      if (flujoCaldera != null) lista.push({ label: "Caldera de gas",       valor: flujoCaldera });
+      if (flujoCE      != null) lista.push({ label: "Calentador eléctrico", valor: flujoCE });
     }
-    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
-      const estCA = estados?.cloradorAutomatico;
-      if (estCA?.flujoTotal != null) {
-        const flujoCA = parseFloat(estCA.flujoTotal);
-        if (flujoCA > 0) lista.push({ label: "Clorador automático", valor: flujoCA });
+
+    // Sanitización: solo si estamos en Equipamiento › Sanitización o más avanzado
+    if (vis.sanitizacion) {
+      if (cloradorSeleccionado) {
+        const flujoCS = estados?.cloradorSalino?.flujoTotal != null
+          ? parseFloat(estados.cloradorSalino.flujoTotal)
+          : flujoClorador;
+        if (flujoCS != null && flujoCS > 0) lista.push({ label: "Generador de cloro salino", valor: flujoCS });
+      }
+      if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+        const estCA = estados?.cloradorAutomatico;
+        if (estCA?.flujoTotal != null) {
+          const flujoCA = parseFloat(estCA.flujoTotal);
+          if (flujoCA > 0) lista.push({ label: "Clorador automático", valor: flujoCA });
+        }
       }
     }
+
     return lista.filter(f => f.valor > 0);
-  }, [flujoFiltrado, flujoInfinitySistema, flujoBDC, flujoPS, flujoCaldera, flujoCE, cloradorSeleccionado, flujoClorador, uvSeleccionado, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico, cargaLamparaUV, estados]);
+  }, [
+    flujoFiltrado, flujoInfinitySistema,
+    vis.calentamiento, flujoBDC, flujoPS, flujoCaldera, flujoCE,
+    vis.sanitizacion, cloradorSeleccionado, flujoClorador,
+    cloradorAutomaticoSeleccionado, cargaCloradorAutomatico, estados,
+  ]);
 
   const flujoMaxGlobal = useMemo(() => {
     if (!flujosCandidatos.length) return null;
@@ -657,45 +651,77 @@ export default function App() {
     return { tuberiaSuccion: match[1], velocidadSuccion: parseFloat(match[2]) };
   }, [flujoMaxGlobal, flujoFiltrado]);
 
+  // componentesCDT: solo incluye componentes del paso activo o anteriores
   const componentesCDT = useMemo(() => {
     const lista = [];
+
     // Calentamiento
-    if (cargaBDCft      != null) lista.push({ label: "Bomba de calor",            valor: parseFloat(cargaBDCft),      grupo: "calentamiento" });
-    if (cargaPSft       != null) lista.push({ label: "Panel solar",               valor: parseFloat(cargaPSft),       grupo: "calentamiento" });
-    if (cargaCalderaCft != null) lista.push({ label: "Caldera de gas",            valor: parseFloat(cargaCalderaCft), grupo: "calentamiento" });
-    if (cargaCEft       != null) lista.push({ label: "Calentador eléctrico",      valor: parseFloat(cargaCEft),       grupo: "calentamiento" });
+    if (vis.calentamiento) {
+      if (cargaBDCft      != null) lista.push({ label: "Bomba de calor",       valor: parseFloat(cargaBDCft),      grupo: "calentamiento" });
+      if (cargaPSft       != null) lista.push({ label: "Panel solar",           valor: parseFloat(cargaPSft),       grupo: "calentamiento" });
+      if (cargaCalderaCft != null) lista.push({ label: "Caldera de gas",        valor: parseFloat(cargaCalderaCft), grupo: "calentamiento" });
+      if (cargaCEft       != null) lista.push({ label: "Calentador eléctrico",  valor: parseFloat(cargaCEft),       grupo: "calentamiento" });
+    }
+
     // Sanitización
-    if (cloradorSeleccionado && cargaClorador != null) lista.push({ label: "Generador de cloro salino", valor: parseFloat(cargaClorador), grupo: "sanitizacion" });
-    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
-      const estCA = estados?.cloradorAutomatico;
-      const flujoCA = flujoMaxGlobal ?? 0;
-      const cloradorEnLineaDesdeDiseno = estCA?.instalacion === "enLinea" && flujoCA > 90;
-      lista.push({
-        label: "Clorador automático",
-        valor: parseFloat(cargaCloradorAutomatico),
-        grupo: "sanitizacion",
-        noSuma: cloradorEnLineaDesdeDiseno,
-        desc: cloradorEnLineaDesdeDiseno ? "excluido" : undefined,
-      });
-    }
-    if (uvSeleccionado && cargaLamparaUV != null) lista.push({ label: "Lámpara UV", valor: parseFloat(cargaLamparaUV), grupo: "sanitizacion" });
-    // Filtración
-    if (cargaPrefiltro      != null) lista.push({ label: "Prefiltro",        valor: cargaPrefiltro,      grupo: "filtracion" });
-    if (cargaFiltroArena    != null) lista.push({ label: "Filtro de arena",  valor: cargaFiltroArena,    grupo: "filtracion" });
-    if (cargaFiltroCartucho != null) lista.push({ label: "Filtro de cartucho",  valor: cargaFiltroCartucho, grupo: "filtracion" });
-    // Empotrables
-    if (cargaRetorno != null) lista.push({ label: "Retorno", valor: cargaRetorno, grupo: "empotrables", desc: "descarga" });
-    if (succionActiva != null) {
-      const todosSuccion = tieneDesbordeCanal
-        ? [cargaDrenCanal != null ? { label: "Dren de canal", valor: cargaDrenCanal, key: "drenCanal" } : null, cargaDrenFondo != null ? { label: "Dren de fondo", valor: cargaDrenFondo, key: "drenFondo" } : null].filter(Boolean)
-        : [cargaDesnatador != null ? { label: "Desnatador", valor: cargaDesnatador, key: "desnatador" } : null, cargaDrenFondo != null ? { label: "Dren de fondo", valor: cargaDrenFondo, key: "drenFondo" } : null].filter(Boolean);
-      for (const c of todosSuccion) {
-        lista.push({ label: c.label, valor: c.valor, grupo: "empotrables", desc: "succión", gobierna: c.key === succionActiva.key, noSuma: c.key !== succionActiva.key });
+    if (vis.sanitizacion) {
+      if (cloradorSeleccionado && cargaClorador != null)
+        lista.push({ label: "Generador de cloro salino", valor: parseFloat(cargaClorador), grupo: "sanitizacion" });
+      if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+        const estCA = estados?.cloradorAutomatico;
+        const flujoCA = flujoMaxGlobal ?? 0;
+        const cloradorEnLineaDesdeDiseno = estCA?.instalacion === "enLinea" && flujoCA > 90;
+        lista.push({
+          label: "Clorador automático",
+          valor: parseFloat(cargaCloradorAutomatico),
+          grupo: "sanitizacion",
+          noSuma: cloradorEnLineaDesdeDiseno,
+          desc: cloradorEnLineaDesdeDiseno ? "excluido" : undefined,
+        });
       }
+      if (uvSeleccionado && cargaLamparaUV != null)
+        lista.push({ label: "Lámpara UV", valor: parseFloat(cargaLamparaUV), grupo: "sanitizacion" });
     }
-    if (cargaBarredora != null) lista.push({ label: "Barredora", valor: cargaBarredora, grupo: "empotrables", desc: "informativo", noSuma: true });
+
+    // Filtración
+    if (vis.filtracion) {
+      if (cargaPrefiltro      != null) lista.push({ label: "Prefiltro",          valor: cargaPrefiltro,      grupo: "filtracion" });
+      if (cargaFiltroArena    != null) lista.push({ label: "Filtro de arena",    valor: cargaFiltroArena,    grupo: "filtracion" });
+      if (cargaFiltroCartucho != null) lista.push({ label: "Filtro de cartucho", valor: cargaFiltroCartucho, grupo: "filtracion" });
+    }
+
+    // Empotrables
+    if (vis.empotrables) {
+      if (cargaRetorno != null) lista.push({ label: "Retorno", valor: cargaRetorno, grupo: "empotrables", desc: "descarga" });
+      if (succionActiva != null) {
+        const todosSuccion = tieneDesbordeCanal
+          ? [
+              cargaDrenCanal != null ? { label: "Dren de canal", valor: cargaDrenCanal, key: "drenCanal" } : null,
+              cargaDrenFondo != null ? { label: "Dren de fondo", valor: cargaDrenFondo, key: "drenFondo" } : null,
+            ].filter(Boolean)
+          : [
+              cargaDesnatador != null ? { label: "Desnatador",   valor: cargaDesnatador, key: "desnatador" } : null,
+              cargaDrenFondo  != null ? { label: "Dren de fondo",valor: cargaDrenFondo,  key: "drenFondo"  } : null,
+            ].filter(Boolean);
+        for (const c of todosSuccion) {
+          lista.push({ label: c.label, valor: c.valor, grupo: "empotrables", desc: "succión", gobierna: c.key === succionActiva.key, noSuma: c.key !== succionActiva.key });
+        }
+      }
+      if (cargaBarredora != null) lista.push({ label: "Barredora", valor: cargaBarredora, grupo: "empotrables", desc: "informativo", noSuma: true });
+    }
+
     return lista;
-  }, [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft, cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico, cargaRetorno, succionActiva, tieneDesbordeCanal, cargaDesnatador, cargaDrenCanal, cargaDrenFondo, cargaBarredora, cargaFiltroArena, cargaPrefiltro, cargaFiltroCartucho]);
+  }, [
+    vis,
+    cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft,
+    cloradorSeleccionado, cargaClorador,
+    uvSeleccionado, cargaLamparaUV,
+    cloradorAutomaticoSeleccionado, cargaCloradorAutomatico,
+    cargaRetorno, succionActiva, tieneDesbordeCanal,
+    cargaDesnatador, cargaDrenCanal, cargaDrenFondo, cargaBarredora,
+    cargaFiltroArena, cargaPrefiltro, cargaFiltroCartucho,
+    estados, flujoMaxGlobal,
+  ]);
 
   const cargaTotalGlobal = useMemo(() => {
     const sumables = componentesCDT.filter(c => !c.noSuma);
@@ -703,13 +729,7 @@ export default function App() {
     return sumables.reduce((a, c) => a + c.valor, 0);
   }, [componentesCDT]);
 
-  const nombresEquipos = {
-    retorno:"Retornos", desnatador:"Desnatadores", barredora:"Barredoras",
-    drenFondo:"Dren fondo", drenCanal:"Dren canal",
-    filtroArena:"Filtro arena", prefiltro:"Prefiltro",
-    filtroCartucho:"Filtro cartucho", lamparaUV:"Lámpara UV",
-    cloradorSalino:"Cloro salino", cloradorAutomatico:"Clorador auto",
-  };
+  const ORDEN = { dimensiones: 0, calentamiento: 1, equipamiento: 2 };
 
   return (
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
@@ -764,226 +784,234 @@ export default function App() {
 
           <div className="seccion-resultados">
 
-            {/* ── Datos dimensionales o placeholder ── */}
-            {!hayDatos ? (
-              <PlaceholderResultados />
-            ) : (
-              <table className="tabla-resultados tabla-resultados--dim">
-                <tbody>
-                  <tr>
-                    <th>Área total:</th>
-                    <td><FlashValue value={areaCalculada}>{formatM2(areaCalculada)}</FlashValue></td>
-                  </tr>
-                  <tr>
-                    <th>Volumen total:</th>
-                    <td><FlashValue value={volumenTotal}>{formatM3(volumenTotal)}</FlashValue></td>
-                  </tr>
-                  <tr>
-                    <th>Profundidad promedio:</th>
-                    <td><FlashValue value={profundidadPromedio}>{formatMetro(profundidadPromedio)}</FlashValue></td>
-                  </tr>
-                </tbody>
-              </table>
-            )}
+            {/* ── Toggle Dimensiones ── */}
+            <ResultadoToggle variante="filtrado" emoji="📐" label="Dimensiones"
+              abierto={toggleDimensiones} onToggle={() => setToggleDimensiones(v => !v)}
+              deshabilitado={!vis.dimensiones}
+            >
+              <table className="tabla-resultados tabla-resultados--dim"><tbody>
+                <tr><th>Área total:</th><td><FlashValue value={areaCalculada}>{formatM2(areaCalculada)}</FlashValue></td></tr>
+                <tr><th>Volumen total:</th><td><FlashValue value={volumenTotal}>{formatM3(volumenTotal)}</FlashValue></td></tr>
+                <tr><th>Profundidad promedio:</th><td><FlashValue value={profundidadPromedio}>{formatMetro(profundidadPromedio)}</FlashValue></td></tr>
+              </tbody></table>
+            </ResultadoToggle>
 
-            {/* ── Toggles con FadeIn ── */}
-            <FadeInBloque visible={hayDatos && flujoFiltrado > 0}>
-              <ResultadoToggle variante="filtrado" emoji="💧" label="Filtrado" abierto={toggleFiltrado} onToggle={() => setToggleFiltrado(v => !v)}>
-                <div className="resultado-subheader resultado-subheader--filtrado">Circuito de filtrado</div>
+            {/* ── Toggle Filtrado ── */}
+            <ResultadoToggle variante="filtrado" emoji="💧" label="Filtrado"
+              abierto={toggleFiltrado} onToggle={() => setToggleFiltrado(v => !v)}
+              deshabilitado={!vis.filtrado}
+            >
+              <div className="resultado-subheader resultado-subheader--filtrado">Circuito de filtrado</div>
+              <table className="tabla-resultados"><tbody>
+                <tr><th className="th-indent">Flujo filtrado:</th><td className="td-flujo"><FlashValue value={flujoFiltrado}>{formatGPM(flujoFiltrado)}</FlashValue></td></tr>
+                <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaFiltrado)}</td></tr>
+                <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadFiltrado)}</td></tr>
+              </tbody></table>
+              {flujosPorCircuito && (<>
+                <div className="resultado-subheader resultado-subheader--filtrado" style={{color:"#64748b",fontSize:"0.68rem"}}>Desglose por circuito</div>
                 <table className="tabla-resultados"><tbody>
-                  <tr><th className="th-indent">Flujo filtrado:</th><td className="td-flujo"><FlashValue value={flujoFiltrado}>{formatGPM(flujoFiltrado)}</FlashValue></td></tr>
-                  <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaFiltrado)}</td></tr>
-                  <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadFiltrado)}</td></tr>
+                  {flujosPorCircuito.map((c, i) => (
+                    <tr key={i}>
+                      <th className="th-indent" style={{color: c.flujo === flujoFiltrado ? "#e2e8f0" : "#64748b"}}>
+                        {c.label}:{c.flujo === flujoFiltrado && <span className="desglose-badge desglose-badge--gobierna" style={{marginLeft:"0.3rem"}}>↑ gobierna</span>}
+                      </th>
+                      <td style={{color: c.flujo === flujoFiltrado ? "#38bdf8" : "#64748b"}}>{formatGPM(c.flujo)}</td>
+                    </tr>
+                  ))}
                 </tbody></table>
-                {flujosPorCircuito && (<>
-                  <div className="resultado-subheader resultado-subheader--filtrado" style={{color:"#64748b",fontSize:"0.68rem"}}>Desglose por circuito</div>
-                  <table className="tabla-resultados"><tbody>
-                    {flujosPorCircuito.map((c, i) => (
-                      <tr key={i}>
-                        <th className="th-indent" style={{color: c.flujo === flujoFiltrado ? "#e2e8f0" : "#64748b"}}>
-                          {c.label}:{c.flujo === flujoFiltrado && <span className="desglose-badge desglose-badge--gobierna" style={{marginLeft:"0.3rem"}}>↑ gobierna</span>}
-                        </th>
-                        <td style={{color: c.flujo === flujoFiltrado ? "#38bdf8" : "#64748b"}}>{formatGPM(c.flujo)}</td>
-                      </tr>
-                    ))}
-                  </tbody></table>
-                </>)}
-                {flujoInfinitySistema > 0 && (<>
-                  <div className="resultado-subheader resultado-subheader--filtrado">Circuito infinity</div>
-                  <table className="tabla-resultados"><tbody>
-                    <tr><th className="th-indent">Flujo infinity:</th><td className="td-flujo"><FlashValue value={flujoInfinitySistema}>{formatGPM(flujoInfinitySistema)}</FlashValue></td></tr>
-                    <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaInfinity)}</td></tr>
-                    <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadInfinity)}</td></tr>
-                    <tr><th className="th-indent">Motobomba dedicada:</th><td>{textoBombaInfinity}</td></tr>
-                  </tbody></table>
-                </>)}
-              </ResultadoToggle>
-            </FadeInBloque>
-
-              <FadeInBloque visible={hayAlgunCalentamiento && (seccion === "calentamiento" || seccion === "equipamiento")}>
-                <ResultadoToggle variante="calentamiento" emoji="🔥" label="Calentamiento" abierto={toggleCalentamiento} onToggle={() => setToggleCalentamiento(v => !v)}>
-                <div className="resultado-subheader resultado-subheader--perdidas">Pérdidas energéticas</div>
+              </>)}
+              {flujoInfinitySistema > 0 && (<>
+                <div className="resultado-subheader resultado-subheader--filtrado">Circuito infinity</div>
                 <table className="tabla-resultados"><tbody>
-                  <tr><th className="th-indent">Evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
-                  <tr><th className="th-indent">Convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion)  : "—"}</td></tr>
-                  <tr><th className="th-indent">Radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion)   : "—"}</td></tr>
-                  <tr><th className="th-indent">Transmisión:</th><td>{sistemaListoCalor ? formatBTU(perdidaTransmision) : "—"}</td></tr>
-                  {sistemaListoCalor && perdidaInfinity > 0 && <tr><th className="th-indent">Infinity:</th><td>{formatBTU(perdidaInfinity)}</td></tr>}
-                  {sistemaListoCalor && perdidaCanal > 0 && <tr><th className="th-indent">Canal perimetral:</th><td>{formatBTU(perdidaCanal)}</td></tr>}
-                  <tr><th className="th-indent th-subtotal" style={{color:"#94a3b8",fontStyle:"italic"}}>Subtotal clima:</th><td style={{color:"#94a3b8",fontStyle:"italic"}}>{sistemaListoCalor ? formatBTU(perdidaClima) : "—"}</td></tr>
-                  <tr><th className="th-indent">+ Tubería distribución:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia) : "—"}</td></tr>
-                  <tr><th className="th-indent th-total th-seccion">Total pérdidas:</th><td className="td-perdida">{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
+                  <tr><th className="th-indent">Flujo infinity:</th><td className="td-flujo"><FlashValue value={flujoInfinitySistema}>{formatGPM(flujoInfinitySistema)}</FlashValue></td></tr>
+                  <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaInfinity)}</td></tr>
+                  <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadInfinity)}</td></tr>
+                  <tr><th className="th-indent">Motobomba dedicada:</th><td>{textoBombaInfinity}</td></tr>
                 </tbody></table>
-                {bdcListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Bomba de calor</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoBDC)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaBDC)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadBDC)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaBDCft)}</td></tr></tbody></table></>)}
-                {psListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Panel solar</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoPS)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaPS)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadPS)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaPSft)}</td></tr></tbody></table></>)}
-                {calderaListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Caldera de gas</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCaldera)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaCaldera)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadCaldera)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCalderaCft)}</td></tr></tbody></table></>)}
-                {ceListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Calentador eléctrico</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCE)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaCE)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadCE)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCEft)}</td></tr></tbody></table></>)}
-                {cargaSumaCalentamiento != null && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaCalentamiento)}</td></tr></tbody></table>)}
-              </ResultadoToggle>
-            </FadeInBloque>
+              </>)}
+            </ResultadoToggle>
 
-              <FadeInBloque visible={(cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) && seccion === "equipamiento"}>
-                <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización" abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}>
-                {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Generador de cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(estados?.cloradorSalino?.flujoTotal ?? flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
-                {cloradorSeleccionado && cloradorListo && kgDiaCloroNecesario != null && (<table className="tabla-resultados"><tbody><tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr></tbody></table>)}
-                {cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && (() => {
-                  const flujoCA = estados?.cloradorAutomatico?.flujoTotal != null ? parseFloat(estados.cloradorAutomatico.flujoTotal) : flujoMaxGlobal;
-                  const { velocidadFlujo: velCA } = flujoCA ? velocidadCargaFlujo(flujoCA) : { velocidadFlujo: {} };
-                  const tubCAraw = flujoCA ? tuberiaSeleccionada(velCA, "descarga") : null;
-                  const matchCA = tubCAraw?.match(/^(tuberia [\d.]+)\s+\(([\d.]+)\s+ft\/s\)/);
-                  const tubCA = matchCA ? matchCA[1] : null;
-                  const velCAval = matchCA ? parseFloat(matchCA[2]) : null;
-                  return (<><div className="resultado-subheader resultado-subheader--cloro">Clorador automático</div><table className="tabla-resultados"><tbody>
-                    <tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCA)}</td></tr>
-                    <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tubCA)}</td></tr>
-                    <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velCAval)}</td></tr>
-                    <tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCloradorAutomatico)}</td></tr>
-                  </tbody></table></>);
-                })()}
-                {uvSeleccionado && cargaLamparaUV != null && (<><div className="resultado-subheader resultado-subheader--cloro">Lámpara UV</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaLamparaUV)}</td></tr></tbody></table></>)}
-                {cargaSumaSanitizacion != null && (cloradorSeleccionado ? 1 : 0) + (uvSeleccionado ? 1 : 0) + (cloradorAutomaticoSeleccionado ? 1 : 0) > 1 && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaSanitizacion)}</td></tr></tbody></table>)}
-              </ResultadoToggle>
-            </FadeInBloque>
+            {/* ── Toggle Calentamiento ── */}
+            <ResultadoToggle variante="calentamiento" emoji="🔥" label="Calentamiento"
+              abierto={toggleCalentamiento} onToggle={() => setToggleCalentamiento(v => !v)}
+              deshabilitado={!vis.calentamiento}
+            >
+              <div className="resultado-subheader resultado-subheader--perdidas">Pérdidas energéticas</div>
+              <table className="tabla-resultados"><tbody>
+                <tr><th className="th-indent">Evaporación:</th><td>{sistemaListoCalor ? formatBTU(perdidaEvaporacion) : "—"}</td></tr>
+                <tr><th className="th-indent">Convección:</th><td>{sistemaListoCalor ? formatBTU(perdidaConveccion)  : "—"}</td></tr>
+                <tr><th className="th-indent">Radiación:</th><td>{sistemaListoCalor ? formatBTU(perdidaRadiacion)   : "—"}</td></tr>
+                <tr><th className="th-indent">Transmisión:</th><td>{sistemaListoCalor ? formatBTU(perdidaTransmision) : "—"}</td></tr>
+                {sistemaListoCalor && perdidaInfinity > 0 && <tr><th className="th-indent">Infinity:</th><td>{formatBTU(perdidaInfinity)}</td></tr>}
+                {sistemaListoCalor && perdidaCanal > 0 && <tr><th className="th-indent">Canal perimetral:</th><td>{formatBTU(perdidaCanal)}</td></tr>}
+                <tr><th className="th-indent th-subtotal" style={{color:"#94a3b8",fontStyle:"italic"}}>Subtotal clima:</th><td style={{color:"#94a3b8",fontStyle:"italic"}}>{sistemaListoCalor ? formatBTU(perdidaClima) : "—"}</td></tr>
+                <tr><th className="th-indent">+ Tubería distribución:</th><td>{sistemaListoCalor ? formatBTU(perdidaTuberia) : "—"}</td></tr>
+                <tr><th className="th-indent th-total th-seccion">Total pérdidas:</th><td className="td-perdida">{sistemaListoCalor ? formatBTU(perdidaTotalBTU) : "—"}</td></tr>
+              </tbody></table>
+              {bdcListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Bomba de calor</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoBDC)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaBDC)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadBDC)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaBDCft)}</td></tr></tbody></table></>)}
+              {psListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Panel solar</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoPS)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaPS)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadPS)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaPSft)}</td></tr></tbody></table></>)}
+              {calderaListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Caldera de gas</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCaldera)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaCaldera)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadCaldera)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCalderaCft)}</td></tr></tbody></table></>)}
+              {ceListoParaMostrar && (<><div className="resultado-subheader resultado-subheader--equipo">Calentador eléctrico</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCE)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaCE)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadCE)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCEft)}</td></tr></tbody></table></>)}
+              {cargaSumaCalentamiento != null && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaCalentamiento)}</td></tr></tbody></table>)}
+            </ResultadoToggle>
 
-              <FadeInBloque visible={cargaSumaFiltracion != null && seccion === "equipamiento" && ["filtracion","empotrables","motobomba"].includes(tabActivaEq)}>
-                <ResultadoToggle variante="filtrado" emoji="🧹" label="Filtración" abierto={toggleFiltracion} onToggle={() => setToggleFiltracion(v => !v)}>
-                {cargaPrefiltro != null && (<><div className="resultado-subheader resultado-subheader--equipo">Prefiltro</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaPrefiltro)}</td></tr></tbody></table></>)}              
-                {cargaFiltroArena != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro de arena</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroArena)}</td></tr></tbody></table></>)}             
-                {cargaFiltroCartucho != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro de cartucho</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroCartucho)}</td></tr></tbody></table></>)}
-                <table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaFiltracion)}</td></tr></tbody></table>
-              </ResultadoToggle>
-            </FadeInBloque>
+            {/* ── Toggle Sanitización ── */}
+            <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización"
+              abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}
+              deshabilitado={!vis.sanitizacion || !(cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado)}
+            >
+              {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Generador de cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(estados?.cloradorSalino?.flujoTotal ?? flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
+              {cloradorSeleccionado && cloradorListo && kgDiaCloroNecesario != null && (<table className="tabla-resultados"><tbody><tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr></tbody></table>)}
+              {cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && (() => {
+                const flujoCA = estados?.cloradorAutomatico?.flujoTotal != null ? parseFloat(estados.cloradorAutomatico.flujoTotal) : flujoMaxGlobal;
+                const { velocidadFlujo: velCA } = flujoCA ? velocidadCargaFlujo(flujoCA) : { velocidadFlujo: {} };
+                const tubCAraw = flujoCA ? tuberiaSeleccionada(velCA, "descarga") : null;
+                const matchCA = tubCAraw?.match(/^(tuberia [\d.]+)\s+\(([\d.]+)\s+ft\/s\)/);
+                const tubCA = matchCA ? matchCA[1] : null;
+                const velCAval = matchCA ? parseFloat(matchCA[2]) : null;
+                return (<><div className="resultado-subheader resultado-subheader--cloro">Clorador automático</div><table className="tabla-resultados"><tbody>
+                  <tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(flujoCA)}</td></tr>
+                  <tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tubCA)}</td></tr>
+                  <tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velCAval)}</td></tr>
+                  <tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaCloradorAutomatico)}</td></tr>
+                </tbody></table></>);
+              })()}
+              {uvSeleccionado && cargaLamparaUV != null && (<><div className="resultado-subheader resultado-subheader--cloro">Lámpara UV</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaLamparaUV)}</td></tr></tbody></table></>)}
+              {cargaSumaSanitizacion != null && (cloradorSeleccionado ? 1 : 0) + (uvSeleccionado ? 1 : 0) + (cloradorAutomaticoSeleccionado ? 1 : 0) > 1 && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaSanitizacion)}</td></tr></tbody></table>)}
+            </ResultadoToggle>
 
-              <FadeInBloque visible={(cargaRetorno != null || succionActiva != null || cargaBarredora != null) && seccion === "equipamiento" && ["empotrables","motobomba"].includes(tabActivaEq)}>
-                <ResultadoToggle variante="filtrado" emoji="🔩" label="Empotrables" abierto={toggleEmpotrables} onToggle={() => setToggleEmpotrables(v => !v)}>
-                {cargaRetorno != null && (<><div className="resultado-subheader resultado-subheader--equipo">Retorno</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaRetorno)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadRetorno)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaRetorno)}</td></tr></tbody></table></>)}
-                {tieneDesbordeCanal ? (<>
-                  {cargaDrenCanal != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de canal{succionActiva?.key === "drenCanal" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenCanal)}</td></tr></tbody></table></>)}
-                  {cargaDrenFondo != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de fondo{succionActiva?.key === "drenFondo" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenFondo)}</td></tr></tbody></table></>)}
-                </>) : (<>
-                  {cargaDesnatador != null && (<><div className="resultado-subheader resultado-subheader--equipo">Desnatador{succionActiva?.key === "desnatador" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDesnatador)}</td></tr></tbody></table></>)}
-                  {cargaDrenFondo != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de fondo{succionActiva?.key === "drenFondo" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenFondo)}</td></tr></tbody></table></>)}
-                </>)}
-                {cargaBarredora != null && (<><div className="resultado-subheader" style={{ color: "#64748b" }}>Barredora — informativo</div><table className="tabla-resultados"><tbody><tr><th className="th-indent" style={{ color: "#64748b" }}>Flujo sistema:</th><td style={{ color: "#64748b" }}>{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>Tubería distribución:</th><td style={{ color: "#64748b" }}>{fmtTub(tuberiaRetorno)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>Velocidad:</th><td style={{ color: "#64748b" }}>{fmtVel(velocidadRetorno)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>CDT (ref):</th><td style={{ color: "#64748b" }}>{fmtFt(cargaBarredora)}</td></tr></tbody></table></>)}
-                {cargaSumaEmpotrables != null && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaEmpotrables)}</td></tr></tbody></table>)}
-              </ResultadoToggle>
-            </FadeInBloque>
+            {/* ── Toggle Filtración ── */}
+            <ResultadoToggle variante="filtrado" emoji="🧹" label="Filtración"
+              abierto={toggleFiltracion} onToggle={() => setToggleFiltracion(v => !v)}
+              deshabilitado={!vis.filtracion || cargaSumaFiltracion == null}
+            >
+              {cargaPrefiltro != null && (<><div className="resultado-subheader resultado-subheader--equipo">Prefiltro</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaPrefiltro)}</td></tr></tbody></table></>)}
+              {cargaFiltroArena != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro de arena</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroArena)}</td></tr></tbody></table></>)}
+              {cargaFiltroCartucho != null && (<><div className="resultado-subheader resultado-subheader--equipo">Filtro de cartucho</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaMaxGlobal)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadMaxGlobal)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaFiltroCartucho)}</td></tr></tbody></table></>)}
+              <table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaFiltracion)}</td></tr></tbody></table>
+            </ResultadoToggle>
 
-            <FadeInBloque visible={flujoMaxGlobal != null && seccion === "equipamiento" && tabActivaEq === "motobomba"}>
-              {flujoMaxGlobal != null && (
-            <div className="resultado-totales-bloque">
-              <button className={`resultado-total-btn resultado-total-btn--flujo ${toggleFlujoMax ? "abierto" : ""}`} onClick={() => setToggleFlujoMax(v => !v)}>
-                <span className="resultado-total-btn-label">
-                  <span className="resultado-total-btn-titulo">Flujo máx. global</span>
-                  <span className="resultado-total-btn-valor resultado-total-btn-valor--flujo">
-                    <FlashValue value={flujoMaxGlobal}>{fmtGPM(flujoMaxGlobal)}</FlashValue>
-                  </span>
-                </span>
-                <ChevronDown size={11} className={`resultado-toggle-chevron ${toggleFlujoMax ? "abierto" : ""}`} />
-              </button>
-              <AnimatedToggleCuerpo abierto={toggleFlujoMax} variante="totales-flujo">
-                <div className="resultado-totales-desglose resultado-totales-desglose--flujo">
-                  {flujosCandidatos.map((f, i) => {
-                    const esMax = f.valor === flujoMaxGlobal;
+            {/* ── Toggle Empotrables ── */}
+            <ResultadoToggle variante="filtrado" emoji="🔩" label="Empotrables"
+              abierto={toggleEmpotrables} onToggle={() => setToggleEmpotrables(v => !v)}
+              deshabilitado={!vis.empotrables || (cargaRetorno == null && succionActiva == null && cargaBarredora == null)}
+            >
+              {cargaRetorno != null && (<><div className="resultado-subheader resultado-subheader--equipo">Retorno</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaRetorno)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadRetorno)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaRetorno)}</td></tr></tbody></table></>)}
+              {tieneDesbordeCanal ? (<>
+                {cargaDrenCanal != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de canal{succionActiva?.key === "drenCanal" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenCanal" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenCanal)}</td></tr></tbody></table></>)}
+                {cargaDrenFondo != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de fondo{succionActiva?.key === "drenFondo" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenFondo)}</td></tr></tbody></table></>)}
+              </>) : (<>
+                {cargaDesnatador != null && (<><div className="resultado-subheader resultado-subheader--equipo">Desnatador{succionActiva?.key === "desnatador" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "desnatador" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDesnatador)}</td></tr></tbody></table></>)}
+                {cargaDrenFondo != null && (<><div className="resultado-subheader resultado-subheader--equipo">Dren de fondo{succionActiva?.key === "drenFondo" ? " ↑ gobierna" : " — no suma"}</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo">{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtTub(tuberiaSuccion)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : {}}>{fmtVel(velocidadSuccion)}</td></tr><tr><th className="th-indent">CDT:</th><td style={succionActiva?.key !== "drenFondo" ? { color: "#64748b" } : { color: "#60a5fa" }}>{fmtFt(cargaDrenFondo)}</td></tr></tbody></table></>)}
+              </>)}
+              {cargaBarredora != null && (<><div className="resultado-subheader" style={{ color: "#64748b" }}>Barredora — informativo</div><table className="tabla-resultados"><tbody><tr><th className="th-indent" style={{ color: "#64748b" }}>Flujo sistema:</th><td style={{ color: "#64748b" }}>{fmtGPM(flujoMaxGlobal)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>Tubería distribución:</th><td style={{ color: "#64748b" }}>{fmtTub(tuberiaRetorno)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>Velocidad:</th><td style={{ color: "#64748b" }}>{fmtVel(velocidadRetorno)}</td></tr><tr><th className="th-indent" style={{ color: "#64748b" }}>CDT (ref):</th><td style={{ color: "#64748b" }}>{fmtFt(cargaBarredora)}</td></tr></tbody></table></>)}
+              {cargaSumaEmpotrables != null && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFt(cargaSumaEmpotrables)}</td></tr></tbody></table>)}
+            </ResultadoToggle>
+
+            <FadeInBloque>
+              {vis.flujoMax && flujoMaxGlobal != null && (
+                <div className="resultado-totales-bloque">
+
+                  {/* ── Flujo máximo global ── */}
+                  <button className={`resultado-total-btn resultado-total-btn--flujo ${toggleFlujoMax ? "abierto" : ""}`} onClick={() => setToggleFlujoMax(v => !v)}>
+                    <span className="resultado-total-btn-label">
+                      <span className="resultado-total-btn-titulo">Flujo máx. global</span>
+                      <span className="resultado-total-btn-valor resultado-total-btn-valor--flujo">
+                        <FlashValue value={flujoMaxGlobal}>{fmtGPM(flujoMaxGlobal)}</FlashValue>
+                      </span>
+                    </span>
+                    <ChevronDown size={11} className={`resultado-toggle-chevron ${toggleFlujoMax ? "abierto" : ""}`} />
+                  </button>
+                  <AnimatedToggleCuerpo abierto={toggleFlujoMax} variante="totales-flujo">
+                    <div className="resultado-totales-desglose resultado-totales-desglose--flujo">
+                      {flujosCandidatos.map((f, i) => {
+                        const esMax = f.valor === flujoMaxGlobal;
+                        return (
+                          <div key={i} className={`resultado-totales-desglose-fila ${esMax ? "fila-gobierna" : "fila-secundaria"}`}>
+                            <span className="desglose-label">{f.label}{esMax && <span className="desglose-badge desglose-badge--gobierna">↑ máx</span>}</span>
+                            <span className="desglose-valor">{fmtGPM(f.valor)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </AnimatedToggleCuerpo>
+
+                  {/* ── CDT total sistema (solo desde Calentamiento) ── */}
+                  {vis.cdtTotal && cargaTotalGlobal != null && (<>
+                    <button className={`resultado-total-btn resultado-total-btn--cdt ${toggleCDTTotal ? "abierto" : ""}`} onClick={() => setToggleCDTTotal(v => !v)}>
+                      <span className="resultado-total-btn-label">
+                        <span className="resultado-total-btn-titulo">CDT total sistema</span>
+                        <span className="resultado-total-btn-valor resultado-total-btn-valor--cdt">
+                          <FlashValue value={cargaTotalGlobal}>{fmtFt(cargaTotalGlobal)}</FlashValue>
+                        </span>
+                      </span>
+                      <ChevronDown size={11} className={`resultado-toggle-chevron ${toggleCDTTotal ? "abierto" : ""}`} />
+                    </button>
+                    <AnimatedToggleCuerpo abierto={toggleCDTTotal} variante="totales-cdt">
+                      <div className="resultado-totales-desglose resultado-totales-desglose--cdt">
+                        {componentesCDT.map((c, i) => (
+                          <div key={i} className={`resultado-totales-desglose-fila ${c.noSuma ? "fila-no-suma" : c.gobierna ? "fila-gobierna" : "fila-suma"}`}>
+                            <span className="desglose-label">
+                              {c.label}
+                              {c.gobierna   && <span className="desglose-badge desglose-badge--gobierna">↑ gobierna</span>}
+                              {c.noSuma && c.desc !== "informativo" && <span className="desglose-badge desglose-badge--nosuma">no suma</span>}
+                              {c.desc === "informativo" && <span className="desglose-badge desglose-badge--info">info</span>}
+                              {c.desc === "excluido"    && <span className="desglose-badge desglose-badge--nosuma">excluido</span>}
+                              {!c.noSuma && !c.gobierna && <span className="desglose-badge desglose-badge--suma">✓</span>}
+                            </span>
+                            <span className="desglose-valor">{fmtFt(c.valor)}</span>
+                          </div>
+                        ))}
+                        <div className="resultado-totales-desglose-total">
+                          <span>Total CDT</span>
+                          <span>{fmtFt(cargaTotalGlobal)}</span>
+                        </div>
+                      </div>
+                    </AnimatedToggleCuerpo>
+                  </>)}
+
+                  {/* ── Punto de operación (solo desde Motobomba, valores CONGELADOS) ── */}
+                  {vis.puntoOperacion && puntoOperacion?.flujo != null && (() => {
+                    // Los deltas se calculan contra el snapshot de diseño guardado en el
+                    // momento de ejecutar la verificación — NO contra los valores actuales.
+                    // Esto evita que el % cambie al modificar el sistema después de verificar.
+                    const flujoBase = puntoOperacion.flujoDiseno ?? flujoMaxGlobal;
+                    const cdtBase   = puntoOperacion.cdtDiseno   ?? cargaTotalGlobal;
+                    const deltaFlujo = flujoBase ? (puntoOperacion.flujo - flujoBase) / flujoBase * 100 : null;
+                    const deltaCDT   = cdtBase   ? (puntoOperacion.cdt  - cdtBase)   / cdtBase   * 100 : null;
+                    const colorDelta = deltaFlujo != null && Math.abs(deltaFlujo) < 5 ? "#34d399" : "#f97316";
                     return (
-                      <div key={i} className={`resultado-totales-desglose-fila ${esMax ? "fila-gobierna" : "fila-secundaria"}`}>
-                        <span className="desglose-label">{f.label}{esMax && <span className="desglose-badge desglose-badge--gobierna">↑ máx</span>}</span>
-                        <span className="desglose-valor">{fmtGPM(f.valor)}</span>
+                      <div style={{
+                        marginTop: "0.35rem",
+                        padding: "0.55rem 0.75rem",
+                        background: "rgba(52,211,153,0.08)",
+                        border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
+                        borderRadius: "8px",
+                        display: "flex", flexDirection: "column", gap: "0.35rem",
+                      }}>
+                        <div style={{ fontSize: "0.62rem", color: temaOscuro ? "#34d399" : "#059669", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
+                          ⚡ Punto de operación
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>Flujo</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#34d399" : "#059669" }}>{fmtGPM(puntoOperacion.flujo)}</span>
+                            {deltaFlujo != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorDelta === "#34d399" ? (temaOscuro ? "#34d399" : "#059669") : (temaOscuro ? "#f97316" : "#ea580c") }}>{fmtPct(deltaFlujo)}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>CDT</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#e2e8f0" : "#1e293b" }}>{fmtFt(puntoOperacion.cdt)}</span>
+                            {deltaCDT != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: temaOscuro ? "#94a3b8" : "#475569" }}>{fmtPct(deltaCDT)}</span>}
+                          </div>
+                        </div>
                       </div>
                     );
-                  })}
+                  })()}
+
                 </div>
-              </AnimatedToggleCuerpo>
-
-              {cargaTotalGlobal != null && (<>
-              <button className={`resultado-total-btn resultado-total-btn--cdt ${toggleCDTTotal ? "abierto" : ""}`} onClick={() => setToggleCDTTotal(v => !v)}>
-                <span className="resultado-total-btn-label">
-                  <span className="resultado-total-btn-titulo">CDT total sistema</span>
-                  <span className="resultado-total-btn-valor resultado-total-btn-valor--cdt">
-                    <FlashValue value={cargaTotalGlobal}>{fmtFt(cargaTotalGlobal)}</FlashValue>
-                  </span>
-                </span>
-                <ChevronDown size={11} className={`resultado-toggle-chevron ${toggleCDTTotal ? "abierto" : ""}`} />
-              </button>
-              <AnimatedToggleCuerpo abierto={toggleCDTTotal} variante="totales-cdt">
-                <div className="resultado-totales-desglose resultado-totales-desglose--cdt">
-                  {componentesCDT.map((c, i) => (
-                    <div key={i} className={`resultado-totales-desglose-fila ${c.noSuma ? "fila-no-suma" : c.gobierna ? "fila-gobierna" : "fila-suma"}`}>
-                      <span className="desglose-label">
-                        {c.label}
-                        {c.gobierna   && <span className="desglose-badge desglose-badge--gobierna">↑ gobierna</span>}
-                        {c.noSuma && c.desc !== "informativo" && <span className="desglose-badge desglose-badge--nosuma">no suma</span>}
-                        {c.desc === "informativo" && <span className="desglose-badge desglose-badge--info">info</span>}
-                        {c.desc === "excluido"    && <span className="desglose-badge desglose-badge--nosuma">excluido</span>}
-                        {!c.noSuma && !c.gobierna && <span className="desglose-badge desglose-badge--suma">✓</span>}
-                      </span>
-                      <span className="desglose-valor">{fmtFt(c.valor)}</span>
-                    </div>
-                  ))}
-                  <div className="resultado-totales-desglose-total">
-                    <span>Total CDT</span>
-                    <span>{fmtFt(cargaTotalGlobal)}</span>
-                  </div>
-                </div>
-              </AnimatedToggleCuerpo>
-              </>)}
-
-              {puntoOperacion?.flujo != null && (() => {
-                const deltaFlujo = flujoMaxGlobal ? (puntoOperacion.flujo - flujoMaxGlobal) / flujoMaxGlobal * 100 : null;
-                const deltaCDT   = cargaTotalGlobal ? (puntoOperacion.cdt - cargaTotalGlobal) / cargaTotalGlobal * 100 : null;
-                const colorDelta = deltaFlujo != null && Math.abs(deltaFlujo) < 5 ? "#34d399" : "#f97316";
-                return (
-                  <div style={{
-                    marginTop: "0.35rem",
-                    padding: "0.55rem 0.75rem",
-                    background: "rgba(52,211,153,0.08)",
-                    border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
-                    borderRadius: "8px",
-                    display: "flex", flexDirection: "column", gap: "0.35rem",
-                  }}>
-                    <div style={{ fontSize: "0.62rem", color: temaOscuro ? "#34d399" : "#059669", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
-                      ⚡ Punto de operación
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>Flujo</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#34d399" : "#059669" }}>{fmtGPM(puntoOperacion.flujo)}</span>
-                        {deltaFlujo != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorDelta === "#34d399" ? (temaOscuro ? "#34d399" : "#059669") : (temaOscuro ? "#f97316" : "#ea580c") }}>{fmtPct(deltaFlujo)}</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.72rem", color: temaOscuro ? "#d1fae5" : "#1e293b", fontWeight: 600 }}>CDT</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: temaOscuro ? "#e2e8f0" : "#1e293b" }}>{fmtFt(puntoOperacion.cdt)}</span>
-                        {deltaCDT != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: temaOscuro ? "#94a3b8" : "#475569" }}>{fmtPct(deltaCDT)}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-            </div>
-            )}
+              )}
             </FadeInBloque>
 
           </div>
@@ -1008,30 +1036,43 @@ export default function App() {
       <div className="panel-derecho">
         <div className="panel-derecho-contenido">
           {seccion === "dimensiones" && (
-          <Dimensiones
-            ref={dimensionesRef}
-            setSeccion={setSeccion}
-            sistemaActivo={sistemaActivo}
-            setSistemaActivo={setSistemaActivo}
-            datosPorSistema={datosPorSistema}
-            setDatosPorSistema={setDatosPorSistema}
-            flujoMaxGlobal={flujoMaxGlobal}
-          />
+            <Dimensiones
+              ref={dimensionesRef}
+              setSeccion={setSeccion}
+              sistemaActivo={sistemaActivo}
+              setSistemaActivo={setSistemaActivo}
+              datosPorSistema={datosPorSistema}
+              setDatosPorSistema={setDatosPorSistema}
+              flujoMaxGlobal={flujoMaxGlobal}
+            />
           )}
           {seccion === "calentamiento" && (
-          <Calentamiento
-            setSeccion={setSeccion}
-            tipoSistema={sistemaActivo}
-            datosPorSistema={datosPorSistema}
-            setDatosPorSistema={setDatosPorSistema}
-            areaTotal={areaCalculada}
-            volumenTotal={volumenTotal}
-            profundidadPromedio={profundidadPromedio}
-            flujoMaxGlobal={flujoMaxGlobal}
-          />
+            <Calentamiento
+              setSeccion={setSeccion}
+              tipoSistema={sistemaActivo}
+              datosPorSistema={datosPorSistema}
+              setDatosPorSistema={setDatosPorSistema}
+              areaTotal={areaCalculada}
+              volumenTotal={volumenTotal}
+              profundidadPromedio={profundidadPromedio}
+              flujoMaxGlobal={flujoMaxGlobal}
+            />
           )}
           {seccion === "equipamiento" && (
-            <Equipamiento setSeccion={setSeccion} sistemaActivo={sistemaActivo} datosPorSistema={datosPorSistema} setDatosPorSistema={setDatosPorSistema} configBombas={configBombas} resultadoClorador={resultadoClorador} flujoMaxGlobal={flujoMaxGlobal} cargaTotalGlobal={cargaTotalGlobal} onSanitizacionChange={handleSanitizacionChange} flujoInfinityVal={flujoInfinitySistema > 0 ? flujoInfinitySistema : null} flujoFiltradoVal={flujoFiltrado > 0 ? flujoFiltrado : null} volumenTotalVal={volumenTotal > 0 ? volumenTotal : null} />
+            <Equipamiento
+              setSeccion={setSeccion}
+              sistemaActivo={sistemaActivo}
+              datosPorSistema={datosPorSistema}
+              setDatosPorSistema={setDatosPorSistema}
+              configBombas={configBombas}
+              resultadoClorador={resultadoClorador}
+              flujoMaxGlobal={flujoMaxGlobal}
+              cargaTotalGlobal={cargaTotalGlobal}
+              onSanitizacionChange={handleSanitizacionChange}
+              flujoInfinityVal={flujoInfinitySistema > 0 ? flujoInfinitySistema : null}
+              flujoFiltradoVal={flujoFiltrado > 0 ? flujoFiltrado : null}
+              volumenTotalVal={volumenTotal > 0 ? volumenTotal : null}
+            />
           )}
         </div>
       </div>

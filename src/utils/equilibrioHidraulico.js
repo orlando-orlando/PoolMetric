@@ -389,7 +389,10 @@ export function calcularEquilibrio({
     cargaBaseAjustada -= parseFloat(cargasRef[key] ?? 0);
   }
   // Restar también el clorador automático que no se recalcula pero está en cargaInicial
-  cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
+  // Restar clorador automático solo si NO está ya en keysRecalc
+  if (!keysRecalc.includes("cloradorAutomatico")) {
+    cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
+  }  
   // Ajustar clorador salino con carga manual si existe
     const cargaCSRef    = parseFloat(cargasRef["cloradorSalino"] ?? 0);
     const cargaCSActual = parseFloat(estados?.cloradorSalino?.cargaTotal ?? cargasRef["cloradorSalino"] ?? 0);
@@ -404,6 +407,10 @@ export function calcularEquilibrio({
     if (succKeys.includes(key) && key !== succGobierna) continue;
     const eq = equiposRecalc[key];
     cargaRecalc += parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
+  }
+
+  if (!excluirCloradorAutomatico && !keysRecalc.includes("cloradorAutomatico")) {
+    cargaRecalc += parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
   }
 
   const cdt = Math.max(0.1, cargaBaseAjustada + cargaRecalc);

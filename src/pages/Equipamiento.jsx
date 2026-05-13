@@ -1989,7 +1989,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null })
 /* =====================================================
    BLOQUE VERIFICACIÓN DEL DISEÑO
 ===================================================== */
-function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null, sistemaActivo = null, modoCloradorSalino = "recomendado", selCloradorSalinoId = null, selCloradorSalinoCant = 1, cloradorEnLineaQuitado = false, flujoOperacion = null }) {
+function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null, sistemaActivo = null, modoCloradorSalino = "recomendado", selCloradorSalinoId = null, selCloradorSalinoCant = 1, cloradorEnLineaQuitado = false, flujoOperacion = null, onLimpiarOperacion = null }) {
   const [fase, setFase]           = useState("idle");
   const [lineasTerminal, setLineasTerminal] = useState([]);
   const [resultado, setResultado] = useState(null);
@@ -2095,6 +2095,7 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
 
   const iniciarVerificacion = () => {
     if (!puedeVerificar) return;
+    if (onLimpiarOperacion) onLimpiarOperacion(); // ← nueva línea
     setFase("verificando"); setLineasTerminal([]); setResultado(null);
 
     // Scroll — buscar .selector-contenido o .eq-contenido que es el scrollable real
@@ -2195,7 +2196,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     setTimeout(() => { setResultado(res); setFase("listo"); }, totalDelay);
   };
 
-  const resetear = () => { setFase("idle"); setLineasTerminal([]); setResultado(null); };
+  const resetear = () => {
+    setFase("idle");
+    setLineasTerminal([]);
+    setResultado(null);
+    if (onLimpiarOperacion) onLimpiarOperacion();
+  };
 
   if (!puedeVerificar) return null;
 
@@ -2371,6 +2377,11 @@ function ResumenEquiposConfirmacion({
 }) {
   const [confirmado, setConfirmado] = useState(false);
   const [equiposConfirmados, setEquiposConfirmados] = useState(null);
+
+  useEffect(() => {
+    setConfirmado(false);
+    setEquiposConfirmados(null);
+  }, [resultado?.equilibrio?.flujo]);
 
   const equiposRecalc = resultado?.equilibrio?.equipos ?? {};
   const uvRecalc = equiposRecalc?.lamparaUV ?? null;
@@ -2766,9 +2777,14 @@ function ResumenEquiposConfirmacion({
         {hayCambios && !confirmado && (
           <div style={{ padding: "0.65rem 0.8rem", background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.25)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
             <div>
-              <div style={{ fontSize: "0.73rem", color: "#f97316", fontWeight: 600 }}>
-                {Object.values(equiposRecalc).filter(e => e?.cambio).length} equipo{Object.values(equiposRecalc).filter(e => e?.cambio).length > 1 ? "s requieren" : " requiere"} ajuste de cantidad
-              </div>
+              {(() => {
+                const nCambios = Object.values(equiposRecalc).filter(e => e?.cambio).length;
+                return (
+                  <div style={{ fontSize: "0.73rem", color: "#f97316", fontWeight: 600 }}>
+                    {nCambios} equipo{nCambios !== 1 ? "s requieren" : " requiere"} ajuste de cantidad
+                  </div>
+                );
+              })()}
               <div style={{ fontSize: "0.67rem", color: "#94a3b8", marginTop: "0.1rem" }}>
                 Se actualizarán las cargas con las cantidades del punto de equilibrio
               </div>
@@ -3573,7 +3589,16 @@ export default function Equipamiento({
                   selCloradorSalinoCant={selCloradorSalinoCant}
                   cloradorEnLineaQuitado={cloradorEnLineaExcede}
                   flujoOperacion={flujoUVEfectivo}
-                />
+                  onLimpiarOperacion={() => {
+                    setDatosPorSistema(ps => ({
+                      ...ps,
+                      equipamiento: {
+                        ...(ps.equipamiento ?? {}),
+                        puntoOperacion: null,
+                      },
+                    }));
+                  }}
+                  />
               </div>
             )}
           </>)}
