@@ -569,7 +569,7 @@ export default function App() {
       filtrado:       hayDatos && flujoFiltrado > 0,
       flujoMax:       hayDatos && flujoFiltrado > 0,
       calentamiento:  enCal && calentamientoConfigura && hayAlgunCalentamiento,
-      cdtTotal:       enCal && calentamientoConfigura,
+      cdtTotal:       enEq || (enCal && calentamientoConfigura),
       sanitizacion:   enEq && tabIdxActual >= ORDEN_TAB["sanitizacion"],
       filtracion:     enEq && tabIdxActual >= ORDEN_TAB["filtracion"],
       empotrables:    enEq && tabIdxActual >= ORDEN_TAB["empotrables"],
@@ -774,13 +774,66 @@ export default function App() {
         </div>
 
         {/* ══════════ RESULTADOS ══════════ */}
-        <div className="toggle-seccion unida">
-          <div className="toggle-boton activo">
-            <h3 className="resultados-titulo">
-              <BarChart2 size={14} strokeWidth={1.5} className="resultados-titulo-icon" />
-              Resultados generales
-            </h3>
-          </div>
+      <div className="toggle-seccion unida">
+<div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0.55rem 0.85rem 0.45rem",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          flexShrink: 0,
+        }}>
+          <span style={{
+            fontSize: "0.6rem",
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "#64748b",
+          }}>
+            Resultados
+          </span>
+          {(() => {
+            const pasos = [
+              { key: "dim",    ok: vis.dimensiones },
+              { key: "filt",   ok: vis.filtrado },
+              { key: "cal",    ok: vis.calentamiento },
+              { key: "sanit",  ok: vis.sanitizacion && (cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) },
+              { key: "filtr",  ok: vis.filtracion && cargaSumaFiltracion != null },
+              { key: "empotr", ok: vis.empotrables && (cargaRetorno != null || succionActiva != null) },
+              { key: "moto",   ok: vis.puntoOperacion && puntoOperacion != null },
+            ];
+            const completados = pasos.filter(p => p.ok).length;
+            const color = completados === 0 ? "#475569"
+              : completados <= 2 ? "#f97316"
+              : completados <= 4 ? "#fbbf24"
+              : "#34d399";
+            return (
+              <div style={{ display: "flex", gap: "6px", alignItems: "flex-end" }}>
+                {pasos.map((p, i) => (
+                  <div key={p.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                    <span style={{
+                      fontSize: "0.48rem",
+                      fontWeight: 700,
+                      color: p.ok ? color : "rgba(71,85,105,0.5)",
+                      lineHeight: 1,
+                      transition: "color 0.3s ease",
+                    }}>
+                      {i + 1}
+                    </span>
+                    <div style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: p.ok ? color : "rgba(71,85,105,0.3)",
+                      transition: "background 0.3s ease, box-shadow 0.3s ease",
+                      boxShadow: p.ok ? `0 0 5px ${color}90` : "none",
+                    }} />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
 
           <div className="seccion-resultados">
 

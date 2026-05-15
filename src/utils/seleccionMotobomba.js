@@ -114,8 +114,8 @@ export function seleccionarMotobomba(flujoMaximo, cargaRequerida) {
   // Ordenar: primero zona segura, luego menor exceso de CDT, luego menos bombas, luego menos potencia
   candidatos.sort((a, b) => {
     if (a.enZonaSegura !== b.enZonaSegura) return a.enZonaSegura ? -1 : 1;
-    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
     if (a.n !== b.n) return a.n - b.n;
+    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
     return a.potenciaTotal - b.potenciaTotal;
   });
 
@@ -146,8 +146,8 @@ function buscarSinMargen(catalogo, flujoMaximo, cargaRequerida) {
     return { error: "Ninguna motobomba del catalogo puede cubrir el requerimiento de flujo y CDT." };
   }
   candidatos.sort((a, b) => {
-    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
     if (a.n !== b.n) return a.n - b.n;
+    if (Math.abs(a.excesoCDT - b.excesoCDT) > 0.01) return a.excesoCDT - b.excesoCDT;
     return a.potenciaTotal - b.potenciaTotal;
   });
   const mejor = candidatos[0];

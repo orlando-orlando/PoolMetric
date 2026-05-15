@@ -63,9 +63,10 @@ function normTipo(raw) {
   return TAMANO_A_TIPO[String(raw)] ?? String(raw);
 }
 
-function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalculo, catalogo) {
-  if (!estado?.selId || !flujoNuevo || !datosEmpotrable) return null;
-  const eq = catalogo.find(e => e.id === estado.selId);
+function recalcularEmpotrable(key, estadoOrig, flujoNuevo, datosEmpotrable, fnCalculo, catalogo) {
+  if (!estadoOrig?.selId || !flujoNuevo || !datosEmpotrable) return null;
+  let estado = { ...estadoOrig };
+  let eq = catalogo.find(e => e.id === estado.selId);
   if (!eq) return null;
 
   let cantMinNueva;
@@ -82,15 +83,76 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
     let num = flujoPorEq > 0 ? Math.ceil((flujoNuevo * 2) / flujoPorEq) : estado.cantidad;
     if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(2, num);
+
+// Si la cantidad supera 8, iterar subiendo de capacidad hasta que quede <= 8
+    if (cantMinNueva > 8) {
+      let flujoEqActual = flujoPorEq;
+      let eqActual = eq;
+      let cantActual = cantMinNueva;
+      let iteraciones = 0;
+      const MAX_ITER = 10;
+
+// Construir lista ordenada de drenes de mayor capacidad que el actual
+      const drenesMayores = catalogo
+        .filter(c => c.metadata?.activo !== false &&
+          (c.specs.flujo ?? c.specs.maxFlow ?? 0) > flujoPorEq &&
+          c.id !== eq.id)
+        .sort((a, b) => (a.specs.flujo ?? a.specs.maxFlow ?? 0) - (b.specs.flujo ?? b.specs.maxFlow ?? 0));
+
+      for (const candidato of drenesMayores) {
+        const flujoCand = candidato.specs.flujo ?? candidato.specs.maxFlow ?? 0;
+        let numCand = flujoCand > 0 ? Math.ceil((flujoNuevo * 2) / flujoCand) : cantMinNueva;
+        if (numCand % 2 !== 0) numCand++;
+        numCand = Math.max(2, numCand);
+        // Tomar este candidato si mejora la cantidad
+        if (numCand < cantMinNueva) {
+          eqActual = candidato;
+          cantActual = numCand;
+          // Seguir iterando por si hay otro que mejore aún más
+        }
+        // Si ya llegamos a <= 8, parar
+        if (cantActual <= 8) break;
+      }
+
+      if (cantActual < cantMinNueva) {
+        estado = { ...estado, selId: eqActual.id, tipo: normTipo(eqActual.specs.tamano ?? eqActual.specs.dimensionPuerto ?? "") };
+        eq = eqActual;
+        cantMinNueva = cantActual;
+      }
+
+      if (cantActual < cantMinNueva) {
+        estado = { ...estado, selId: eqActual.id, tipo: normTipo(eqActual.specs.tamano ?? eqActual.specs.dimensionPuerto ?? "") };
+        eq = eqActual;
+        cantMinNueva = cantActual;
+      }
+    }
   } else if (key === "drenCanal") {
     const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
     let num = flujoPorEq > 0 ? Math.ceil(flujoNuevo / flujoPorEq) : estado.cantidad;
-    if (num % 2 !== 0) num++;
     cantMinNueva = Math.max(1, num);
   } else {
-    const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
-    cantMinNueva = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
-  }
+      const flujoPorEq = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+      cantMinNueva = flujoPorEq > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoPorEq)) : estado.cantidad;
+
+      // Retornos: si supera 25 unidades, subir al siguiente puerto (1.5" → 2")
+      if (key === "retorno" && cantMinNueva > CANT_MAX_RETORNOS) {
+        const siguientes = catalogo
+          .filter(c => c.metadata?.activo !== false &&
+            (c.specs.flujo ?? c.specs.maxFlow ?? 0) > flujoPorEq &&
+            (c.specs.dimensionPuerto ?? 0) > (eq.specs.dimensionPuerto ?? 0))
+          .sort((a, b) => (a.specs.dimensionPuerto ?? 0) - (b.specs.dimensionPuerto ?? 0));
+        if (siguientes.length > 0) {
+          const sig = siguientes[0];
+          const flujoSig = sig.specs.flujo ?? sig.specs.maxFlow ?? 0;
+          const numSig = flujoSig > 0 ? Math.max(1, Math.ceil(flujoNuevo / flujoSig)) : cantMinNueva;
+          if (numSig < cantMinNueva) {
+            estado = { ...estado, selId: sig.id };
+            eq = sig;
+            cantMinNueva = numSig;
+          }
+        }
+      }
+    }
 
   const cantFinal = Math.max(cantMinNueva, estado.cantidad ?? 1);
   const tipo = estado.tipo ?? normTipo(eq.specs.tamano ?? eq.specs.dimensionPuerto ?? "");
@@ -110,6 +172,8 @@ function recalcularEmpotrable(key, estado, flujoNuevo, datosEmpotrable, fnCalcul
 
 const FLUJO_UMBRAL_MULTIPLICAR = 62;
 const CANT_MAX_FILTROS = 20;
+const CANT_MAX_PREFILTROS = 3;
+const CANT_MAX_RETORNOS = 25;
 
 function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGeneral) {
   if (!estado?.selId || !flujoNuevo) return null;
@@ -133,14 +197,24 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   if (!flujoEf || flujoEf <= 0) return null;
 
   const catalActivos = catalogo
-    .filter(c => c.metadata?.activo !== false)
-    .map(c => ({ c, cap: c.specs?.maxFlow ?? c.specs?.flujoComercial ?? 0 }))
-    .sort((a, b) => a.cap - b.cap);
+      .filter(c => c.metadata?.activo !== false)
+      .map(c => ({ c, cap: c.specs?.maxFlow ?? c.specs?.flujoComercial ?? 0 }))
+      .sort((a, b) => a.cap - b.cap);
 
-  const buscarMayorCapacidad = (flujoReq) => {
-    const candidatos = catalActivos.filter(({ cap }) => cap >= flujoReq);
-    return candidatos.length > 0 ? candidatos[0] : null;
-  };
+    // Busca el equipo de menor capacidad suficiente respetando jerarquía:
+    // 1. Mismo modelo (siguiente tamaño) 2. Misma marca 3. Cualquier marca
+    const buscarMayorCapacidad = (flujoReq) => {
+      const mismoModelo = catalActivos.filter(({ c, cap }) =>
+        cap >= flujoReq && c.modelo === modelo && c.marca === marca);
+      if (mismoModelo.length > 0) return mismoModelo[0];
+
+      const mismaMarca = catalActivos.filter(({ c, cap }) =>
+        cap >= flujoReq && c.marca === marca);
+      if (mismaMarca.length > 0) return mismaMarca[0];
+
+      const candidatos = catalActivos.filter(({ cap }) => cap >= flujoReq);
+      return candidatos.length > 0 ? candidatos[0] : null;
+    };
 
   let cantFinal    = cantOriginal;
   let flujoEfFinal = flujoEf;
@@ -148,6 +222,7 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   let marcaFinal   = marca;
 
   const flujoTotalActual = flujoEf * cantOriginal;
+  const cantMax = key === "prefiltro" ? CANT_MAX_PREFILTROS : CANT_MAX_FILTROS;
 
   if (flujoTotalActual >= flujoNuevo) {
     cantFinal = cantOriginal;
@@ -170,13 +245,13 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
         cantFinal = Math.ceil(flujoNuevo / flujoEf);
       }
     }
-  } else {
+} else {
     const cantNecesaria = Math.ceil(flujoNuevo / flujoEf);
-    if (cantNecesaria <= CANT_MAX_FILTROS) {
+    if (cantNecesaria <= cantMax) {
       cantFinal = Math.max(cantOriginal, cantNecesaria);
     } else {
       let resuelto = false;
-      for (let cant = 1; cant <= CANT_MAX_FILTROS; cant++) {
+      for (let cant = 1; cant <= cantMax; cant++) {
         const capNecesariaPorUnidad = flujoNuevo / cant;
         const mejor = buscarMayorCapacidad(capNecesariaPorUnidad);
         if (mejor && mejor.cap > flujoEf) {
@@ -188,8 +263,8 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
           break;
         }
       }
-      if (!resuelto) cantFinal = CANT_MAX_FILTROS;
-    }
+          if (!resuelto) cantFinal = cantMax;
+          }
   }
 
   try {

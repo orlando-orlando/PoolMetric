@@ -95,7 +95,6 @@ export function drenCanal(flujoMaximo, tipoDrenCanalRaw, datos, numForzado = nul
 
   // Número de drenes: usa numForzado si se proporciona, si no calcula
   let numDrenCanalFinalCalc = Math.ceil(flujoMaximo / capacidadDrenCanal);
-  if (numDrenCanalFinalCalc % 2 !== 0) numDrenCanalFinalCalc++;
 
   const numDrenCanalFinal = (numForzado != null && numForzado > 0)
     ? numForzado

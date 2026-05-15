@@ -749,6 +749,12 @@ export default function Calentamiento({
     catch (e) { console.error("Error en psSeleccionado():", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
 
+  useEffect(() => {
+    if (modoPS === "manual" && selManualPSCant == null && psSeleccionado && !psSeleccionado.error) {
+      setSelManualPSPct(100);
+    }
+  }, [modoPS, psSeleccionado]);
+
   const psManual = useMemo(() => {
     if (!sistemasSeleccionados.panelSolar) return null;
     if (perdidaTotalBTU <= 0) return null;
@@ -803,6 +809,13 @@ export default function Calentamiento({
     catch (e) { console.error("Error en calderaSeleccionada():", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema, volumenTotal]);
 
+  useEffect(() => {
+    if (modoCaldera === "manual" && !selManualCalderaId && calderaSeleccionada && !calderaSeleccionada.error) {
+      const c = calderasGas.find(c => c.marca === calderaSeleccionada.seleccion.marca && c.modelo === calderaSeleccionada.seleccion.modelo);
+      if (c) { setSelManualCalderaId(c.id); setSelManualCalderaCant(calderaSeleccionada.seleccion.cantidad ?? 1); }
+    }
+  }, [modoCaldera, calderaSeleccionada]);
+
   /* ── Catálogo caldera filtrado ── */
   const marcasCalderaDisponibles = useMemo(() =>
     ["todas", ...new Set(calderasGas.filter(c => c.metadata.activo).map(c => c.marca))],
@@ -850,6 +863,13 @@ export default function Calentamiento({
     catch (e) { console.error("Error en bombaDeCalor() paso 2:", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
 
+  useEffect(() => {
+    if (modoBDC === "manual" && !selManualBDCId && bdcSeleccionada && !bdcSeleccionada.error) {
+      const b = bombasCalor.find(b => b.marca === bdcSeleccionada.seleccion.marca && b.modelo === bdcSeleccionada.seleccion.modelo);
+      if (b) { setSelManualBDCId(b.id); setSelManualCantidad(bdcSeleccionada.seleccion.cantidad ?? 1); }
+    }
+  }, [modoBDC, bdcSeleccionada]);
+
   const bdcManual = useMemo(() => {
     if (!selManualBDCId || perdidaTotalBTU <= 0) return null;
     const bombaElegida = bombasCalor.find(b => b.id === selManualBDCId);
@@ -886,6 +906,13 @@ export default function Calentamiento({
     try { return calcularCE(volumenTotal, tasaElevacion, perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaCE); }
     catch (e) { console.error("Error en ceSeleccionado():", e); return null; }
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxParaCE, volumenTotal]);
+
+  useEffect(() => {
+    if (modoCE === "manual" && !selManualCEId && ceSeleccionado && !ceSeleccionado.error) {
+      const e = calentadoresElectricos.find(e => e.marca === ceSeleccionado.seleccion.marca && e.modelo === ceSeleccionado.seleccion.modelo);
+      if (e) { setSelManualCEId(e.id); setSelManualCECant(ceSeleccionado.seleccion.cantidad ?? 1); }
+    }
+  }, [modoCE, ceSeleccionado]);
 
   const marcasCEDisponibles = useMemo(() =>
     ["todas", ...new Set(calentadoresElectricos.filter(c => c.metadata.activo).map(c => c.marca))],
@@ -1188,7 +1215,22 @@ export default function Calentamiento({
           </div>
         )}
 
-        <div className={`selector-contenido ${animandoSalida ? "salida" : "entrada"} ${formularioBloqueado ? "calentamiento-bloqueado" : ""}`}>
+        {decision === "configurar" && (
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 0 0.5rem" }}>
+            <button
+              className="btn-secundario"
+              style={{ fontSize: "0.7rem", padding: "0.25rem 0.7rem", color: "#94a3b8" }}
+              onClick={() => {
+                setDecision("omitir");
+                setSistemasSeleccionados({});
+              }}
+            >
+              Omitir calentamiento
+            </button>
+          </div>
+        )}
+
+        <div className={`selector-contenido ${animandoSalida ? "salida" : "entrada"} ${(formularioBloqueado || decision === "omitir") ? "calentamiento-bloqueado" : ""}`}>
 
           {/* ── SISTEMAS DE CALENTAMIENTO ── */}
           <div
