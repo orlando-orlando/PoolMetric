@@ -11,7 +11,7 @@ function TablaTramos({ resultado, titulo }) {
       {titulo && <p style={{ fontSize:"0.7rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#60a5fa", background:"#1e293b", border:"1px solid #334155", borderBottom:"none", padding:"4px 10px", borderRadius:"6px 6px 0 0", display:"inline-block" }}>{titulo}</p>}
       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
         <thead><tr style={{ background:"#0f172a" }}>
-          {["#","Flujo","Tubería","Vel.","C.Base","Long.","C.Tramo","Tees","L.Tee","C.Tee","Codos","L.Codo","C.Codo","Red.","L.Red.","C.Red.","Total ft"].map(h => (
+          {["#","Flujo (gpm)","Tubería (in)","Vel. (ft/s)","C.Base (fthd/100)","Long. (m)","C.Tramo (fthd)","Tees (pza.)","L.Tee (ft)","C.Tee (fthd)","Codos (pza.)","L.Codo (ft)","C.Codo (fthd)","Red. (pza.)","L.Red. (ft)","C.Red. (fthd)","Total (fthd)"].map(h => (
             <th key={h} style={{ padding:"5px 6px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", textAlign:"center" }}>{h}</th>
           ))}
         </tr></thead>
@@ -1182,23 +1182,22 @@ export default function MemoriaCalculo() {
 
   const { resumen, reportes = [], calentamiento = [], perfilTermico = null, equiposConfirmados = null, estadosDiseno = null, specsEquipos = null, specsSanitizacion = null, specsCalentamiento = null } = memoria;
 
-  const defEquipos = [
-    { key:"retorno",            label:"Retornos",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
-    { key:"desnatador",         label:"Desnatadores",     tipo:"empotrable", sufijoCM:"CMD",  tituloTramos:"Tramos desnatadores", tituloDisparo:"Disparo al desnatador"  },
-    { key:"barredora",          label:"Barredoras",       tipo:"empotrable", sufijoCM:"CMB",  tituloTramos:"Tramos barredoras",   tituloDisparo:"Disparo a barredora"    },
-    { key:"drenFondo",          label:"Drenes fondo",     tipo:"empotrable", sufijoCM:"CMDF", tituloTramos:"Tramos drenes fondo", tituloDisparo:null                     },
-    { key:"drenCanal",          label:"Drenes canal",     tipo:"empotrable", sufijoCM:"CMDC", tituloTramos:"Tramos drenes canal", tituloDisparo:null                     },
-    { key:"filtroArena",        label:"Filtro arena",     tipo:"filtro" },
-    { key:"prefiltro",          label:"Prefiltro",        tipo:"filtro" },
-    { key:"filtroCartucho",     label:"F. cartucho",      tipo:"filtro" },
-    { key:"cloradorSalino",     label:"Cloro salino",     tipo:"filtro" },
-    { key:"lamparaUV",          label:"Lámpara UV",       tipo:"filtro" },
-    { key:"cloradorAutomatico", label:"Clorador auto",    tipo:"filtro" },
-    // Calentamiento — aparece en todas las iteraciones
+const defEquipos = [
     { key:"bombaCalor",         label:"Bomba de calor",   tipo:"calentamiento" },
     { key:"panelSolar",         label:"Panel solar",      tipo:"calentamiento" },
     { key:"caldera",            label:"Caldera de gas",   tipo:"calentamiento" },
-    { key:"calentadorElectrico",label:"Calent. eléctrico",tipo:"calentamiento" },
+    { key:"calentadorElectrico",label:"Calentador eléctrico",tipo:"calentamiento" },
+    { key:"cloradorSalino",     label:"Generador de cloro salino",     tipo:"filtro" },
+    { key:"cloradorAutomatico", label:"Clorador automático",    tipo:"filtro" },
+    { key:"lamparaUV",          label:"Lámpara UV",       tipo:"filtro" },
+    { key:"prefiltro",          label:"Prefiltro",        tipo:"filtro" },
+    { key:"filtroArena",        label:"Filtro de arena",     tipo:"filtro" },
+    { key:"filtroCartucho",     label:"Filtro de cartucho",      tipo:"filtro" },
+    { key:"retorno",            label:"Retorno",         tipo:"empotrable", sufijoCM:"CM",   tituloTramos:"Tramos retornos",     tituloDisparo:"Disparo al retorno"     },
+    { key:"desnatador",         label:"Desnatador",     tipo:"empotrable", sufijoCM:"CMD",  tituloTramos:"Tramos desnatadores", tituloDisparo:"Disparo al desnatador"  },
+    { key:"drenCanal",          label:"Dren de canal",     tipo:"empotrable", sufijoCM:"CMDC", tituloTramos:"Tramos drenes canal", tituloDisparo:null                     },
+    { key:"drenFondo",          label:"Dren de fondo",     tipo:"empotrable", sufijoCM:"CMDF", tituloTramos:"Tramos drenes fondo", tituloDisparo:null                     },
+    { key:"barredora",          label:"Barredora",       tipo:"empotrable", sufijoCM:"CMB",  tituloTramos:"Tramos barredoras",   tituloDisparo:"Disparo a barredora"    },
     ].filter(eq => reportes.some(r => {
       const data = getEquipoData(r, eq.key);
       if (!data) return false;
@@ -1218,8 +1217,8 @@ export default function MemoriaCalculo() {
   ];
 
   return (
-    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Segoe UI',system-ui,sans-serif", background:"#0f172a", color:"#e2e8f0" }}>
-      {/* Header */}
+    <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Segoe UI',system-ui,sans-serif", background:"#0f172a", color:"#e2e8f0", overflow:"hidden" }}>
+        {/* Header */}
       <div style={{ background:"#1e293b", borderBottom:"1px solid #334155", padding:"14px 24px" }}>
         <h1 style={{ fontSize:"1.1rem", fontWeight:700, color:"#60a5fa", marginBottom:"8px" }}>Memoria de cálculo hidráulico</h1>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"20px", fontSize:"0.8rem", color:"#94a3b8", alignItems:"center" }}>
@@ -1251,7 +1250,7 @@ export default function MemoriaCalculo() {
       </div>
 
       {/* Contenido */}
-      <div style={{ flex:1, padding:"20px 16px", overflowX:"auto" }}>
+      <div style={{ flex:1, padding:"20px 16px", overflowX:"auto", overflowY:"auto" }}>
         {tabs[tabActiva]?.comp}
       </div>
     </div>

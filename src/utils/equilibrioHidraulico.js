@@ -171,7 +171,7 @@ function recalcularEmpotrable(key, estadoOrig, flujoNuevo, datosEmpotrable, fnCa
 }
 
 const FLUJO_UMBRAL_MULTIPLICAR = 62;
-const CANT_MAX_FILTROS = 20;
+const CANT_MAX_FILTROS = 3;
 const CANT_MAX_PREFILTROS = 3;
 const CANT_MAX_RETORNOS = 25;
 
@@ -224,47 +224,39 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   const flujoTotalActual = flujoEf * cantOriginal;
   const cantMax = key === "prefiltro" ? CANT_MAX_PREFILTROS : CANT_MAX_FILTROS;
 
-  if (flujoTotalActual >= flujoNuevo) {
+if (flujoTotalActual >= flujoNuevo) {
     cantFinal = cantOriginal;
-  } else if (flujoEf <= FLUJO_UMBRAL_MULTIPLICAR) {
-    const mejor = buscarMayorCapacidad(flujoNuevo);
-    if (mejor) {
-      flujoEfFinal = mejor.cap;
-      modeloFinal  = mejor.c.modelo;
-      marcaFinal   = mejor.c.marca;
-      cantFinal    = 1;
-    } else {
-      const mayorDisponible = catalActivos.length > 0 ? catalActivos[catalActivos.length - 1] : null;
-      if (mayorDisponible && mayorDisponible.cap > 0) {
-        const cantNec = Math.ceil(flujoNuevo / mayorDisponible.cap);
-        flujoEfFinal = mayorDisponible.cap;
-        modeloFinal  = mayorDisponible.c.modelo;
-        marcaFinal   = mayorDisponible.c.marca;
-        cantFinal    = cantNec;
-      } else {
-        cantFinal = Math.ceil(flujoNuevo / flujoEf);
-      }
-    }
-} else {
-    const cantNecesaria = Math.ceil(flujoNuevo / flujoEf);
-    if (cantNecesaria <= cantMax) {
-      cantFinal = Math.max(cantOriginal, cantNecesaria);
-    } else {
-      let resuelto = false;
+  } else {
+    // Escalar: intentar 1,2,...cantMax del modelo actual,
+    // luego subir al siguiente modelo y repetir
+    const modelosDisponibles = catalActivos.filter(({ cap }) => cap >= flujoEf);
+    let resuelto = false;
+
+    for (const { c: modeloCand, cap: capCand } of modelosDisponibles) {
       for (let cant = 1; cant <= cantMax; cant++) {
-        const capNecesariaPorUnidad = flujoNuevo / cant;
-        const mejor = buscarMayorCapacidad(capNecesariaPorUnidad);
-        if (mejor && mejor.cap > flujoEf) {
-          flujoEfFinal = mejor.cap;
-          modeloFinal  = mejor.c.modelo;
-          marcaFinal   = mejor.c.marca;
+        if (capCand * cant >= flujoNuevo) {
+          flujoEfFinal = capCand;
+          modeloFinal  = modeloCand.modelo;
+          marcaFinal   = modeloCand.marca;
           cantFinal    = cant;
           resuelto     = true;
           break;
         }
       }
-          if (!resuelto) cantFinal = cantMax;
-          }
+      if (resuelto) break;
+    }
+
+    if (!resuelto) {
+      const mayorDisponible = catalActivos[catalActivos.length - 1];
+      if (mayorDisponible && mayorDisponible.cap > 0) {
+        flujoEfFinal = mayorDisponible.cap;
+        modeloFinal  = mayorDisponible.c.modelo;
+        marcaFinal   = mayorDisponible.c.marca;
+        cantFinal    = Math.ceil(flujoNuevo / mayorDisponible.cap);
+      } else {
+        cantFinal = cantMax;
+      }
+    }
   }
 
   try {

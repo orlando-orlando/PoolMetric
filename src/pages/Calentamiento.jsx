@@ -1555,7 +1555,7 @@ export default function Calentamiento({
                         <div className="bdc-rec-hidraulica">
                           <span className="bdc-hid-label">Carga hidráulica</span>
                           <span className="bdc-hid-valor">
-                            {infoActivaParaMostrar.cargaTotal} ft · {infoActivaParaMostrar.cargaTotalPSI} PSI
+                            {infoActivaParaMostrar.cargaTotal} fthd · {infoActivaParaMostrar.cargaTotalPSI} PSI
                           </span>
                         </div>
                       )}
@@ -1611,30 +1611,30 @@ export default function Calentamiento({
                         <div className="bdc-auto-sep" />
                         <div className="bdc-auto-fila">
                           <span className="bdc-auto-label">Carga tramos BDC</span>
-                          <span className="bdc-auto-val">{bdcSeleccionada.cargaTramos} ft</span>
+                          <span className="bdc-auto-val">{bdcSeleccionada.cargaTramos} fthd</span>
                         </div>
                         <div className="bdc-auto-fila">
                           <span className="bdc-auto-label">Carga CM ida+reg.</span>
                           <span className="bdc-auto-val">
-                            {(parseFloat(bdcSeleccionada.cargaDistanciaIda) + parseFloat(bdcSeleccionada.cargaDistanciaReg)).toFixed(2)} ft
+                            {(parseFloat(bdcSeleccionada.cargaDistanciaIda) + parseFloat(bdcSeleccionada.cargaDistanciaReg)).toFixed(2)} fthd
                           </span>
                         </div>
                         <div className="bdc-auto-fila">
                           <span className="bdc-auto-label">Carga estática</span>
-                          <span className="bdc-auto-val">{bdcSeleccionada.cargaEstatica} ft</span>
+                          <span className="bdc-auto-val">{bdcSeleccionada.cargaEstatica} fthd</span>
                         </div>
                         <div className="bdc-auto-fila">
                           <span className="bdc-auto-label">Carga fricción alt.</span>
-                          <span className="bdc-auto-val">{bdcSeleccionada.cargaFriccionAltura} ft</span>
+                          <span className="bdc-auto-val">{bdcSeleccionada.cargaFriccionAltura} fthd</span>
                         </div>
                         <div className="bdc-auto-fila">
                           <span className="bdc-auto-label">Carga fija global</span>
-                          <span className="bdc-auto-val">{bdcSeleccionada.cargaFija_ft} ft</span>
+                          <span className="bdc-auto-val">{bdcSeleccionada.cargaFija_ft} fthd</span>
                         </div>
                         <div className="bdc-auto-sep" />
                         <div className="bdc-auto-fila bdc-auto-total">
                           <span className="bdc-auto-label">Carga total</span>
-                          <span className="bdc-auto-val bdc-hid-val-highlight">{bdcSeleccionada.cargaTotal} ft · {bdcSeleccionada.cargaTotalPSI} PSI</span>
+                          <span className="bdc-auto-val bdc-hid-val-highlight">{bdcSeleccionada.cargaTotal} fthd · {bdcSeleccionada.cargaTotalPSI} PSI</span>
                         </div>
                       </div>
                     </div>
@@ -1733,31 +1733,31 @@ export default function Calentamiento({
                                       <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
                                       <div className="bdc-auto-fila">
                                         <span className="bdc-auto-label">Carga tramos BDC</span>
-                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaTramos} ft</span>
+                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaTramos} fthd</span>
                                       </div>
                                       <div className="bdc-auto-fila">
                                         <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                         <span className="bdc-auto-val">
-                                          {(parseFloat(bdcManual.hidraulica.cargaDistanciaIda) + parseFloat(bdcManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                          {(parseFloat(bdcManual.hidraulica.cargaDistanciaIda) + parseFloat(bdcManual.hidraulica.cargaDistanciaReg)).toFixed(2)} fthd
                                         </span>
                                       </div>
                                       <div className="bdc-auto-fila">
                                         <span className="bdc-auto-label">Carga estática</span>
-                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaEstatica} ft</span>
+                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaEstatica} fthd</span>
                                       </div>
                                       <div className="bdc-auto-fila">
                                         <span className="bdc-auto-label">Carga fricción alt.</span>
-                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaFriccionAltura} ft</span>
+                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaFriccionAltura} fthd</span>
                                       </div>
                                       <div className="bdc-auto-fila">
                                         <span className="bdc-auto-label">Carga fija global</span>
-                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaFija_ft} ft</span>
+                                        <span className="bdc-auto-val">{bdcManual.hidraulica.cargaFija_ft} fthd</span>
                                       </div>
                                       <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
                                       <div className="bdc-auto-fila bdc-auto-total">
                                         <span className="bdc-auto-label">Carga total</span>
                                         <span className="bdc-auto-val bdc-hid-val-highlight">
-                                          {bdcManual.hidraulica.cargaTotal} ft · {bdcManual.hidraulica.cargaTotalPSI} PSI
+                                          {bdcManual.hidraulica.cargaTotal} fthd · {bdcManual.hidraulica.cargaTotalPSI} PSI
                                         </span>
                                       </div>
                                     </div>
@@ -1910,7 +1910,7 @@ export default function Calentamiento({
                           {hid && (
                             <div className="bdc-rec-hidraulica">
                               <span className="bdc-hid-label">Carga hidráulica</span>
-                              <span className="bdc-hid-valor">{hid.cargaTotal} ft · {hid.cargaTotalPSI} PSI</span>
+                              <span className="bdc-hid-valor">{hid.cargaTotal} fthd · {hid.cargaTotalPSI} PSI</span>
                             </div>
                           )}
                         </div>
@@ -1956,30 +1956,30 @@ export default function Calentamiento({
                           <div className="bdc-auto-sep" />
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Carga tándems</span>
-                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaTramos} ft</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaTramos} fthd</span>
                           </div>
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Carga CM ida+reg.</span>
                             <span className="bdc-auto-val">
-                              {(parseFloat(psSeleccionado.hidraulica.cargaDistanciaIda) + parseFloat(psSeleccionado.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                              {(parseFloat(psSeleccionado.hidraulica.cargaDistanciaIda) + parseFloat(psSeleccionado.hidraulica.cargaDistanciaReg)).toFixed(2)} fthd
                             </span>
                           </div>
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Carga estática</span>
-                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaEstatica} ft</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaEstatica} fthd</span>
                           </div>
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Carga fricción alt.</span>
-                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFriccionAltura} ft</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFriccionAltura} fthd</span>
                           </div>
                           <div className="bdc-auto-fila">
                             <span className="bdc-auto-label">Carga fija por equipo</span>
-                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFija_ft} ft</span>
+                            <span className="bdc-auto-val">{psSeleccionado.hidraulica.cargaFija_ft} fthd</span>
                           </div>
                           <div className="bdc-auto-sep" />
                           <div className="bdc-auto-fila bdc-auto-total">
                             <span className="bdc-auto-label">Carga total</span>
-                            <span className="bdc-auto-val bdc-hid-val-highlight">{psSeleccionado.hidraulica.cargaTotal} ft · {psSeleccionado.hidraulica.cargaTotalPSI} PSI</span>
+                            <span className="bdc-auto-val bdc-hid-val-highlight">{psSeleccionado.hidraulica.cargaTotal} fthd · {psSeleccionado.hidraulica.cargaTotalPSI} PSI</span>
                           </div>
                         </div>
                       </div>
@@ -2070,31 +2070,31 @@ export default function Calentamiento({
                                 <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
                                 <div className="bdc-auto-fila">
                                   <span className="bdc-auto-label">Carga tándems</span>
-                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaTramos} ft</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaTramos} fthd</span>
                                 </div>
                                 <div className="bdc-auto-fila">
                                   <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                   <span className="bdc-auto-val">
-                                    {(parseFloat(psManual.hidraulica.cargaDistanciaIda) + parseFloat(psManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                    {(parseFloat(psManual.hidraulica.cargaDistanciaIda) + parseFloat(psManual.hidraulica.cargaDistanciaReg)).toFixed(2)} fthd
                                   </span>
                                 </div>
                                 <div className="bdc-auto-fila">
                                   <span className="bdc-auto-label">Carga estática</span>
-                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaEstatica} ft</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaEstatica} fthd</span>
                                 </div>
                                 <div className="bdc-auto-fila">
                                   <span className="bdc-auto-label">Carga fricción alt.</span>
-                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFriccionAltura} ft</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFriccionAltura} fthd</span>
                                 </div>
                                 <div className="bdc-auto-fila">
                                   <span className="bdc-auto-label">Carga fija por equipo</span>
-                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFija_ft} ft</span>
+                                  <span className="bdc-auto-val">{psManual.hidraulica.cargaFija_ft} fthd</span>
                                 </div>
                                 <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
                                 <div className="bdc-auto-fila bdc-auto-total">
                                   <span className="bdc-auto-label">Carga total</span>
                                   <span className="bdc-auto-val bdc-hid-val-highlight">
-                                    {psManual.hidraulica.cargaTotal} ft · {psManual.hidraulica.cargaTotalPSI} PSI
+                                    {psManual.hidraulica.cargaTotal} fthd · {psManual.hidraulica.cargaTotalPSI} PSI
                                   </span>
                                 </div>
                               </div>
@@ -2280,7 +2280,7 @@ export default function Calentamiento({
                               {src.cargaTotal != null && (
                                 <div className="bdc-rec-hidraulica">
                                   <span className="bdc-hid-label">Carga hidráulica</span>
-                                  <span className="bdc-hid-valor">{src.cargaTotal} ft · {src.cargaTotalPSI} PSI</span>
+                                  <span className="bdc-hid-valor">{src.cargaTotal} fthd · {src.cargaTotalPSI} PSI</span>
                                 </div>
                               )}
                             </div>
@@ -2337,30 +2337,30 @@ export default function Calentamiento({
                               <div className="bdc-auto-sep" />
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga tramos caldera</span>
-                                <span className="bdc-auto-val">{calderaSeleccionada.cargaTramos} ft</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaTramos} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                 <span className="bdc-auto-val">
-                                  {(parseFloat(calderaSeleccionada.cargaDistanciaIda) + parseFloat(calderaSeleccionada.cargaDistanciaReg)).toFixed(2)} ft
+                                  {(parseFloat(calderaSeleccionada.cargaDistanciaIda) + parseFloat(calderaSeleccionada.cargaDistanciaReg)).toFixed(2)} fthd
                                 </span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga estática</span>
-                                <span className="bdc-auto-val">{calderaSeleccionada.cargaEstatica} ft</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaEstatica} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga fricción alt.</span>
-                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFriccionAltura} ft</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFriccionAltura} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga fija global</span>
-                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFija_ft} ft</span>
+                                <span className="bdc-auto-val">{calderaSeleccionada.cargaFija_ft} fthd</span>
                               </div>
                               <div className="bdc-auto-sep" />
                               <div className="bdc-auto-fila bdc-auto-total">
                                 <span className="bdc-auto-label">Carga total</span>
-                                <span className="bdc-auto-val bdc-hid-val-highlight">{calderaSeleccionada.cargaTotal} ft · {calderaSeleccionada.cargaTotalPSI} PSI</span>
+                                <span className="bdc-auto-val bdc-hid-val-highlight">{calderaSeleccionada.cargaTotal} fthd · {calderaSeleccionada.cargaTotalPSI} PSI</span>
                               </div>
                             </div>
                           </div>
@@ -2456,31 +2456,31 @@ export default function Calentamiento({
                                             <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga tramos caldera</span>
-                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaTramos} ft</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaTramos} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                               <span className="bdc-auto-val">
-                                                {(parseFloat(calderaManual.hidraulica.cargaDistanciaIda) + parseFloat(calderaManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                                {(parseFloat(calderaManual.hidraulica.cargaDistanciaIda) + parseFloat(calderaManual.hidraulica.cargaDistanciaReg)).toFixed(2)} fthd
                                               </span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga estática</span>
-                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaEstatica} ft</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaEstatica} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga fricción alt.</span>
-                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFriccionAltura} ft</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFriccionAltura} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga fija global</span>
-                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFija_ft} ft</span>
+                                              <span className="bdc-auto-val">{calderaManual.hidraulica.cargaFija_ft} fthd</span>
                                             </div>
                                             <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
                                             <div className="bdc-auto-fila bdc-auto-total">
                                               <span className="bdc-auto-label">Carga total</span>
                                               <span className="bdc-auto-val bdc-hid-val-highlight">
-                                                {calderaManual.hidraulica.cargaTotal} ft · {calderaManual.hidraulica.cargaTotalPSI} PSI
+                                                {calderaManual.hidraulica.cargaTotal} fthd · {calderaManual.hidraulica.cargaTotalPSI} PSI
                                               </span>
                                             </div>
                                           </div>
@@ -2673,7 +2673,7 @@ export default function Calentamiento({
                               {src.cargaTotal != null && (
                                 <div className="bdc-rec-hidraulica">
                                   <span className="bdc-hid-label">Carga hidráulica</span>
-                                  <span className="bdc-hid-valor">{src.cargaTotal} ft · {src.cargaTotalPSI} PSI</span>
+                                  <span className="bdc-hid-valor">{src.cargaTotal} fthd · {src.cargaTotalPSI} PSI</span>
                                 </div>
                               )}
                             </div>
@@ -2714,30 +2714,30 @@ export default function Calentamiento({
                               <div className="bdc-auto-sep" />
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga tramos CE</span>
-                                <span className="bdc-auto-val">{ceSeleccionado.cargaTramos} ft</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaTramos} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                 <span className="bdc-auto-val">
-                                  {(parseFloat(ceSeleccionado.cargaDistanciaIda) + parseFloat(ceSeleccionado.cargaDistanciaReg)).toFixed(2)} ft
+                                  {(parseFloat(ceSeleccionado.cargaDistanciaIda) + parseFloat(ceSeleccionado.cargaDistanciaReg)).toFixed(2)} fthd
                                 </span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga estática</span>
-                                <span className="bdc-auto-val">{ceSeleccionado.cargaEstatica} ft</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaEstatica} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga fricción alt.</span>
-                                <span className="bdc-auto-val">{ceSeleccionado.cargaFriccionAltura} ft</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaFriccionAltura} fthd</span>
                               </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Carga fija global</span>
-                                <span className="bdc-auto-val">{ceSeleccionado.cargaFija_ft} ft</span>
+                                <span className="bdc-auto-val">{ceSeleccionado.cargaFija_ft} fthd</span>
                               </div>
                               <div className="bdc-auto-sep" />
                               <div className="bdc-auto-fila bdc-auto-total">
                                 <span className="bdc-auto-label">Carga total</span>
-                                <span className="bdc-auto-val bdc-hid-val-highlight">{ceSeleccionado.cargaTotal} ft · {ceSeleccionado.cargaTotalPSI} PSI</span>
+                                <span className="bdc-auto-val bdc-hid-val-highlight">{ceSeleccionado.cargaTotal} fthd · {ceSeleccionado.cargaTotalPSI} PSI</span>
                               </div>
                             </div>
                           </div>
@@ -2823,31 +2823,31 @@ export default function Calentamiento({
                                             <div className="bdc-hid-detalle-titulo">Carga hidráulica calculada</div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga tramos CE</span>
-                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaTramos} ft</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaTramos} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga CM ida+reg.</span>
                                               <span className="bdc-auto-val">
-                                                {(parseFloat(ceManual.hidraulica.cargaDistanciaIda) + parseFloat(ceManual.hidraulica.cargaDistanciaReg)).toFixed(2)} ft
+                                                {(parseFloat(ceManual.hidraulica.cargaDistanciaIda) + parseFloat(ceManual.hidraulica.cargaDistanciaReg)).toFixed(2)} fthd
                                               </span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga estática</span>
-                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaEstatica} ft</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaEstatica} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga fricción alt.</span>
-                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFriccionAltura} ft</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFriccionAltura} fthd</span>
                                             </div>
                                             <div className="bdc-auto-fila">
                                               <span className="bdc-auto-label">Carga fija global</span>
-                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFija_ft} ft</span>
+                                              <span className="bdc-auto-val">{ceManual.hidraulica.cargaFija_ft} fthd</span>
                                             </div>
                                             <div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} />
                                             <div className="bdc-auto-fila bdc-auto-total">
                                               <span className="bdc-auto-label">Carga total</span>
                                               <span className="bdc-auto-val bdc-hid-val-highlight">
-                                                {ceManual.hidraulica.cargaTotal} ft · {ceManual.hidraulica.cargaTotalPSI} PSI
+                                                {ceManual.hidraulica.cargaTotal} fthd · {ceManual.hidraulica.cargaTotalPSI} PSI
                                               </span>
                                             </div>
                                           </div>

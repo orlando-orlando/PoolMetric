@@ -174,7 +174,7 @@ function LogoIcono() {
   );
 }
 
-const fmtFt  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} ft`     : "—";
+const fmtFt  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(2)} fthd`     : "—";
 const fmtGPM = (v) => v != null && !isNaN(v) && parseFloat(v) > 0 ? `${parseFloat(v).toFixed(1)} gpm` : "—";
 const fmtKg  = (v) => v != null && !isNaN(v) ? `${parseFloat(v).toFixed(3)} kg/día` : "—";
 const fmtTub = (v) => v ? v.replace("tuberia ", "") + '"' : "—";
