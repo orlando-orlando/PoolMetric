@@ -686,7 +686,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                 <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo nominal</span><span className="bdc-demanda-valor bdc-ok">{infoActiva.equipo.specs.flujo} GPM</span></div>
                 <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo sistema</span><span className="bdc-demanda-valor">{parseFloat(flujoMaximo).toFixed(1)} GPM</span></div>
               </div>
-              {infoActiva.res?.sumaFinal != null && <div className="bdc-rec-hidraulica"><span className="bdc-hid-label">Pérdida de carga total</span><span className="bdc-hid-valor">{(parseFloat(infoActiva.res.sumaFinal) + 1.5).toFixed(2)} fthd</span></div>}
+              {infoActiva.res?.sumaFinal != null && <div className="bdc-rec-hidraulica"><span className="bdc-hid-label">Pérdida de carga total</span><span className="bdc-hid-valor">{(parseFloat(infoActiva.res.sumaFinal) + 1.5).toFixed(2)} fthd · {((parseFloat(infoActiva.res.sumaFinal) + 1.5) * 0.43353).toFixed(2)} PSI</span></div>}
             </div>
           ) : (
             <div className="bdc-recomendada-card bdc-pendiente bdc-inset"><div className="bdc-rec-header">{icono}<div className="bdc-rec-titulo"><span className="bdc-rec-label">{titulo}</span><span className="bdc-rec-modelo bdc-pendiente-txt">{modo === "recomendado" ? "Calculando selección..." : "Selecciona un equipo del catálogo"}</span></div></div></div>
@@ -705,7 +705,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                 <div className="bdc-auto-fila"><span className="bdc-auto-label">Puerto</span><span className="bdc-auto-val">{rec.equipo.specs.dimensionPuerto}"</span></div>
                 {rec.equipo.specs.tamano != null && <div className="bdc-auto-fila"><span className="bdc-auto-label">Tamaño</span><span className="bdc-auto-val">{rec.equipo.specs.tamano}"</span></div>}
                 {rec.tipo && <div className="bdc-auto-fila"><span className="bdc-auto-label">Tipo calculado</span><span className="bdc-auto-val">{rec.tipo}"</span></div>}
-                {rec.res?.sumaFinal != null && (<><div className="bdc-auto-sep" /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(rec.res.sumaFinal) + 1.5).toFixed(2)} fthd</span></div></>)}
+                {rec.res?.sumaFinal != null && (<><div className="bdc-auto-sep" /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(rec.res.sumaFinal) + 1.5).toFixed(2)} fthd · {((parseFloat(rec.res.sumaFinal) + 1.5) * 0.43353).toFixed(2)} PSI</span></div></>)}
               </div>
             </div>
           )}
@@ -749,7 +749,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por equipo requerido</span><span className="bdc-demanda-valor">{parseFloat(manualCalc.flujoPorEquipo).toFixed(2)} GPM</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo nominal del equipo</span><span className="bdc-demanda-valor bdc-ok">{manualCalc.equipo.specs.flujo} GPM</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total instalado</span><span className="bdc-demanda-valor bdc-ok">{parseFloat(manualCalc.flujoTotal).toFixed(1)} GPM</span></div>
-                    {manualCalc.res?.sumaFinal != null && (<><div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(manualCalc.res.sumaFinal) + 1.5).toFixed(2)} fthd</span></div></>)}
+                    {manualCalc.res?.sumaFinal != null && (<><div className="bdc-auto-sep" style={{ margin: "0.5rem 0" }} /><div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">Pérdida de carga</span><span className="bdc-auto-val bdc-hid-val-highlight">{(parseFloat(manualCalc.res.sumaFinal) + 1.5).toFixed(2)} fthd · {((parseFloat(manualCalc.res.sumaFinal) + 1.5) * 0.43353).toFixed(2)} PSI</span></div></>)}
                   </>)}
                 </div>
               )}
@@ -2051,7 +2051,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
                 <div className="bdc-auto-fila"><span className="bdc-auto-label">Potencia total</span><span className="bdc-auto-val">{rec.potenciaTotal} HP</span></div>
                 <div className="bdc-auto-sep" />
                 <div className="bdc-auto-fila"><span className="bdc-auto-label">CDT requerido</span><span className="bdc-auto-val">{parseFloat(cargaRequerida).toFixed(2)} fthd</span></div>
-                <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">CDT disponible</span><span className="bdc-auto-val bdc-hid-val-highlight">{parseFloat(rec.cargaDisponible).toFixed(2)} fthd</span></div>
+                <div className="bdc-auto-fila bdc-auto-total"><span className="bdc-auto-label">CDT disponible</span><span className="bdc-auto-val bdc-hid-val-highlight">{parseFloat(rec.cargaDisponible).toFixed(2)} fthd · {(parseFloat(rec.cargaDisponible) * 0.43353).toFixed(2)} PSI</span></div>
               </div>
             </div>
           )}
@@ -2084,7 +2084,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
                   <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMin})</span></span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelCant(c => Math.max(cantMin, c - 1))}>−</button><span>{selCant}</span><button onClick={() => setSelCant(c => c + 1)}>+</button></div></div>
                   {manualCalc && (<>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por bomba</span><span className="bdc-demanda-valor">{parseFloat(manualCalc.flujoPorBomba).toFixed(2)} GPM</span></div>
-                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">CDT disponible</span><span className={`bdc-demanda-valor ${manualCalc.cargaDisponible >= cargaRequerida ? "bdc-ok" : "bdc-insuf"}`}>{parseFloat(manualCalc.cargaDisponible).toFixed(2)} fthd</span></div>
+                    <div className="bdc-demanda-fila"><span className="bdc-demanda-label">CDT disponible</span><span className={`bdc-demanda-valor ${manualCalc.cargaDisponible >= cargaRequerida ? "bdc-ok" : "bdc-insuf"}`}>{parseFloat(manualCalc.cargaDisponible).toFixed(2)} fthd · {(parseFloat(manualCalc.cargaDisponible) * 0.43353).toFixed(2)} PSI</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Potencia total</span><span className="bdc-demanda-valor bdc-ok">{manualCalc.potenciaTotal} HP</span></div>
                     {manualCalc.cargaDisponible < cargaRequerida && <div className="bdc-manual-aviso">⚠ CDT insuficiente — agrega más bombas</div>}
                   </>)}
