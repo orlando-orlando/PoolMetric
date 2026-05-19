@@ -50,12 +50,21 @@ function cargaEnCurva(curva, flujo_gpm) {
       return p1.carga_ft + t * (p2.carga_ft - p1.carga_ft);
     }
   }
-  const ult  = curva[curva.length - 1];
-  const pen  = curva[curva.length - 2];
+// Fuera del rango publicado — extrapolar con pendiente real de los últimos puntos
+  // pero limitar a que no supere el shut-off ni baje de cero.
+  // Margen permitido: 15% más allá del último punto publicado.
+  const ult     = curva[curva.length - 1];
+  const pen     = curva[curva.length - 2];
+  const shutOff = curva[0].carga_ft;
+  const margen  = ult.flujo_gpm * 0.15;
+
+  if (flujo_gpm > ult.flujo_gpm + margen) return 0;
+
   const dQ   = ult.flujo_gpm - pen.flujo_gpm;
-  if (dQ === 0) return ult.carga_ft;
+  if (dQ === 0) return 0;
   const pend = (ult.carga_ft - pen.carga_ft) / dQ;
-  return Math.max(0, ult.carga_ft + pend * (flujo_gpm - ult.flujo_gpm));
+  const extrapolado = ult.carga_ft + pend * (flujo_gpm - ult.flujo_gpm);
+  return Math.min(shutOff, Math.max(0, extrapolado));
 }
 
 const TAMANO_A_TIPO = { "9x9": "9.0", "12x12": "12.0", "18x18": "18.0" };
@@ -487,7 +496,7 @@ export function calcularEquilibrio({
   const cargasRef0 = calcularCargasRef(flujoInicial);
 
   const PASO = 0.5;
-  const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.3;
+const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.1;
 
   let flujoEq   = null;
   let cdtEq     = null;

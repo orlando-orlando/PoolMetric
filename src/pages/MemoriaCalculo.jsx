@@ -27,8 +27,8 @@ function TablaTramos({ resultado, titulo }) {
             </tr>
           ))}
           <tr style={{ background:"#1a3a5c" }}>
-            <td colSpan={16} style={{ ...td, textAlign:"right", color:"#93c5fd", fontWeight:700 }}>Σ tramos (ft):</td>
-            <td style={{ ...td, color:"#93c5fd", fontWeight:700 }}>{f2(suma)}</td>
+            <td colSpan={16} style={{ ...td, textAlign:"right", color:"#93c5fd", fontWeight:700 }}>Σ tramos (fthd):</td>
+            <td style={{ ...td, color:"#93c5fd", fontWeight:700 }}>{f2(suma)} fthd</td>
           </tr>
         </tbody>
       </table>
@@ -45,8 +45,8 @@ function TablaCuarto({ tablaDistanciaCM, sufijo = "CM" }) {
       <p style={tituloStyle}>Tramo cuarto de máquinas</p>
       <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
         <thead><tr style={{ background:"#0f172a" }}>
-          {["Flujo","Tubería","Vel.","C.Base","Long.(m)","C.Tramo","Codos","L.Codo","C.Codo","Total ft"].map(h => (
-            <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
+              {["Flujo (GPM)","Tubería (in)","Vel. (ft/s)","C.Base (fthd/100)","Long. (m)","C.Tramo (fthd)","Codos (pza.)","L.Codo (ft)","C.Codo (fthd)","Total (fthd)"].map(h => (
+              <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
           ))}
         </tr></thead>
         <tbody><tr>
@@ -68,8 +68,8 @@ function TablaDisparo({ disparo, titulo }) {
       <p style={tituloStyle}>{titulo}</p>
       <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
         <thead><tr style={{ background:"#0f172a" }}>
-          {["Flujo","Tubería","Vel.","C.Base","Long.","C.Tramo","Codos","L.Codo","C.Codo","Red.","L.Red.","C.Red.","Total ft"].map(h => (
-            <th key={h} style={{ padding:"5px 6px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
+              {["Flujo (GPM)","Tubería (in)","Vel. (ft/s)","C.Base (fthd/100)","Long. (m)","C.Tramo (fthd)","Codos (pza.)","L.Codo (ft)","C.Codo (fthd)","Red. (pza.)","L.Red. (ft)","C.Red. (fthd)","Total (fthd)"].map(h => (
+              <th key={h} style={{ padding:"5px 6px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap" }}>{h}</th>
           ))}
         </tr></thead>
         <tbody><tr>
@@ -92,8 +92,8 @@ function TablaResumen({ resumen, titulo }) {
       <p style={tituloStyle}>{titulo}</p>
       <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"220px" }}>
         <thead><tr style={{ background:"#0f172a" }}>
-          {["Diámetro","Tubería (m)","Tees","Codos","Reductions"].map(h=>(
-            <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155" }}>{h}</th>
+              {["Diámetro (in)","Tubería (m)","Tees (pza.)","Codos (pza.)","Red. (pza.)"].map(h=>(
+              <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155" }}>{h}</th>
           ))}
         </tr></thead>
         <tbody>{Object.entries(resumen).map(([d,r])=>(
@@ -145,11 +145,12 @@ function ContenidoEmpotrable({ data, tituloTramos, sufijoCM, tituloDisparo }) {
           <p style={tituloStyle}>Sumatoria</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
             <tbody>
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(sumaTramos)} ft</td></tr>
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto de máquinas (ft):</td><td style={td}>{f2(cmVal)} ft</td></tr>
-              {disparo && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Disparos (ft):</td><td style={td}>{f2(cargaDisparoTotal)} ft</td></tr>}
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Accesorio (ft):</td><td style={td}>1.50 ft</td></tr>
-              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(cargaDinamicaTotal)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (fthd):</td><td style={td}>{f2(sumaTramos)} fthd</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto de máquinas (fthd):</td><td style={td}>{f2(cmVal)} fthd</td></tr>
+              {disparo && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Disparos (fthd):</td><td style={td}>{f2(cargaDisparoTotal)} fthd</td></tr>}
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Accesorio (fthd):</td><td style={td}>1.50 fthd</td></tr>
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (fthd):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(cargaDinamicaTotal)} fthd</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(parseFloat(cargaDinamicaTotal) * 0.43353)} PSI</td></tr>
             </tbody>
           </table>
         </div>
@@ -177,9 +178,9 @@ function ContenidoFiltro({ data }) {
           <p style={tituloStyle}>Sumatoria</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
             <tbody>
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(data.cargaTramos)} ft</td></tr>
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>
-              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (fthd):</td><td style={td}>{f2(data.cargaTramos)} fthd</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (fthd):</td><td style={td}>{f2(data.cargaFija)} fthd</td></tr>
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (fthd):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} fthd</td></tr>
               <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(data.cargaTotalPSI)} PSI</td></tr>
             </tbody>
           </table>
@@ -213,8 +214,8 @@ function ContenidoCalentamiento({ data }) {
           <p style={tituloStyle}>Tramo cuarto de máquinas</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
             <thead><tr style={{ background:"#0f172a" }}>
-              {["","Flujo","Tubería","Vel.","C.Base","Dist.(m)","C.Tubería","Codos","C.Codos","Total"].map(h => (
-                <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
+                  {["","Flujo (GPM)","Tubería (in)","Vel. (ft/s)","C.Base (fthd/100)","Dist. (m)","C.Tramo (fthd)","Codos (pza.)","C.Codo (fthd)","Total (fthd)"].map(h => (
+                  <th key={h} style={{ padding:"5px 8px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -257,8 +258,8 @@ function ContenidoCalentamiento({ data }) {
           <p style={tituloStyle}>Altura vertical al equipo</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
             <thead><tr style={{ background:"#0f172a" }}>
-              {["Altura equipo (m)","Altura máx. sistema (m)","Carga estática","Flujo","Tubería","C.Base","C.Estática (ft)","C.Fricción (ft)","Total (ft)"].map(h => (
-                <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
+                  {["Altura equipo (m)","Altura máx. sistema (m)","Carga estática","Flujo (GPM)","Tubería (in)","C.Base (fthd/100)","C.Estática (fthd)","C.Fricción (fthd)","Total (fthd)"].map(h => (
+                  <th key={h} style={{ padding:"5px 7px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", whiteSpace:"nowrap", fontSize:"0.68rem" }}>{h}</th>
               ))}
             </tr></thead>
             <tbody><tr>
@@ -286,13 +287,13 @@ function ContenidoCalentamiento({ data }) {
           <p style={tituloStyle}>Sumatoria</p>
           <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", minWidth:"260px" }}>
             <tbody>
-              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (ft):</td><td style={td}>{f2(data.cargaTramos)} ft</td></tr>
-              {data.cargaDistanciaIda  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. ida (ft):</td><td style={td}>{f2(data.cargaDistanciaIda)} ft</td></tr>}
-              {data.cargaDistanciaReg  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. reg. (ft):</td><td style={td}>{f2(data.cargaDistanciaReg)} ft</td></tr>}
-              {data.cargaEstatica      != null && parseFloat(data.cargaEstatica) > 0 && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga estática (ft):</td><td style={td}>{f2(data.cargaEstatica)} ft</td></tr>}
-              {data.cargaFriccion      != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Fricción altura (ft):</td><td style={td}>{f2(data.cargaFriccion)} ft</td></tr>}
-              {data.cargaFija          != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (ft):</td><td style={td}>{f2(data.cargaFija)} ft</td></tr>}
-              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (ft):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} ft</td></tr>
+              <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Σ tramos (fthd):</td><td style={td}>{f2(data.cargaTramos)} fthd</td></tr>
+              {data.cargaDistanciaIda  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. ida (fthd):</td><td style={td}>{f2(data.cargaDistanciaIda)} fthd</td></tr>}
+              {data.cargaDistanciaReg  != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Cuarto máq. reg. (fthd):</td><td style={td}>{f2(data.cargaDistanciaReg)} fthd</td></tr>}
+              {data.cargaEstatica      != null && parseFloat(data.cargaEstatica) > 0 && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga estática (fthd):</td><td style={td}>{f2(data.cargaEstatica)} fthd</td></tr>}
+              {data.cargaFriccion      != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Fricción altura (fthd):</td><td style={td}>{f2(data.cargaFriccion)} fthd</td></tr>}
+              {data.cargaFija          != null && <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>Carga fija (fthd):</td><td style={td}>{f2(data.cargaFija)} fthd</td></tr>}
+              <tr style={{ background:"#0c2340" }}><td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700 }}>CDT total (fthd):</td><td style={{ ...td, color:"#60a5fa", fontWeight:700 }}>{f2(data.cargaTotal)} fthd</td></tr>
               <tr><td style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600 }}>CDT total (PSI):</td><td style={td}>{f2(data.cargaTotalPSI)} PSI</td></tr>
             </tbody>
           </table>
@@ -304,16 +305,85 @@ function ContenidoCalentamiento({ data }) {
 
 /* ═══════════ TAB DE EQUIPO: 3 bloques uno bajo otro ═══════════ */
 function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, tituloDisparo }) {
+  const reportesValidos = reportes.filter(Boolean);
+  const [subTab, setSubTab] = useState(0);
+
+  const reporte = reportesValidos[subTab];
+  const data    = reporte ? getEquipoData(reporte, equipoKey) : null;
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:"0" }}>
-      {reportes.map((reporte, i) => {
-        if (!reporte) return null;
-        const data = getEquipoData(reporte, equipoKey);
-        const c = ITER_CONFIG[i];
+    <div style={{ display:"flex", flexDirection:"column" }}>
+      {/* ── Pestañas de carpeta ── */}
+      <div style={{ display:"flex", alignItems:"flex-end", gap:"3px", paddingLeft:"4px" }}>
+        {reportesValidos.map((rep, i) => {
+          const c      = ITER_CONFIG[i];
+          const activa = subTab === i;
+          return (
+            <button
+              key={i}
+              onClick={() => setSubTab(i)}
+              style={{
+                padding: "6px 18px 8px",
+                fontSize: "0.72rem",
+                fontWeight: activa ? 700 : 500,
+                color: activa ? c.textColor : "#64748b",
+                background: activa
+                  ? `rgba(15,23,42,0.85)`
+                  : `rgba(15,23,42,0.3)`,
+                border: `1px solid ${activa ? c.border : "#1e3a5f"}`,
+                borderBottom: activa ? `1px solid rgba(15,23,42,0.85)` : "1px solid #1e3a5f",
+                borderRadius: "6px 6px 0 0",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                position: "relative",
+                top: "1px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                letterSpacing: "0.04em",
+              }}
+            >
+              <span style={{
+                width: "8px", height: "8px", borderRadius: "50%",
+                background: activa ? c.textColor : "#334155",
+                display: "inline-block", flexShrink: 0,
+                boxShadow: activa ? `0 0 6px ${c.textColor}` : "none",
+                transition: "all 0.15s",
+              }} />
+              {c.label}
+              <span style={{ fontSize:"0.65rem", color: activa ? "#94a3b8" : "#334155", fontWeight:400 }}>
+                {f2(rep.flujo)} GPM
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Contenido de la sub-pestaña activa ── */}
+      {reporte && (() => {
+        const c = ITER_CONFIG[subTab];
         return (
-          <div key={i} style={{ border:`1px solid ${c.border}`, borderRadius: i===0?"8px 8px 0 0" : i===reportes.filter(Boolean).length-1?"0 0 8px 8px":"0", marginTop: i===0?0:"-1px", overflow:"hidden" }}>
-            <HeaderIter idx={i} flujo={reporte.flujo} />
-            <div style={{ padding:"1rem", background:"rgba(15,23,42,0.5)" }}>
+          <div style={{
+            border: `1px solid ${c.border}`,
+            borderRadius: subTab === 0 ? "0 8px 8px 8px" : "8px",
+            overflow: "hidden",
+            background: "rgba(15,23,42,0.85)",
+          }}>
+            {/* Mini header informativo */}
+            <div style={{
+              background: c.bg,
+              borderBottom: `1px solid ${c.border}`,
+              padding: "0.4rem 1rem",
+              display: "flex", alignItems: "center", gap: "1.2rem",
+            }}>
+              <span style={{ fontSize:"0.68rem", fontWeight:700, color:c.textColor, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+                {c.label}
+              </span>
+              <span style={{ fontSize:"0.68rem", color:"#94a3b8" }}>
+                Flujo: <strong style={{ color:"#38bdf8" }}>{f2(reporte.flujo)} GPM</strong>
+              </span>
+            </div>
+            <div style={{ padding:"1rem" }}>
               {tipoRender === "empotrable"
                 ? <ContenidoEmpotrable data={data} tituloTramos={tituloTramos} sufijoCM={sufijoCM} tituloDisparo={tituloDisparo} />
                 : tipoRender === "calentamiento"
@@ -323,7 +393,7 @@ function TabEquipo({ equipoKey, reportes, tipoRender, sufijoCM, tituloTramos, ti
             </div>
           </div>
         );
-      })}
+      })()}
     </div>
   );
 }
@@ -396,7 +466,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
           <div style={{ flex:1, padding:"1rem", borderRight:"1px solid #1e3a5f" }}>
             <div style={{ fontSize:"0.65rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Diseño original</div>
             <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#cbd5e1" }}>{resumen.flujoMax} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
-            <div style={{ fontSize:"0.78rem", color:"#64748b", marginTop:"2px" }}>{resumen.cdtDiseno} ft CDT</div>
+            <div style={{ fontSize:"0.78rem", color:"#64748b", marginTop:"2px" }}>{resumen.cdtDiseno} fthd · {f2(parseFloat(resumen.cdtDiseno) * 0.43353)} PSI</div>
           </div>
           {/* Flecha */}
           <div style={{ display:"flex", alignItems:"center", padding:"0 0.5rem", color:"#334155", fontSize:"1.2rem" }}>→</div>
@@ -404,7 +474,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
           <div style={{ flex:1, padding:"1rem", borderRight:"1px solid #1e3a5f", background:"rgba(14,116,144,0.08)" }}>
             <div style={{ fontSize:"0.65rem", color:"#67e8f9", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:"0.5rem" }}>Iteración 1</div>
             <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#67e8f9" }}>{resumen.flujoIter1} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
-            <div style={{ fontSize:"0.78rem", color:"#0891b2", marginTop:"2px" }}>{resumen.cdtIter1} ft CDT</div>
+            <div style={{ fontSize:"0.78rem", color:"#0891b2", marginTop:"2px" }}>{resumen.cdtIter1} fthd · {f2(parseFloat(resumen.cdtIter1) * 0.43353)} PSI</div>
           </div>
           {/* Flecha → Iter2 siempre si existe */}
           {resumen.flujoIter2 && parseFloat(resumen.flujoIter2) > 0 && (
@@ -417,7 +487,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
               Iteración 2{resumen.flujoIter2 === resumen.flujoIter1 ? <span style={{ fontSize:"0.6rem", color:"#16a34a", marginLeft:"6px", fontWeight:400 }}>convergió</span> : null}
             </div>
             <div style={{ fontSize:"1.1rem", fontWeight:800, color:"#86efac" }}>{resumen.flujoIter2} <span style={{ fontSize:"0.7rem", fontWeight:400 }}>GPM</span></div>
-            <div style={{ fontSize:"0.78rem", color:"#16a34a", marginTop:"2px" }}>{resumen.cdtIter2} ft CDT</div>
+            <div style={{ fontSize:"0.78rem", color:"#16a34a", marginTop:"2px" }}>{resumen.cdtIter2} fthd · {f2(parseFloat(resumen.cdtIter2) * 0.43353)} PSI</div>
           </div>
           )}
         </div>
@@ -464,7 +534,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
 
       {/* ── Tabla comparativa de CDT ── */}
       <div>
-        <p style={{ ...tituloStyle, marginTop:0 }}>Relación de cargas por equipo (ft)</p>
+        <p style={{ ...tituloStyle, marginTop:0 }}>Relación de cargas por equipo (fthd)</p>
         <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
           <thead><tr style={{ background:"#0f172a" }}>
             <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 12px", width:"130px" }}>Equipo</th>
@@ -489,7 +559,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                       const v = item?.cargaTotal != null ? parseFloat(item.cargaTotal) : null;
                       const noSuma = false;
                       return <td key={i} style={{ ...td, color: v==null?"#334155":"#fbbf24", padding:"6px 12px", textAlign:"center" }}>
-                        <span>{v!=null ? f2(v)+" ft" : "—"}</span>
+                        <span>{v!=null ? f2(v)+" fthd" : "—"}</span>
                       </td>;
                     }
                     const v = getCDT(r, key);
@@ -507,7 +577,7 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                     const noSuma = esBarredora || (esSuccion && !gobierna);
                     return <td key={i} style={{ ...td, color: v==null?"#334155":noSuma?"#475569":"#60a5fa", padding:"6px 12px", textAlign:"center" }}>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", justifyContent:"center" }}>
-                        <span>{v!=null ? f2(v)+" ft" : "—"}</span>
+                        <span>{v!=null ? f2(v)+" fthd" : "—"}</span>
                         {v!=null && noSuma && <span style={{ fontSize:"0.58rem", color:"#475569" }}>no suma</span>}
                         {v!=null && esSuccion && gobierna && <span style={{ fontSize:"0.58rem", color:"#34d399" }}>↑</span>}
                       </span>
@@ -517,10 +587,13 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
               );
             })}
             {/* Fila CDT Total — usa los valores reales del equilibrio hidráulico */}
-            <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+              <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
               <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>CDT Total sistema</td>
               {[resumen.cdtDiseno, resumen.cdtIter1, resumen.cdtIter2].slice(0, reportes.filter(Boolean).length).map((cdt, i) => (
-                <td key={i} style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>{cdt} ft</td>
+                <td key={i} style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 12px" }}>
+                  <div>{cdt} fthd</div>
+                  <div style={{ fontSize:"0.68rem", color:"#94a3b8", fontWeight:400 }}>{f2(parseFloat(cdt) * 0.43353)} PSI</div>
+                </td>
               ))}
             </tr>
           </tbody>
@@ -667,49 +740,47 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
 
   let itemNum = 0;
 
-  return (
-    <div style={{ background:"#fff", color:"#111", padding:"2rem", borderRadius:"8px", fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
-      {/* Encabezado */}
-      <div style={{ borderBottom:"3px solid #1e3a8a", paddingBottom:"1rem", marginBottom:"1.5rem" }}>
-        <h2 style={{ fontSize:"1.3rem", fontWeight:800, color:"#1e3a8a", margin:0 }}>Relación de equipos</h2>
-        <p style={{ fontSize:"0.8rem", color:"#64748b", margin:"4px 0 0" }}>Memoria de cálculo hidráulico — PoolMetric</p>
-      </div>
+return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
 
       {secciones.map(sec => {
         const filas = sec.keys.map(k => ({ key: k, info: getInfo(k) })).filter(x => x.info);
         if (!filas.length) return null;
         const color = colores[sec.titulo] ?? "#64748b";
         return (
-          <div key={sec.titulo} style={{ marginBottom:"1.75rem" }}>
-            {/* Header de sección */}
-            <div style={{ background:color, color:"#fff", padding:"6px 14px", borderRadius:"4px 4px 0 0", fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em" }}>
-              {sec.titulo}
+          <div key={sec.titulo}>
+            {/* Header de sección estilo tituloStyle con badge de color */}
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"0" }}>
+              <span style={{ display:"inline-block", width:"10px", height:"10px", borderRadius:"2px", background:color, flexShrink:0 }} />
+              <p style={{ fontSize:"0.7rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", color:"#60a5fa", background:"#1e293b", border:"1px solid #334155", borderBottom:"none", padding:"4px 10px", borderRadius:"6px 6px 0 0", display:"inline-block", margin:0 }}>
+                {sec.titulo}
+              </p>
             </div>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.82rem" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155" }}>
               <thead>
-                <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"36px", borderRight:"1px solid #e2e8f0" }}>#</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"25%", borderRight:"1px solid #e2e8f0" }}>Descripción</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"18%", borderRight:"1px solid #e2e8f0" }}>Marca</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>Modelo</th>
-                  <th style={{ padding:"8px 10px", textAlign:"left",   color:"#64748b", fontWeight:600, width:"14%", borderRight:"1px solid #e2e8f0" }}>{headerSpec(sec.titulo)}</th>
-                  <th style={{ padding:"8px 10px", textAlign:"center", color:"#64748b", fontWeight:600, width:"60px" }}>Cant.</th>
+                <tr style={{ background:"#0f172a" }}>
+                  <th style={{ padding:"7px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, width:"36px", border:"1px solid #334155" }}>#</th>
+                  <th style={{ padding:"7px 10px", textAlign:"left",   color:"#94a3b8", fontWeight:600, width:"25%", border:"1px solid #334155" }}>Descripción</th>
+                  <th style={{ padding:"7px 10px", textAlign:"left",   color:"#94a3b8", fontWeight:600, width:"18%", border:"1px solid #334155" }}>Marca</th>
+                  <th style={{ padding:"7px 10px", textAlign:"left",   color:"#94a3b8", fontWeight:600, border:"1px solid #334155" }}>Modelo</th>
+                  <th style={{ padding:"7px 10px", textAlign:"left",   color:"#94a3b8", fontWeight:600, width:"14%", border:"1px solid #334155" }}>{headerSpec(sec.titulo)}</th>
+                  <th style={{ padding:"7px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, width:"60px", border:"1px solid #334155" }}>Cant.</th>
                 </tr>
               </thead>
               <tbody>
                 {filas.map(({ key, info }, i) => {
                   itemNum++;
                   return (
-                    <tr key={key} style={{ borderBottom:"1px solid #e2e8f0", background: i%2===0 ? "#fff" : "#f8fafc" }}>
-                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#94a3b8", fontWeight:600, fontSize:"0.75rem", borderRight:"1px solid #e2e8f0" }}>{itemNum}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"left", color: info.excluido ? "#94a3b8" : "#1e293b", fontWeight:600, borderRight:"1px solid #e2e8f0" }}>
+                    <tr key={key} style={{ background: i%2===0 ? "#1e293b" : "#162032", borderBottom:"1px solid #1e3a5f" }}>
+                      <td style={{ padding:"8px 10px", textAlign:"center", color:"#475569", fontWeight:600, fontSize:"0.73rem", border:"1px solid #1e3a5f" }}>{itemNum}</td>
+                      <td style={{ padding:"8px 10px", textAlign:"left", color: info.excluido ? "#475569" : "#e2e8f0", fontWeight:600, border:"1px solid #1e3a5f" }}>
                         {nombres[key]}
-                        {info.excluido && <span style={{ marginLeft:"8px", fontSize:"0.7rem", fontWeight:600, color:"#ef4444", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:"4px", padding:"1px 6px" }}>excluido</span>}
+                        {info.excluido && <span style={{ marginLeft:"8px", fontSize:"0.68rem", fontWeight:600, color:"#ef4444", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"4px", padding:"1px 6px" }}>excluido</span>}
                       </td>
-                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#475569", borderRight:"1px solid #e2e8f0" }}>{info.marca}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#334155", borderRight:"1px solid #e2e8f0", fontFamily:"monospace", fontSize:"0.8rem" }}>{info.modelo}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"left",   color:"#1d6fa8", fontWeight:500, borderRight:"1px solid #e2e8f0", fontSize:"0.78rem" }}>{getSpec(key, info) ?? "—"}</td>
-                      <td style={{ padding:"9px 10px", textAlign:"center", color:"#1e293b", fontWeight:700 }}>{info.cantidad}</td>
+                      <td style={{ padding:"8px 10px", textAlign:"left", color:"#94a3b8", border:"1px solid #1e3a5f" }}>{info.marca}</td>
+                      <td style={{ padding:"8px 10px", textAlign:"left", color:"#cbd5e1", border:"1px solid #1e3a5f", fontFamily:"monospace", fontSize:"0.78rem" }}>{info.modelo}</td>
+                      <td style={{ padding:"8px 10px", textAlign:"left", color:"#38bdf8", fontWeight:500, border:"1px solid #1e3a5f", fontSize:"0.76rem" }}>{getSpec(key, info) ?? "—"}</td>
+                      <td style={{ padding:"8px 10px", textAlign:"center", color:"#e2e8f0", fontWeight:700, border:"1px solid #1e3a5f" }}>{info.cantidad}</td>
                     </tr>
                   );
                 })}
@@ -719,7 +790,7 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
         );
       })}
 
-      <div style={{ borderTop:"2px solid #e2e8f0", paddingTop:"0.75rem", marginTop:"0.5rem", fontSize:"0.72rem", color:"#94a3b8", textAlign:"center" }}>
+<div style={{ borderTop:"1px solid #1e3a5f", paddingTop:"0.75rem", fontSize:"0.7rem", color:"#334155", textAlign:"center" }}>
         Generado por PoolMetric · Memoria de cálculo hidráulico
       </div>
     </div>
@@ -1205,17 +1276,29 @@ const defEquipos = [
       return true;
     }));
 
-  const tabs = [
-    { label:"📊 Resumen",    comp: <TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /> },
-    { label:"🔧 Equipos",   comp: <TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} equiposConfirmados={equiposConfirmados} estadosDiseno={estadosDiseno} specsEquipos={specsEquipos} specsSanitizacion={specsSanitizacion} specsCalentamiento={specsCalentamiento} /> },
-    { label:"📦 Materiales", comp: <TabExplosionMateriales reportes={reportes} /> },
-    ...(perfilTermico ? [{ label:"🌡 Perfil térmico", comp: <TabPerfilTermico perfilTermico={perfilTermico} /> }] : []),
+const ContenidorTab = ({ children }) => (
+    <div style={{
+      background: "#0f172a",
+      border: "1px solid #334155",
+      borderRadius: "0 8px 8px 8px",
+      padding: "1.5rem",
+      minHeight: "400px",
+    }}>
+      {children}
+    </div>
+  );
+
+const tabs = [
+    { label:"📊 Resumen",    comp: <ContenidorTab><TabResumen reportes={reportes} calentamiento={calentamiento} resumen={resumen} /></ContenidorTab> },
+    { label:"🔧 Equipos",   comp: <ContenidorTab><TabEquiposConsiderar reportes={reportes} calentamiento={calentamiento} resumen={resumen} equiposConfirmados={equiposConfirmados} estadosDiseno={estadosDiseno} specsEquipos={specsEquipos} specsSanitizacion={specsSanitizacion} specsCalentamiento={specsCalentamiento} /></ContenidorTab> },
+    { label:"📦 Materiales", comp: <ContenidorTab><TabExplosionMateriales reportes={reportes} /></ContenidorTab> },
+    ...(perfilTermico ? [{ label:"🌡 Perfil térmico", comp: <ContenidorTab><TabPerfilTermico perfilTermico={perfilTermico} /></ContenidorTab> }] : []),
     ...defEquipos.map(eq => ({
       label: eq.label,
       comp: <TabEquipo equipoKey={eq.key} reportes={reportes} tipoRender={eq.tipo} sufijoCM={eq.sufijoCM} tituloTramos={eq.tituloTramos} tituloDisparo={eq.tituloDisparo} />,
     })),
   ];
-
+ 
   return (
     <div style={{ height:"100vh", display:"flex", flexDirection:"column", fontFamily:"'Segoe UI',system-ui,sans-serif", background:"#0f172a", color:"#e2e8f0", overflow:"hidden" }}>
         {/* Header */}
@@ -1226,31 +1309,111 @@ const defEquipos = [
           {resumen.vol    && parseFloat(resumen.vol)    > 0 && <span><strong style={{ color:"#e2e8f0" }}>Volumen:</strong> {resumen.vol} m³</span>}
           <span><strong style={{ color:"#38bdf8" }}>Flujo máximo:</strong> {resumen.flujoMax} GPM</span>
           {resumen.flujoFinal && <span><strong style={{ color:"#34d399" }}>Flujo operación:</strong> {resumen.flujoFinal} GPM</span>}
-          {resumen.cdtFinal   && <span><strong style={{ color:"#34d399" }}>CDT operación:</strong> {resumen.cdtFinal} ft</span>}
+          {resumen.cdtFinal   && <span><strong style={{ color:"#34d399" }}>CDT operación:</strong> {resumen.cdtFinal} fthd · {f2(parseFloat(resumen.cdtFinal) * 0.43353)} PSI</span>}
         </div>
         {/* Leyenda */}
-        <div style={{ display:"flex", gap:"14px", marginTop:"8px", flexWrap:"wrap" }}>
-          {ITER_CONFIG.map(c => (
-            <span key={c.label} style={{ display:"flex", alignItems:"center", gap:"5px", fontSize:"0.73rem", color:"#94a3b8" }}>
-              <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:c.bg, border:`1px solid ${c.border}`, display:"inline-block" }} />
-              {c.label}
-            </span>
-          ))}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:"8px", flexWrap:"wrap", gap:"8px" }}>
+          <div style={{ display:"flex", gap:"14px", flexWrap:"wrap" }}>
+            {ITER_CONFIG.map(c => (
+              <span key={c.label} style={{ display:"flex", alignItems:"center", gap:"5px", fontSize:"0.73rem", color:"#94a3b8" }}>
+                <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:c.bg, border:`1px solid ${c.border}`, display:"inline-block" }} />
+                {c.label}
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={() => window.open("/memoria-pdf", "_blank")}
+            style={{ padding:"5px 14px", background:"#1d4ed8", border:"1px solid #3b82f6", borderRadius:"6px", color:"#e2e8f0", fontSize:"0.73rem", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 1h7l3 3v11H3V1z" stroke="currentColor" strokeWidth="1.2"/><path d="M10 1v3h3" stroke="currentColor" strokeWidth="1.2"/><line x1="5" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/><line x1="5" y1="9.5" x2="11" y2="9.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/><line x1="5" y1="12" x2="8" y2="12" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/></svg>
+            Generar reporte PDF
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", flexWrap:"wrap", gap:"2px", background:"#1e293b", borderBottom:"2px solid #334155", padding:"0 16px" }}>
-        {tabs.map((tab, i) => (
-          <button key={i} onClick={() => setTabActiva(i)}
-            style={{ padding:"8px 14px", border:"none", background:"transparent", color: tabActiva===i ? "#60a5fa" : "#94a3b8", fontSize:"0.8rem", fontWeight: tabActiva===i ? 700 : 500, cursor:"pointer", borderBottom: tabActiva===i ? "2px solid #60a5fa" : "2px solid transparent", marginBottom:"-2px", whiteSpace:"nowrap", transition:"color 0.15s" }}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
+{/* Tabs — carrusel con flechas */}
+      {(() => {
+        const scrollRef = { current: null };
+        const scroll = (dir) => {
+          if (scrollRef.current) scrollRef.current.scrollLeft += dir * 200;
+        };
+        return (
+          <div style={{ background:"#0f172a", borderBottom:"1px solid #1e3a5f", paddingTop:"8px", display:"flex", alignItems:"flex-end", position:"relative" }}>
+            {/* Flecha izquierda */}
+            <button onClick={() => scroll(-1)} style={{ flexShrink:0, background:"rgba(15,23,42,0.95)", border:"1px solid #1e3a5f", borderBottom:"none", borderRadius:"6px 6px 0 0", color:"#64748b", cursor:"pointer", padding:"7px 10px 9px", fontSize:"0.8rem", position:"relative", top:"1px", transition:"color 0.15s", zIndex:2 }}
+              onMouseEnter={e=>e.currentTarget.style.color="#e2e8f0"} onMouseLeave={e=>e.currentTarget.style.color="#64748b"}>
+              ◀
+            </button>
+            {/* Contenedor scrollable con fade */}
+            <div style={{ position:"relative", flex:1, overflow:"hidden" }}>
+              {/* Fade izquierda */}
+              <div style={{ position:"absolute", left:0, top:0, bottom:"1px", width:"24px", background:"linear-gradient(to right, #0f172a, transparent)", zIndex:1, pointerEvents:"none" }} />
+              {/* Fade derecha */}
+              <div style={{ position:"absolute", right:0, top:0, bottom:"1px", width:"24px", background:"linear-gradient(to left, #0f172a, transparent)", zIndex:1, pointerEvents:"none" }} />
+              <div
+                ref={el => scrollRef.current = el}
+                style={{ display:"flex", gap:"3px", alignItems:"flex-end", overflowX:"auto", paddingLeft:"8px", paddingRight:"8px", scrollbarWidth:"none", scrollBehavior:"smooth" }}>
+                {tabs.map((tab, i) => {
+                  const activa = tabActiva === i;
+                  const iconos = {
+                    "Resumen":      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="3" height="7" rx="0.8" fill="currentColor" opacity="0.7"/><rect x="6" y="5" width="3" height="10" rx="0.8" fill="currentColor" opacity="0.85"/><rect x="11" y="2" width="3" height="13" rx="0.8" fill="currentColor"/></svg>,
+                    "Equipos":      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.41 1.41M11.37 11.37l1.41 1.41M3.22 12.78l1.41-1.41M11.37 4.63l1.41-1.41" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
+                    "Materiales":   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1L14 4.5V11.5L8 15L2 11.5V4.5L8 1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/><path d="M8 1L8 15M2 4.5L14 4.5" stroke="currentColor" strokeWidth="1" opacity="0.6"/></svg>,
+                    "Perfil térmico": <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="3" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="6.5" cy="12" r="2" stroke="currentColor" strokeWidth="1.2"/><line x1="8" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/><line x1="8" y1="7" x2="10" y2="7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/></svg>,
+                    "Bomba de calor":   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="8" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.2"/><path d="M9 8h3l1-2h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M9 8h3l1 2h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><circle cx="5" cy="8.5" r="2" stroke="currentColor" strokeWidth="1"/></svg>,
+                    "Panel solar":      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/><line x1="5.5" y1="4" x2="5.5" y2="12" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/><line x1="10.5" y1="4" x2="10.5" y2="12" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/><line x1="8" y1="1" x2="8" y2="3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+                    "Caldera de gas":   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="3" y="3" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M6 7Q7 5 8 7Q9 5 10 7" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/><line x1="5" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/></svg>,
+                    "Calentador eléctrico": <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1L6 7h4L7 15" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+                    "Generador de cloro salino": <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2"/><line x1="8" y1="4" x2="8" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="4" y1="8" x2="12" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+                    "Lámpara UV":       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="2.5" ry="6" stroke="currentColor" strokeWidth="1.2"/><line x1="8" y1="2" x2="8" y2="1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="8" y1="15" x2="8" y2="14" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="1.5" y1="8" x2="0.5" y2="8" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/><line x1="14.5" y1="8" x2="15.5" y2="8" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/></svg>,
+                    "Prefiltro":        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4" rx="5" ry="2" stroke="currentColor" strokeWidth="1.2"/><rect x="3" y="4" width="10" height="8" stroke="currentColor" strokeWidth="1.2"/><line x1="5" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/><line x1="5" y1="9" x2="11" y2="9" stroke="currentColor" strokeWidth="0.9" opacity="0.6"/></svg>,
+                    "Filtro de arena":  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4" rx="5" ry="2" stroke="currentColor" strokeWidth="1.2"/><rect x="3" y="4" width="10" height="8" stroke="currentColor" strokeWidth="1.2"/><ellipse cx="8" cy="9" rx="3" ry="1.2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="0.8"/></svg>,
+                    "Retorno":          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="11" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.2"/><line x1="1" y1="8" x2="2.5" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="13.5" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+                    "Desnatador":       <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="14" height="6" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="4" y="4" width="4" height="5" rx="0.8" stroke="currentColor" strokeWidth="1"/><rect x="8" y="4" width="4" height="5" rx="0.8" stroke="currentColor" strokeWidth="1"/></svg>,
+                    "Dren de canal":    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="6" width="14" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="4" width="14" height="3" rx="0.8" stroke="currentColor" strokeWidth="1" opacity="0.6"/><rect x="5" y="11" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="0.9"/><rect x="9" y="11" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="0.9"/></svg>,
+                    "Dren de fondo":    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="9" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="4" y="10" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="0.9"/><rect x="9" y="10" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="0.9"/></svg>,
+                    "Barredora":        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/><circle cx="5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1"/><circle cx="11" cy="7.5" r="2" stroke="currentColor" strokeWidth="1"/><line x1="4" y1="11" x2="4" y2="13" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.7"/><line x1="8" y1="11" x2="8" y2="13" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.7"/><line x1="12" y1="11" x2="12" y2="13" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.7"/></svg>,
+                  };
+                  const labelLimpio = tab.label.replace(/^[\p{Emoji}\s📊🔧📦🌡]+/u, "").trim();
+                  const icono = iconos[labelLimpio] ?? <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3"/></svg>;
+                  return (
+                    <button key={i} onClick={() => setTabActiva(i)}
+                      style={{
+                        padding: "7px 14px 9px",
+                        fontSize: "0.73rem",
+                        fontWeight: activa ? 700 : 400,
+                        color: activa ? "#e2e8f0" : "#64748b",
+                        background: activa ? "#0f172a" : "rgba(15,23,42,0.4)",
+                        border: `1px solid ${activa ? "#334155" : "#1e3a5f"}`,
+                        borderBottom: activa ? "1px solid #0f172a" : "1px solid #1e3a5f",
+                        borderRadius: "6px 6px 0 0",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.15s",
+                        position: "relative",
+                        top: "1px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        flexShrink: 0,
+                      }}>
+                      <span style={{ color: activa ? "#60a5fa" : "#475569", display:"flex", alignItems:"center" }}>{icono}</span>
+                      {labelLimpio}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Flecha derecha */}
+            <button onClick={() => scroll(1)} style={{ flexShrink:0, background:"rgba(15,23,42,0.95)", border:"1px solid #1e3a5f", borderBottom:"none", borderRadius:"6px 6px 0 0", color:"#64748b", cursor:"pointer", padding:"7px 10px 9px", fontSize:"0.8rem", position:"relative", top:"1px", transition:"color 0.15s", zIndex:2 }}
+              onMouseEnter={e=>e.currentTarget.style.color="#e2e8f0"} onMouseLeave={e=>e.currentTarget.style.color="#64748b"}>
+              ▶
+            </button>
+          </div>
+        );
+      })()}
+ 
       {/* Contenido */}
-      <div style={{ flex:1, padding:"20px 16px", overflowX:"auto", overflowY:"auto" }}>
+      <div style={{ flex:1, padding:"16px", overflowX:"auto", overflowY:"auto", background:"#0f172a" }}>
         {tabs[tabActiva]?.comp}
       </div>
     </div>

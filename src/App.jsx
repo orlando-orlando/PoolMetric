@@ -1,12 +1,5 @@
-// Al inicio de App.jsx
-if (window.location.pathname === "/memoria-calculo") {
-  import("./pages/MemoriaCalculo.jsx").then(m => {
-    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
-  });
-  // early return para no renderizar el resto
-}
-
 import "./estilos.css";
+import ReactDOM from "react-dom/client";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {
   Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette,
@@ -1142,5 +1135,17 @@ export default function App() {
       </div>
 
     </div>
-  );
+);
+}
+
+if (window.location.pathname === "/memoria-pdf") {
+  import("./pages/MemoriaPDF.jsx").then(m => {
+    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
+  });
+} else if (window.location.pathname === "/memoria-calculo") {
+  import("./pages/MemoriaCalculo.jsx").then(m => {
+    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
+  });
+} else {
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 }
