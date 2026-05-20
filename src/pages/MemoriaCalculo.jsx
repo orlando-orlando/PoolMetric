@@ -989,10 +989,9 @@ function TabExplosionMateriales({ reportes }) {
   );
 }
 
-/* ═══════════ TAB PERFIL TÉRMICO ═══════════ */
 function TabPerfilTermico({ perfilTermico }) {
-  const canvasRef = useRef(null);
-  const chartRef  = useRef(null);
+  const canvasPieRef = useRef(null);
+  const canvasBarRef = useRef(null);
 
   if (!perfilTermico) return (
     <div style={{ padding:"2rem", color:"#475569", fontSize:"0.78rem", textAlign:"center" }}>
@@ -1033,43 +1032,190 @@ function TabPerfilTermico({ perfilTermico }) {
   const perdidaClima = ["evaporacion","conveccion","radiacion","transmision","infinity","canal"]
     .reduce((s, k) => s + (parseFloat(perdidasBTU[k]) || 0), 0);
 
-  // Dibujar gráfica de pie con canvas puro (sin Chart.js externo)
+  const MESES_CORTOS = {
+    Enero:"Ene", Febrero:"Feb", Marzo:"Mar", Abril:"Abr", Mayo:"May",
+    Junio:"Jun", Julio:"Jul", Agosto:"Ago", Septiembre:"Sep",
+    Octubre:"Oct", Noviembre:"Nov", Diciembre:"Dic",
+  };
+
+  // ── Gráfica de pie con animación ──
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = canvasPieRef.current;
     if (!canvas || PERDIDAS.length === 0) return;
     const ctx = canvas.getContext("2d");
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const r  = Math.min(cx, cy) - 40;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cx  = canvas.width / 2;
+    const cy  = canvas.height / 2;
+    const r   = Math.min(cx, cy) - 40;
 
-    let startAngle = -Math.PI / 2;
-    for (const p of PERDIDAS) {
-      const val   = parseFloat(perdidasBTU[p.key]) || 0;
-      const slice = (val / total) * 2 * Math.PI;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-      ctx.closePath();
-      ctx.fillStyle = p.color;
-      ctx.fill();
-      ctx.strokeStyle = "#0f172a";
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    // Precalcular slices
+    const slices = PERDIDAS.map(p => ({
+      ...p,
+      val:   parseFloat(perdidasBTU[p.key]) || 0,
+      slice: ((parseFloat(perdidasBTU[p.key]) || 0) / total) * 2 * Math.PI,
+    }));
 
-      // Label si el slice es grande
-      if (slice > 0.25) {
-        const midAngle = startAngle + slice / 2;
-        const lx = cx + (r * 0.65) * Math.cos(midAngle);
-        const ly = cy + (r * 0.65) * Math.sin(midAngle);
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 11px system-ui";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(`${((val/total)*100).toFixed(0)}%`, lx, ly);
+    const DURACION = 800; // ms
+    const inicio   = performance.now();
+
+    const dibujar = (progreso) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const totalAngle = progreso * 2 * Math.PI;
+      let startAngle   = -Math.PI / 2;
+      let acumAngle    = 0;
+
+      for (const s of slices) {
+        if (acumAngle >= totalAngle) break;
+        const sliceActual = Math.min(s.slice, totalAngle - acumAngle);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAngle, startAngle + sliceActual);
+        ctx.closePath();
+        ctx.fillStyle = s.color;
+        ctx.fill();
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth   = 2;
+        ctx.stroke();
+
+        // Label solo cuando el slice está completo (progreso > umbral)
+        const completoPct = (acumAngle + s.slice) / (2 * Math.PI);
+        if (progreso >= completoPct && s.slice > 0.25) {
+          const midAngle = startAngle + s.slice / 2;
+          const lx = cx + (r * 0.62) * Math.cos(midAngle);
+          const ly = cy + (r * 0.62) * Math.sin(midAngle);
+          ctx.fillStyle = "#fff";
+          ctx.font      = `bold ${Math.round(canvas.width / 28)}px system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`${((s.val / total) * 100).toFixed(0)}%`, lx, ly);
+        }
+
+        startAngle  += sliceActual;
+        acumAngle   += sliceActual;
       }
-      startAngle += slice;
-    }
+    };
+
+    let rafId;
+    const animar = (ahora) => {
+      const elapsed  = ahora - inicio;
+      // Ease out cubic
+      const t        = Math.min(elapsed / DURACION, 1);
+      const progreso = 1 - Math.pow(1 - t, 3);
+      dibujar(progreso);
+      if (t < 1) rafId = requestAnimationFrame(animar);
+    };
+
+    rafId = requestAnimationFrame(animar);
+    return () => cancelAnimationFrame(rafId);
   }, [perdidaTotalBTU, JSON.stringify(perdidasBTU)]);
+
+  // ── Gráfica de barras ──
+  const drawBarChart = (canvas) => {
+    if (!canvas) return;
+    const W = 1200, H = 480, PAD_L = 52, PAD_R = 20, PAD_T = 28, PAD_B = 56;
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx    = canvas.getContext("2d");
+    const areaW  = W - PAD_L - PAD_R;
+    const areaH  = H - PAD_T - PAD_B;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(0, 0, W, H);
+
+    const temps  = tablaClima.map(m => parseFloat(m.tProm));
+    const minT   = Math.floor(Math.min(...temps, tempDeseada) - 3);
+    const maxT   = Math.ceil( Math.max(...temps, tempDeseada) + 3);
+    const n      = tablaClima.length;
+    const gap    = areaW / n;
+    const barW   = Math.floor(gap * 0.55);
+    const yScale = (t) => PAD_T + areaH - ((t - minT) / (maxT - minT)) * areaH;
+    const xBar   = (i) => PAD_L + gap * i + (gap - barW) / 2;
+
+    // Cuadrícula
+    const steps = 5;
+    for (let s = 0; s <= steps; s++) {
+      const t = minT + ((maxT - minT) / steps) * s;
+      const y = yScale(t);
+      ctx.strokeStyle = "#1e3a5f";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#475569";
+      ctx.font = "11px system-ui";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${Math.round(t)}°`, PAD_L - 6, y);
+    }
+
+    // Línea temperatura deseada
+    const yDes = yScale(tempDeseada);
+    ctx.strokeStyle = "#34d399";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(PAD_L, yDes); ctx.lineTo(W - PAD_R, yDes); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#34d399";
+    ctx.font = "bold 11px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`Td ${tempDeseada}°C`, W - PAD_R - 72, yDes - 10);
+
+    // Barras
+    tablaClima.forEach((mes, i) => {
+      const t    = parseFloat(mes.tProm);
+      const x    = xBar(i);
+      const yTop = yScale(t);
+      const barH = yScale(minT) - yTop;
+      const esMes    = mesMasFrio?.mes === mes.mes;
+      const seCalien = mesesCalentar[mes.mes];
+      const necesita = t < tempDeseada;
+
+      let color = "#334155";
+      if (esMes)                      color = "#f97316";
+      else if (necesita && seCalien)  color = "#0891b2";
+      else if (necesita)              color = "#1e40af";
+      else                            color = "#166534";
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(x, yTop, barW, barH, [3, 3, 0, 0]);
+      } else {
+        ctx.rect(x, yTop, barW, barH);
+      }
+      ctx.fill();
+
+      // Temperatura encima
+      ctx.fillStyle = esMes ? "#f97316" : "#94a3b8";
+      ctx.font = `${esMes ? "bold " : ""}11px system-ui`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`${t}°`, x + barW / 2, yTop - 2);
+
+      // Estrella mes más frío
+      if (esMes) {
+        ctx.fillStyle = "#f97316";
+        ctx.font = "12px system-ui";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("★", x + barW / 2, yTop - 14);
+      }
+
+      // Nombre mes
+      ctx.fillStyle = esMes ? "#f97316" : "#64748b";
+      ctx.font = `${esMes ? "bold " : ""}11px system-ui`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(MESES_CORTOS[mes.mes] ?? mes.mes.slice(0,3), x + barW / 2, yScale(minT) + 7);
+    });
+
+    // Eje X
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_L, yScale(minT)); ctx.lineTo(W - PAD_R, yScale(minT)); ctx.stroke();
+  };
 
   const thS = { padding:"6px 10px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", fontSize:"0.7rem", whiteSpace:"nowrap" };
   const tdS = (extra={}) => ({ padding:"5px 8px", border:"1px solid #1e3a5f", color:"#cbd5e1", textAlign:"center", fontSize:"0.72rem", verticalAlign:"middle", ...extra });
@@ -1077,163 +1223,212 @@ function TabPerfilTermico({ perfilTermico }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"1.5rem" }}>
 
-      {/* ── Parámetros del diseño ── */}
+      {/* ── 1. Tabla de parámetros de diseño — ancho completo ── */}
       <div>
         <p style={tituloStyle}>Parámetros del diseño térmico</p>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:"0.6rem", padding:"0.75rem 1rem", background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px" }}>
-          {[
-            { label:"Ciudad",           val: NOMBRES_CIUDAD[ciudad] ?? ciudad },
-            { label:"Temp. deseada",    val: `${tempDeseada} °C` },
-            { label:"Cubierta térmica", val: cubierta ? "Sí" : "No" },
-            { label:"Techada",          val: techada  ? "Sí" : "No" },
-            { label:"Mes más frío",     val: mesMasFrio ? `${mesMasFrio.mes} (${mesMasFrio.tProm}°C prom.)` : "—" },
-          ].map(({ label, val }) => (
-            <div key={label} style={{ padding:"0.4rem 0.8rem", background:"rgba(15,23,42,0.5)", border:"1px solid #1e3a5f", borderRadius:"6px", fontSize:"0.73rem" }}>
-              <span style={{ color:"#64748b" }}>{label}: </span>
-              <span style={{ color:"#e2e8f0", fontWeight:600 }}>{val}</span>
-            </div>
-          ))}
+        <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", overflow:"hidden" }}>
+          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", width:"100%" }}>
+            <thead>
+              <tr style={{ background:"#0f172a" }}>
+                {["Parámetro","Valor","Descripción"].map(h => (
+                  <th key={h} style={{ padding:"7px 12px", color:"#94a3b8", fontWeight:600, border:"1px solid #334155", textAlign:"left", fontSize:"0.7rem" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { param:"Ciudad", val: NOMBRES_CIUDAD[ciudad] ?? ciudad, desc:"Ubicación geográfica del proyecto" },
+                { param:"Temperatura deseada (Td)", val:`${tempDeseada} °C`, desc:"Temperatura objetivo del agua de la alberca" },
+                { param:"Temperatura ambiente diseño (Ta)", val: mesMasFrio ? `${mesMasFrio.tProm} °C` : "—", desc:`Temperatura promedio del mes más frío (${mesMasFrio?.mes ?? "—"})` },
+                { param:"ΔT de diseño", val: mesMasFrio ? `${(tempDeseada - parseFloat(mesMasFrio.tProm)).toFixed(1)} °C` : "—", desc:"Diferencia Td − Ta — mayor ΔT implica mayor demanda energética" },
+                { param:"Cubierta térmica nocturna", val: cubierta ? "Sí" : "No", desc: cubierta ? "Reduce pérdidas por evaporación y convección hasta ~50%" : "Sin cubierta — pérdidas máximas en horas nocturnas" },
+                { param:"Alberca techada", val: techada ? "Sí" : "No", desc: techada ? "Protegida del viento directo — menor convección" : "Expuesta al exterior — convección libre por viento" },
+                { param:"Velocidad de viento de diseño", val: mesMasFrio?.viento ?? "—", desc:"Velocidad usada para calcular pérdidas por convección forzada" },
+                { param:"Humedad relativa de diseño", val: mesMasFrio ? `${mesMasFrio.humedad}%` : "—", desc:"Humedad del mes más frío — afecta la tasa de evaporación" },
+                { param:"Pérdida total del sistema", val:`${Math.round(parseFloat(perdidaTotalBTU)||0).toLocaleString("es-MX")} BTU/h`, desc:"Capacidad mínima requerida del equipo de calentamiento" },
+              ].map(({ param, val, desc }, i) => (
+                <tr key={param} style={{ background: i%2===0 ? "#1e293b" : "#162032" }}>
+                  <td style={{ padding:"7px 12px", border:"1px solid #1e3a5f", color:"#e2e8f0", fontWeight:600, fontSize:"0.73rem", whiteSpace:"nowrap" }}>{param}</td>
+                  <td style={{ padding:"7px 12px", border:"1px solid #1e3a5f", color:"#38bdf8", fontWeight:700, fontSize:"0.78rem", whiteSpace:"nowrap" }}>{val}</td>
+                  <td style={{ padding:"7px 12px", border:"1px solid #1e3a5f", color:"#64748b", fontSize:"0.7rem", lineHeight:1.5 }}>{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ── Mes más frío detalle ── */}
-      {mesMasFrio && (
-        <div>
-          <p style={tituloStyle}>Mes más frío seleccionado — condiciones de diseño</p>
-          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155" }}>
-            <thead><tr style={{ background:"#0f172a" }}>
-              {["Mes","T° Min (°C)","T° Prom (°C)","T° Max (°C)","Humedad (%)","Viento","Por qué se selecciona"].map(h => (
-                <th key={h} style={thS}>{h}</th>
+{/* ── 2. Gráficas lado a lado — misma altura ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", alignItems:"stretch" }}>
+
+        {/* Gráfica de barras */}
+        <div style={{ display:"flex", flexDirection:"column" }}>
+          <p style={tituloStyle}>Temperatura promedio mensual vs Td</p>
+          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", padding:"0.75rem", display:"flex", flexDirection:"column", flex:1 }}>
+            <div style={{ flex:1, minHeight:0 }}>
+              <canvas
+                ref={drawBarChart}
+                style={{ width:"100%", height:"100%", borderRadius:"4px", display:"block" }}
+              />
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:"0.5rem", marginTop:"0.6rem" }}>
+              {[
+                { color:"#f97316", label:"Mes de diseño" },
+                { color:"#0891b2", label:"Requiere calent. — seleccionado" },
+                { color:"#1e40af", label:"Requiere calent. — no seleccionado" },
+                { color:"#166534", label:"No requiere calentamiento" },
+              ].map(({ color, label }) => (
+                <span key={label} style={{ display:"flex", alignItems:"center", gap:"4px", fontSize:"0.65rem", color:"#64748b" }}>
+                  <span style={{ width:"9px", height:"9px", background:color, borderRadius:"2px", display:"inline-block", flexShrink:0 }} />
+                  {label}
+                </span>
               ))}
-            </tr></thead>
-            <tbody><tr>
-              <td style={tdS({ color:"#38bdf8", fontWeight:700 })}>{mesMasFrio.mes}</td>
-              <td style={tdS({ color:"#7dd3fc" })}>{mesMasFrio.tMin}</td>
-              <td style={tdS({ color:"#f97316", fontWeight:700 })}>{mesMasFrio.tProm}</td>
-              <td style={tdS()}>{mesMasFrio.tMax}</td>
-              <td style={tdS()}>{mesMasFrio.humedad}</td>
-              <td style={tdS()}>{mesMasFrio.viento}</td>
-              <td style={tdS({ color:"#94a3b8", fontStyle:"italic", textAlign:"left" })}>
-                Temperatura promedio más baja entre los meses seleccionados para calentar → mayor demanda energética
-              </td>
-            </tr></tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ── Tabla climática mensual ── */}
-      {tablaClima.length > 0 && (
-        <div>
-          <p style={tituloStyle}>Tabla climática mensual</p>
-          <table style={{ borderCollapse:"collapse", fontSize:"0.72rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
-            <thead><tr style={{ background:"#0f172a" }}>
-              {["Mes","T° Min","T° Prom","T° Max","Humedad","Viento","Pérdida clima (BTU/h)","Calentar"].map(h => (
-                <th key={h} style={{...thS, textAlign:"center"}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {tablaClima.map((m, i) => {
-                const esMasFrio  = mesMasFrio?.mes === m.mes;
-                const seleccionado = mesesCalentar[m.mes];
-                return (
-                  <tr key={m.mes} style={{
-                    background: esMasFrio ? "rgba(249,115,22,0.12)" : i%2===0 ? "#1e293b" : "#162032",
-                    borderLeft: esMasFrio ? "3px solid #f97316" : "3px solid transparent",
-                  }}>
-                    <td style={tdS({ textAlign:"left", fontWeight: esMasFrio ? 700 : 400, color: esMasFrio ? "#f97316" : "#e2e8f0" })}>
-                      {m.mes}{esMasFrio ? " ★" : ""}
-                    </td>
-                    <td style={tdS({ color:"#7dd3fc" })}>{m.tMin}°C</td>
-                    <td style={tdS({ fontWeight: esMasFrio ? 700 : 400, color: esMasFrio ? "#f97316" : "#e2e8f0" })}>{m.tProm}°C</td>
-                    <td style={tdS()}>{m.tMax}°C</td>
-                    <td style={tdS()}>{m.humedad}%</td>
-                    <td style={tdS()}>{m.viento}</td>
-                    <td style={tdS({ color: esMasFrio ? "#f97316" : m.perdidaClima > 0 ? "#94a3b8" : "#475569", fontWeight: esMasFrio ? 700 : 400 })}>
-                      {m.perdidaClima > 0 ? m.perdidaClima.toLocaleString("es-MX") : "—"}
-                    </td>
-                    <td style={tdS({ color: seleccionado ? "#34d399" : "#475569" })}>
-                      {seleccionado ? "✓" : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ── Pérdidas + Gráfica ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.5rem", alignItems:"start" }}>
-
-        {/* Tabla de pérdidas */}
-        <div>
-          <p style={tituloStyle}>Pérdidas energéticas del sistema</p>
-          <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
-            <thead><tr style={{ background:"#0f172a" }}>
-              <th style={{ ...thS, textAlign:"left" }}>Concepto</th>
-              <th style={thS}>BTU/h</th>
-              <th style={thS}>%</th>
-            </tr></thead>
-            <tbody>
-              {PERDIDAS.map((p, i) => {
-                const val = parseFloat(perdidasBTU[p.key]) || 0;
-                const pct = total > 0 ? (val / total * 100).toFixed(1) : "0.0";
-                const esTuberia = p.key === "tuberia";
-                return (
-                  <>
-                    {esTuberia && perdidaClima > 0 && (
-                      <tr key="subtotal-clima" style={{ background:"#162032", borderTop:"1px dashed #334155" }}>
-                        <td style={tdS({ textAlign:"left", color:"#94a3b8", fontStyle:"italic" })}>
-                          <span style={{ width:"10px", height:"10px", display:"inline-block", marginRight:"6px" }} />
-                          Subtotal clima
-                        </td>
-                        <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{fmtBTU(perdidaClima)}</td>
-                        <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{total > 0 ? (perdidaClima/total*100).toFixed(1) : "0.0"}%</td>
-                      </tr>
-                    )}
-                    <tr key={p.key} style={{ background: esTuberia ? "#1a2d1a" : i%2===0?"#1e293b":"#162032" }}>
-                      <td style={tdS({ textAlign:"left", display:"flex", alignItems:"center", gap:"6px", color: esTuberia ? "#fbbf24" : undefined })}>
-                        <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
-                        {p.label}
-                      </td>
-                      <td style={tdS({ color: esTuberia ? "#fbbf24" : "#e2e8f0", fontWeight:500 })}>{fmtBTU(val)}</td>
-                      <td style={tdS({ color:"#94a3b8" })}>{pct}%</td>
-                    </tr>
-                  </>
-                );
-              })}
-              <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
-                <td style={tdS({ textAlign:"left", color:"#60a5fa", fontWeight:700 })}>TOTAL</td>
-                <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>{fmtBTU(total)}</td>
-                <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>100%</td>
-              </tr>
-            </tbody>
-          </table>
+              <span style={{ display:"flex", alignItems:"center", gap:"4px", fontSize:"0.65rem", color:"#64748b" }}>
+                <span style={{ width:"16px", height:"2px", borderTop:"2px dashed #34d399", display:"inline-block", flexShrink:0 }} />
+                Temperatura deseada
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Gráfica de pie */}
-        <div style={{ display:"flex", flexDirection:"column", gap:"0.5rem" }}>
+        <div style={{ display:"flex", flexDirection:"column" }}>
           <p style={tituloStyle}>Distribución de pérdidas</p>
-          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", padding:"1rem", display:"flex", gap:"1.5rem", alignItems:"center", flexWrap:"wrap", justifyContent:"center" }}>
-            <canvas ref={canvasRef} width={240} height={240} />
-            {/* Leyenda */}
-            <div style={{ display:"flex", flexDirection:"column", gap:"0.35rem" }}>
-              {PERDIDAS.map(p => (
-                <div key={p.key} style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"0.7rem", color:"#cbd5e1" }}>
-                  <span style={{ width:"12px", height:"12px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
-                  {p.label}: {fmtBTU(parseFloat(perdidasBTU[p.key])||0)} BTU/h
-                </div>
-              ))}
+          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", padding:"0.75rem 0.75rem 0.5rem", display:"flex", flexDirection:"column", flex:1 }}>
+            {/* Canvas centrado y grande */}
+            <div style={{ display:"flex", justifyContent:"center", flex:1, minHeight:0 }}>
+              <canvas
+                ref={canvasPieRef}
+                width={480}
+                height={480}
+                style={{ width:"100%", maxWidth:"340px", height:"auto" }}
+              />
+            </div>
+            {/* Leyenda compacta abajo */}
+            <div style={{ display:"flex", flexDirection:"column", gap:"0.2rem", marginTop:"0.5rem" }}>
+              {PERDIDAS.map(p => {
+                const val = parseFloat(perdidasBTU[p.key]) || 0;
+                const pct = total > 0 ? (val/total*100).toFixed(1) : "0.0";
+                return (
+                  <div key={p.key} style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"0.68rem" }}>
+                    <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
+                    <span style={{ flex:1, color:"#94a3b8" }}>{p.label}</span>
+                    <span style={{ color:"#e2e8f0", fontWeight:600, fontVariantNumeric:"tabular-nums" }}>{fmtBTU(val)}</span>
+                    <span style={{ color:"#475569", width:"40px", textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{pct}%</span>
+                  </div>
+                );
+              })}
+              <div style={{ borderTop:"1px solid #1e3a5f", paddingTop:"0.3rem", marginTop:"0.1rem", display:"flex", alignItems:"center", gap:"6px", fontSize:"0.7rem" }}>
+                <span style={{ width:"10px", height:"10px", display:"inline-block", flexShrink:0 }} />
+                <span style={{ flex:1, color:"#60a5fa", fontWeight:700 }}>Total</span>
+                <span style={{ color:"#60a5fa", fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{fmtBTU(total)}</span>
+                <span style={{ color:"#60a5fa", width:"40px", textAlign:"right", fontWeight:700 }}>100%</span>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
+
+      {/* ── 3. Tablas debajo de las gráficas — mismo grid ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", alignItems:"start" }}>
+
+        {/* Tabla climática mensual */}
+        <div>
+          <p style={tituloStyle}>Tabla climática mensual</p>
+          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", overflow:"hidden" }}>
+            <table style={{ borderCollapse:"collapse", fontSize:"0.7rem", width:"100%" }}>
+              <thead>
+                <tr style={{ background:"#0f172a" }}>
+                  {["Mes","T° Min","T° Prom","T° Max","HR%","Viento","Pérdida (BTU/h)","Calent."].map(h => (
+                    <th key={h} style={{ ...thS, textAlign:"center", padding:"6px 8px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tablaClima.map((m, i) => {
+                  const esMasFrio   = mesMasFrio?.mes === m.mes;
+                  const seleccionado = mesesCalentar[m.mes];
+                  return (
+                    <tr key={m.mes} style={{
+                      background: esMasFrio ? "rgba(249,115,22,0.12)" : i%2===0 ? "#1e293b" : "#162032",
+                      borderLeft: esMasFrio ? "3px solid #f97316" : "3px solid transparent",
+                    }}>
+                      <td style={tdS({ textAlign:"left", fontWeight: esMasFrio?700:400, color: esMasFrio?"#f97316":"#e2e8f0", padding:"5px 8px" })}>
+                        {m.mes}{esMasFrio ? " ★" : ""}
+                      </td>
+                      <td style={tdS({ color:"#7dd3fc" })}>{m.tMin}°</td>
+                      <td style={tdS({ fontWeight: esMasFrio?700:400, color: esMasFrio?"#f97316":"#e2e8f0" })}>{m.tProm}°</td>
+                      <td style={tdS()}>{m.tMax}°</td>
+                      <td style={tdS()}>{m.humedad}%</td>
+                      <td style={tdS()}>{m.viento}</td>
+                      <td style={tdS({ color: esMasFrio?"#f97316": m.perdidaClima>0?"#94a3b8":"#475569", fontWeight: esMasFrio?700:400 })}>
+                        {m.perdidaClima > 0 ? m.perdidaClima.toLocaleString("es-MX") : "—"}
+                      </td>
+                      <td style={tdS({ color: seleccionado?"#34d399":"#475569" })}>
+                        {seleccionado ? "✓" : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tabla de pérdidas energéticas */}
+        <div>
+          <p style={tituloStyle}>Pérdidas energéticas del sistema</p>
+          <div style={{ background:"#1e293b", border:"1px solid #334155", borderRadius:"0 6px 6px 6px", overflow:"hidden" }}>
+            <table style={{ borderCollapse:"collapse", fontSize:"0.73rem", width:"100%" }}>
+              <thead>
+                <tr style={{ background:"#0f172a" }}>
+                  {["Concepto","BTU/h","%"].map(h => (
+                    <th key={h} style={{ ...thS, textAlign: h==="Concepto"?"left":"center" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PERDIDAS.map((p, i) => {
+                  const val = parseFloat(perdidasBTU[p.key]) || 0;
+                  const pct = total > 0 ? (val/total*100).toFixed(1) : "0.0";
+                  const esTuberia = p.key === "tuberia";
+                  return (
+                    <>
+                      {esTuberia && perdidaClima > 0 && (
+                        <tr key="subtotal" style={{ background:"#162032", borderTop:"1px dashed #334155" }}>
+                          <td style={tdS({ textAlign:"left", color:"#94a3b8", fontStyle:"italic", paddingLeft:"28px" })}>Subtotal clima</td>
+                          <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{fmtBTU(perdidaClima)}</td>
+                          <td style={tdS({ color:"#94a3b8", fontStyle:"italic" })}>{total>0?(perdidaClima/total*100).toFixed(1):"0.0"}%</td>
+                        </tr>
+                      )}
+                      <tr key={p.key} style={{ background: esTuberia?"#1a2d1a":i%2===0?"#1e293b":"#162032" }}>
+                        <td style={tdS({ textAlign:"left", display:"flex", alignItems:"center", gap:"7px", color: esTuberia?"#fbbf24":"#cbd5e1" })}>
+                          <span style={{ width:"10px", height:"10px", borderRadius:"2px", background:p.color, display:"inline-block", flexShrink:0 }} />
+                          {p.label}
+                        </td>
+                        <td style={tdS({ color: esTuberia?"#fbbf24":"#e2e8f0", fontWeight:500 })}>{fmtBTU(val)}</td>
+                        <td style={tdS({ color:"#94a3b8" })}>{pct}%</td>
+                      </tr>
+                    </>
+                  );
+                })}
+                <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+                  <td style={tdS({ textAlign:"left", color:"#60a5fa", fontWeight:700 })}>TOTAL</td>
+                  <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>{fmtBTU(total)}</td>
+                  <td style={tdS({ color:"#60a5fa", fontWeight:700 })}>100%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
 
-/* ═══════════ COMPONENTE PRINCIPAL ═══════════ */
+ /* ═══════════ COMPONENTE PRINCIPAL ═══════════ */
 export default function MemoriaCalculo() {
   const [memoria, setMemoria]     = useState(null);
   const [tabActiva, setTabActiva] = useState(0);

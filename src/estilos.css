@@ -1834,3 +1834,8 @@ body.tema-claro .resumen-equipos-header { color: #334155 !important; }
 .calentamiento .selector-contenido .selector-grupo + .selector-grupo {
   margin-top: 1rem;
 }
+
+@keyframes fadeInPunto {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

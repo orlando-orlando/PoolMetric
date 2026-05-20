@@ -496,6 +496,15 @@ export default function App() {
   })();
 
   const puntoOperacion = datosPorSistema?.equipamiento?.puntoOperacion ?? null;
+  const [enEqEstable, setEnEqEstable] = useState(false);
+  useEffect(() => {
+    if (seccion === "equipamiento") {
+      const t = setTimeout(() => setEnEqEstable(true), 50);
+      return () => clearTimeout(t);
+    } else {
+      setEnEqEstable(false);
+    }
+  }, [seccion]);
 
   const tieneDesbordeCanal = useMemo(() => {
     const d = datosDim?.desborde;
@@ -577,9 +586,9 @@ export default function App() {
       sanitizacion:   enEq && tabIdxActual >= ORDEN_TAB["sanitizacion"],
       filtracion:     enEq && tabIdxActual >= ORDEN_TAB["filtracion"],
       empotrables:    enEq && tabIdxActual >= ORDEN_TAB["empotrables"],
-      puntoOperacion: enEq && tabIdxActual >= ORDEN_TAB["motobomba"],
+      puntoOperacion: enEq && enEqEstable && tabActivaEq === "motobomba",
     };
-  }, [seccion, tabIdxActual, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
+    }, [seccion, tabIdxActual, tabActivaEq, enEqEstable, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
 
   // flujosCandidatos: solo incluye equipos del paso activo o anteriores
   const flujosCandidatos = useMemo(() => {
@@ -1038,14 +1047,15 @@ export default function App() {
                     const deltaCDT   = cdtBase   ? (puntoOperacion.cdt  - cdtBase)   / cdtBase   * 100 : null;
                     const colorDelta = deltaFlujo != null && Math.abs(deltaFlujo) < 5 ? "#34d399" : "#f97316";
                     return (
-                      <div style={{
-                        marginTop: "0.35rem",
-                        padding: "0.55rem 0.75rem",
-                        background: "rgba(52,211,153,0.08)",
-                        border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
-                        borderRadius: "8px",
-                        display: "flex", flexDirection: "column", gap: "0.35rem",
-                      }}>
+                          <div style={{
+                            marginTop: "0.35rem",
+                            padding: "0.55rem 0.75rem",
+                            background: "rgba(52,211,153,0.08)",
+                            border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
+                            borderRadius: "8px",
+                            display: "flex", flexDirection: "column", gap: "0.35rem",
+                            animation: "fadeInPunto 0.4s ease-out",
+                          }}>
                         <div style={{ fontSize: "0.62rem", color: temaOscuro ? "#34d399" : "#059669", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
                           ⚡ Punto de operación
                         </div>
@@ -1147,5 +1157,9 @@ if (window.location.pathname === "/memoria-pdf") {
     ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
   });
 } else {
-  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  // Evitar flash — verificar que no es una ruta especial antes de montar App
+  const path = window.location.pathname;
+  if (path !== "/memoria-calculo" && path !== "/memoria-pdf") {
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  }
 }

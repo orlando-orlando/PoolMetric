@@ -574,6 +574,34 @@ function tipoParaCalculo(eq) {
 /* =====================================================
    BLOQUE EMPOTRABLE GENÉRICO
 ===================================================== */
+function construirSnapshotSistema(estados, sistemasSeleccionadosSanit, sistemasSeleccionadosFilt, datosPorSistema) {
+  return JSON.stringify({
+    selecciones: {
+      retorno:            { id: estados?.retorno?.selId,            cant: estados?.retorno?.cantidad },
+      desnatador:         { id: estados?.desnatador?.selId,         cant: estados?.desnatador?.cantidad },
+      barredora:          { id: estados?.barredora?.selId,          cant: estados?.barredora?.cantidad },
+      drenFondo:          { id: estados?.drenFondo?.selId,          cant: estados?.drenFondo?.cantidad },
+      drenCanal:          { id: estados?.drenCanal?.selId,          cant: estados?.drenCanal?.cantidad },
+      filtroArena:        { id: estados?.filtroArena?.selId,        cant: estados?.filtroArena?.cantidad },
+      prefiltro:          { id: estados?.prefiltro?.selId,          cant: estados?.prefiltro?.cantidad },
+      filtroCartucho:     { id: estados?.filtroCartucho?.selId,     cant: estados?.filtroCartucho?.cantidad },
+      cloradorSalino:     { id: estados?.cloradorSalino?.selId,     cant: estados?.cloradorSalino?.cantidad },
+      cloradorAutomatico: { id: estados?.cloradorAutomatico?.selId, cant: estados?.cloradorAutomatico?.cantidad },
+      lamparaUV:          { id: estados?.lamparaUV?.selId,          cant: estados?.lamparaUV?.cantidad },
+    },
+    sanitizacion: sistemasSeleccionadosSanit,
+    filtracion:   sistemasSeleccionadosFilt,
+    calentamiento: {
+      decision:              datosPorSistema?.calentamiento?.decision,
+      sistemasSeleccionados: datosPorSistema?.calentamiento?.sistemasSeleccionados,
+      modoBDC:               datosPorSistema?.calentamiento?.modoBDC,
+      modoPS:                datosPorSistema?.calentamiento?.modoPS,
+      modoCaldera:           datosPorSistema?.calentamiento?.modoCaldera,
+      modoCE:                datosPorSistema?.calentamiento?.modoCE,
+    },
+  });
+}
+
 function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1,
   modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
   const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
@@ -2265,7 +2293,13 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       const snapshotCDT     = cargaTotalGlobal;
       const snapshotEstados = JSON.parse(JSON.stringify(estados)); // copia profunda de cantidades originales
       res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado });
-      if (res && !res.error) { res._snapshotCargas = snapshotCargas; res._snapshotCDT = snapshotCDT; res._snapshotEstados = snapshotEstados; }
+      if (res && !res.error) {
+      res._snapshotCargas  = snapshotCargas;
+      res._snapshotCDT     = snapshotCDT;
+      res._snapshotEstados = snapshotEstados;
+      res._snapshotFlujo   = flujoMaxGlobal;
+      res._snapshotCDTGlobal = cargaTotalGlobal;
+    }
     } catch (e) { res = { error: e.message }; }
 
     // Construir líneas a partir del resultado real
@@ -3202,29 +3236,36 @@ export default function Equipamiento({
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), estadoBomba } }));
   }, [estadoBomba]);
 
-  // Resetear verificación si cambia el flujo o CDT del sistema
-    const prevFlujoRef = useRef(flujoMaxGlobal);
-    const prevCDTRef   = useRef(cargaTotalGlobal);
-    useEffect(() => {
-      const flujoAntes = prevFlujoRef.current;
-      const cdtAntes   = prevCDTRef.current;
-      prevFlujoRef.current = flujoMaxGlobal;
-      prevCDTRef.current   = cargaTotalGlobal;
-      // Solo resetear si ya había una verificación y los valores cambiaron
-      if (!verificacionResultado) return;
-      const flujoDistinto = Math.abs((flujoMaxGlobal ?? 0) - (flujoAntes ?? 0)) > 0.01;
-      const cdtDistinto   = Math.abs((cargaTotalGlobal ?? 0) - (cdtAntes ?? 0)) > 0.01;
-      if (flujoDistinto || cdtDistinto) {
-        setVerificacionResultado(null);
-        setVerificacionFase("idle");
-        setVerificacionLineas([]);
-        // Limpiar también el punto de operación
-        setDatosPorSistema(ps => ({
-          ...ps,
-          equipamiento: { ...(ps.equipamiento ?? {}), puntoOperacion: null },
-        }));
-      }
-    }, [flujoMaxGlobal, cargaTotalGlobal]);
+  useEffect(() => {
+    const snapshotGuardado = datosPorSistema?.equipamiento?.verificacionSnapshot ?? null;
+    if (!snapshotGuardado) return;
+    const snapshotActual = construirSnapshotSistema(
+      estados,
+      sistemasSeleccionadosSanit,
+      sistemasSeleccionadosFilt,
+      datosPorSistema,
+    );
+    if (snapshotActual !== snapshotGuardado) {
+      setVerificacionResultado(null);
+      setVerificacionFase("idle");
+      setVerificacionLineas([]);
+      setDatosPorSistema(ps => ({
+        ...ps,
+        equipamiento: {
+          ...(ps.equipamiento ?? {}),
+          puntoOperacion:        null,
+          verificacionResultado: null,
+          verificacionSnapshot:  null,
+        },
+      }));
+    }
+  }, [
+    estados,
+    sistemasSeleccionadosSanit,
+    sistemasSeleccionadosFilt,
+    datosPorSistema?.calentamiento,
+    datosPorSistema?.equipamiento?.verificacionSnapshot,
+  ]);
 
   useEffect(() => {
       setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}),
@@ -3241,6 +3282,7 @@ export default function Equipamiento({
         selCloradorAutomaticoId, selCloradorAutomaticoCant,
         modoMotobomba, selMotobombaId, selMotobombaCant,
         verificacionResultado,
+        verificacionSnapshot: datosPorSistema?.equipamiento?.verificacionSnapshot ?? null,
       }}));
     }, [modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant, instalacionCloradorAutomatico,
         modoCloradorAutomatico, modoLamparaUV, selManualUVId, selManualUVCant,
@@ -3732,6 +3774,20 @@ export default function Equipamiento({
                     onResultadoChange={(r) => {
                       setVerificacionResultado(r);
                       setVerificacionFase(r ? "listo" : "idle");
+                      const snapshot = r ? construirSnapshotSistema(
+                        estados,
+                        sistemasSeleccionadosSanit,
+                        sistemasSeleccionadosFilt,
+                        datosPorSistema,
+                      ) : null;
+                      setDatosPorSistema(ps => ({
+                        ...ps,
+                        equipamiento: {
+                          ...(ps.equipamiento ?? {}),
+                          verificacionResultado: r,
+                          verificacionSnapshot:  snapshot,
+                        },
+                      }));
                     }}
                     onReset={() => {
                       setVerificacionResultado(null);
