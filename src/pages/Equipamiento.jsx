@@ -2021,8 +2021,21 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
   }
 
   const infoActiva  = modo === "recomendado" ? rec : manualCalc;
-  const estBActual  = infoActiva ? { bombaId: infoActiva.bomba.id, nBombas: infoActiva.n ?? infoActiva.cantidad, modelo: infoActiva.bomba.modelo, marca: infoActiva.bomba.marca, potenciaHP: infoActiva.bomba.potencia_hp ?? null } : null;
-  useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.stringify(estBActual)]);
+
+  const estBActual = infoActiva ? {
+  bombaId:     infoActiva.bomba.id,
+  nBombas:     infoActiva.n ?? infoActiva.cantidad,
+  modelo:      infoActiva.bomba.modelo,
+  marca:       infoActiva.bomba.marca,
+  potenciaHP:  infoActiva.bomba.potencia_hp ?? null,
+  // flujo máximo físico posible = último punto de curva × cantidad de bombas
+  flujoMaxBombas: (() => {
+    const curva = infoActiva.bomba.curva;
+    if (!curva?.length) return null;
+    return curva[curva.length - 1].flujo_gpm * (infoActiva.n ?? infoActiva.cantidad ?? 1);
+  })(),
+} : null;
+useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.stringify(estBActual)]);
 
   if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) {
     return <div className="sanitizacion-pendiente">Completa dimensiones, calentamiento y equipamiento para calcular el CDT total del sistema</div>;
@@ -2092,7 +2105,8 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
                   const esRec    = rec && b.id === rec.bomba.id;
                   const sel      = selId === b.id;
                   const nMin     = flujoMaximo && cargaRequerida ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? null) : null;
-                  const bloqueada = nMin === null;
+                  const bloqueada = nMin === null || nMin > 10;
+                  const razónBloqueo = nMin === null ? "no cubre CDT" : nMin > 10 ? `requiere ${nMin} uds` : null;
                   return (
                     <div key={b.id}
                       className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""} ${bloqueada ? "bdc-manual-fila-bloqueada" : ""}`}
@@ -2101,7 +2115,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
                     >
                       <div className="bdc-manual-fila-info"><span className="bdc-manual-marca">{b.marca}</span><span className="bdc-manual-modelo">{nombreComercial(b)}</span>{mostrarCodigo(b) && <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{b.modelo}</span>}<span className="bdc-manual-vel vel-1v">{b.potencia_hp} HP</span>{esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}</div>
                       <div className="bdc-manual-fila-cap" style={{ color: bloqueada ? "#ef4444" : "#64748b", fontSize: "0.68rem" }}>
-                        {bloqueada ? "no cubre CDT" : `mín. ${nMin}`}
+                        {bloqueada ? razónBloqueo : `mín. ${nMin}`}
                       </div>
                     </div>
                   );
@@ -2109,7 +2123,13 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
               </div>
               {selId && selCant !== null && (
                 <div className="bdc-manual-resultado">
-                  <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMin})</span></span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelCant(c => Math.max(cantMin, c - 1))}>−</button><span>{selCant}</span><button onClick={() => setSelCant(c => c + 1)}>+</button></div></div>
+                  <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad <span style={{ color: "#64748b", fontWeight: 400 }}>(mín. {cantMin})</span></span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelCant(c => Math.max(cantMin, c - 1))}>−</button><span>{selCant}</span>
+                  <button
+                    onClick={() => setSelCant(c => Math.min(10, c + 1))}
+                    disabled={selCant >= 10}
+                    style={{ opacity: selCant >= 10 ? 0.35 : 1, cursor: selCant >= 10 ? "not-allowed" : "pointer" }}
+                  >+</button>
+                  </div></div>
                   {manualCalc && (<>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo por bomba</span><span className="bdc-demanda-valor">{parseFloat(manualCalc.flujoPorBomba).toFixed(2)} GPM</span></div>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">CDT disponible</span><span className={`bdc-demanda-valor ${manualCalc.cargaDisponible >= cargaRequerida ? "bdc-ok" : "bdc-insuf"}`}>{parseFloat(manualCalc.cargaDisponible).toFixed(2)} fthd · {(parseFloat(manualCalc.cargaDisponible) * 0.43353).toFixed(2)} PSI</span></div>
@@ -2140,7 +2160,10 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
   const terminalRef               = useRef(null);
   const autoScrollRef             = useRef(true);  // pausar auto-scroll si usuario sube
 
-  const puedeVerificar = flujoMaxGlobal && cargaTotalGlobal && bombaId;
+  const FLUJO_MAX_SISTEMA  = 4500;
+  const flujoMaxBombas     = estadoBomba?.flujoMaxBombas ?? null;
+  const bloqueadoPorFlujo  = flujoMaxBombas != null && flujoMaxBombas > FLUJO_MAX_SISTEMA;
+  const puedeVerificar     = flujoMaxGlobal && cargaTotalGlobal && bombaId && !bloqueadoPorFlujo;
 
   // Convierte los pasos reales del algoritmo en líneas para el terminal
   const construirLineasTerminal = (res) => {
@@ -2157,6 +2180,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     if (curva.length > 0) {
       lineas.push({ tipo: "ok", texto: `  Shut-off: ${f2(curva[0]?.carga_ft)} fthd  |  Q máx: ${f1(curva[curva.length-1]?.flujo_gpm)} GPM` });
     }
+
+    // Aviso shut-off — CDT de diseño supera el shut-off de la bomba
+    if (parseFloat(cargaTotalGlobal) > parseFloat(curva[0]?.carga_ft ?? 0)) {
+      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: CDT de diseño (${f2(cargaTotalGlobal)} fthd) supera el shut-off de la bomba (${f2(curva[0]?.carga_ft)} fthd) — la bomba no puede arrancar con esta carga` });
+    }
+
     lineas.push({ tipo: "sep", texto: "" });
 
     // Separar pasos en iter1 y iter2
@@ -2231,8 +2260,29 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     const cdtFin   = parseFloat(res?.equilibrio?.carga ?? 0);
     const deltaPct = flujoMaxGlobal > 0 ? ((flujoFin - flujoMaxGlobal) / flujoMaxGlobal * 100) : 0;
     lineas.push({ tipo: "titulo", texto: "▶ Análisis completo." });
-    lineas.push({ tipo: "ok",    texto: `  Punto de operación: ${flujoFin.toFixed(1)} GPM  @  ${cdtFin.toFixed(2)} fthd` });
-    lineas.push({ tipo: "ok",    texto: `  Δ vs diseño: ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` });
+    lineas.push({ tipo: "ok", texto: `  Punto de operación: ${flujoFin.toFixed(1)} GPM  @  ${cdtFin.toFixed(2)} fthd` });
+    lineas.push({ tipo: "ok", texto: `  Δ vs diseño: ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` });
+
+    // Aviso zona extralimitada — flujo de equilibrio supera el último punto publicado de curva
+    const flujoMaxCurva  = parseFloat(curva[curva.length - 1]?.flujo_gpm ?? 0) * nBombas;
+    const shutOffCarga   = parseFloat(curva[0]?.carga_ft ?? 0);
+    const shutOffFlujo   = parseFloat(curva[0]?.flujo_gpm ?? 0) * nBombas;
+
+    // Aviso zona extralimitada — equilibrio más allá del Q máx publicado
+    if (flujoFin > flujoMaxCurva * 1.02) {
+      lineas.push({ tipo: "sep", texto: "" });
+      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona extralimitada — el flujo de equilibrio (${flujoFin.toFixed(1)} GPM) supera el rango de curva publicado (${flujoMaxCurva.toFixed(1)} GPM)` });
+      lineas.push({ tipo: "error", texto: `  Considera aumentar la CDT del sistema o seleccionar una bomba de menor capacidad` });
+    }
+
+    // Aviso operación en shut-off — equilibrio cayó cerca del límite máximo de carga
+    // Si el CDT de equilibrio es >= 97% del shut-off, la bomba está trabajando al límite
+    if (cdtFin >= shutOffCarga * 0.97) {
+      lineas.push({ tipo: "sep", texto: "" });
+      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona de shut-off — CDT de equilibrio (${cdtFin.toFixed(2)} fthd) alcanza el límite de carga de la bomba (${shutOffCarga.toFixed(2)} fthd)` });
+      lineas.push({ tipo: "error", texto: `  El flujo real será mínimo o nulo. Selecciona una bomba con mayor shut-off o reduce la CDT del sistema` });
+    }
+
     return lineas;
   };
 
@@ -2357,7 +2407,7 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       if (onReset) onReset();
     };
 
-  if (!puedeVerificar) return null;
+  if (!flujoMaxGlobal || !cargaTotalGlobal || !bombaId) return null;
 
   // Normalizar campos — calcularEquilibrio puede devolver flujo/carga o flujoEquilibrio/cargaEquilibrio
   const eq = resultado?.equilibrio
@@ -2380,11 +2430,36 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       <div className="bdc-recomendada-card bdc-inset" style={{ padding: "1rem 1.2rem" }}>
         {fase === "idle" && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ fontSize: "0.78rem", color: "var(--color-text-primary)", fontWeight: 500 }}>Verificar punto de operación real</div>
-              <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.2rem" }}>Calcula el flujo y CDT de equilibrio usando 2 iteraciones con la motobomba seleccionada</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "0.78rem", color: "var(--color-text-primary)", fontWeight: 500 }}>
+                Verificar punto de operación real
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+                Calcula el flujo y CDT de equilibrio usando 2 iteraciones con la motobomba seleccionada
+              </div>
+              {bloqueadoPorFlujo && (
+                <div style={{
+                  fontSize: "0.7rem", color: "#f97316", marginTop: "0.4rem",
+                  background: "rgba(249,115,22,0.08)",
+                  border: "1px solid rgba(249,115,22,0.25)",
+                  borderRadius: "6px", padding: "0.3rem 0.6rem"
+                }}>
+                  ⚠ Flujo máximo de bombas ({parseFloat(flujoMaxBombas).toFixed(0)} GPM) supera el límite del sistema (4,500 GPM). Reduce la cantidad de bombas para continuar.
+                </div>
+              )}
             </div>
-            <button className="btn-primario" style={{ whiteSpace: "nowrap", marginLeft: "1rem" }} onClick={iniciarVerificacion}>Verificar diseño →</button>
+            <button
+              className="btn-primario"
+              style={{
+                whiteSpace: "nowrap", marginLeft: "1rem",
+                opacity: !puedeVerificar ? 0.4 : 1,
+                cursor: !puedeVerificar ? "not-allowed" : "pointer"
+              }}
+              disabled={!puedeVerificar}
+              onClick={iniciarVerificacion}
+            >
+              Verificar diseño →
+            </button>
           </div>
         )}
 

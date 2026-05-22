@@ -1839,3 +1839,10 @@ body.tema-claro .resumen-equipos-header { color: #334155 !important; }
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+.helper-profundidad{
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 0.3rem;
+  line-height: 1.3;
+}
