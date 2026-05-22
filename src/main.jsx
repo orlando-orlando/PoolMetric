@@ -9,6 +9,10 @@ if (window.location.pathname === "/memoria-calculo") {
   import("./pages/MemoriaCalculo.jsx").then((m) => {
     ReactDOM.createRoot(root).render(<m.default />);
   });
+} else if (window.location.pathname === "/memoria-pdf") {
+  import("./pages/MemoriaPDF.jsx").then((m) => {
+    ReactDOM.createRoot(root).render(<m.default />);
+  });
 } else {
   import("./App.jsx").then((m) => {
     ReactDOM.createRoot(root).render(

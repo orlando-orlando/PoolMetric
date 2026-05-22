@@ -1148,18 +1148,3 @@ export default function App() {
 );
 }
 
-if (window.location.pathname === "/memoria-pdf") {
-  import("./pages/MemoriaPDF.jsx").then(m => {
-    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
-  });
-} else if (window.location.pathname === "/memoria-calculo") {
-  import("./pages/MemoriaCalculo.jsx").then(m => {
-    ReactDOM.createRoot(document.getElementById("root")).render(<m.default />);
-  });
-} else {
-  // Evitar flash — verificar que no es una ruta especial antes de montar App
-  const path = window.location.pathname;
-  if (path !== "/memoria-calculo" && path !== "/memoria-pdf") {
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-  }
-}
