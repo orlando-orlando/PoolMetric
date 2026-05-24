@@ -413,6 +413,7 @@ export function generarMemoriaCalculo({
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas, equiposConfirmados, specsEquipos,
+  tipoSistema,
 }) {
   const estadosMerged = {};
   const allKeys = new Set([...Object.keys(estados ?? {}), ...Object.keys(estadosActuales ?? {})]);
@@ -466,6 +467,7 @@ export function generarMemoriaCalculo({
     cdtIter2:    f2(eqIter2?.cargaSalida ?? equilibrioFinal?.carga ?? 0),
     flujoIter1:  f2(eqIter1?.flujoEquilibrio ?? 0),
     flujoIter2:  f2(eqIter2?.flujoEquilibrio ?? 0),
+    tipoSistema: tipoSistema ?? null,
     flujosRequeridos: [
       flujoFiltradoVal > 0 ? { label: "Filtrado",  valor: flujoFiltradoVal } : null,
       flujoInfinityVal > 0 ? { label: "Infinity",  valor: flujoInfinityVal } : null,

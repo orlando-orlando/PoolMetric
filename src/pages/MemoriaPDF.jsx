@@ -220,7 +220,24 @@ function Portada({ memoria, logoEmpresa, fecha }) {
       <div style={{ textAlign:"center", padding:"20mm 0" }}>
         <div style={{ fontSize:"7pt", color:GRIS, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", marginBottom:"12px" }}>Documento técnico</div>
         <div style={{ fontSize:"26pt", fontWeight:900, color:AZUL, lineHeight:1.1, marginBottom:"8px" }}>Memoria de Cálculo</div>
-        <div style={{ fontSize:"16pt", fontWeight:700, color:AZUL_MED, marginBottom:"24px" }}>Hidráulico de Alberca</div>
+        <div style={{ fontSize:"16pt", fontWeight:700, color:AZUL_MED, marginBottom:"24px" }}>
+          {(() => {
+            const NOMBRES_SISTEMA = {
+              alberca:                     "Hidráulico de Alberca",
+              jacuzzi:                     "Hidráulico de Jacuzzi",
+              chapoteadero:                "Hidráulico de Chapoteadero",
+              espejoAgua:                  "Hidráulico de Espejo de Agua",
+              albercaJacuzzi1:             "Hidráulico de Alberca con Jacuzzi",
+              albercaChapo1:               "Hidráulico de Alberca con Chapoteadero",
+              albercaJacuzziJacuzzi:       "Hidráulico de Alberca con Jacuzzi y Jacuzzi",
+              albercaChapoAsoleadero:      "Hidráulico de Alberca, Chapoteadero y Asoleadero",
+              albercaJacuzziChapo:         "Hidráulico de Alberca, Jacuzzi y Chapoteadero",
+              albercaAsoleaderoAsoleadero: "Hidráulico de Alberca con Asoleaderos",
+            };
+            const tipo = resumen.tipoSistema ?? null;
+            return NOMBRES_SISTEMA[tipo] ?? "Hidráulico de Alberca";
+          })()}
+        </div>
         <div style={{ width:"60px", height:"3px", background:AZUL_MED, margin:"0 auto 24px" }} />
         <div style={{ fontSize:"9pt", color:GRIS }}>Diseño y selección de equipos hidráulicos</div>
       </div>
