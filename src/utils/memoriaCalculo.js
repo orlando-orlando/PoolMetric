@@ -1,8 +1,8 @@
 /* ================================================================
-   memoriaCalculo.js — v5
-   Fix: clorador automático en línea excluido del CDT cuando
-   el flujo de operación supera 90 GPM. Aparece como nota
-   informativa en la memoria sin tabla hidráulica.
+   memoriaCalculo.js — v6
+   Agrega tubFiltrado, velFiltrado, tubInfinity, velInfinity,
+   tubCanal, velCanal al resumen para que MemoriaPDF los muestre
+   sin guiones ni "Ver memoria de cálculo".
    ================================================================ */
 
 import { retorno }        from "./retorno";
@@ -223,49 +223,45 @@ function generarReporte({
   const sanitizacion = {};
 
   if (sistemasSeleccionadosSanit?.cloradorSalino) {
-      const estCS = est("cloradorSalino");
-      if (resultadoClorador && !resultadoClorador.error) {
-        const tieneManual = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
+    const estCS = est("cloradorSalino");
+    if (resultadoClorador && !resultadoClorador.error) {
+      const tieneManual = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
 
-        let resCS, selCS;
-        if (tieneManual && !equiposRecalcIter) {
+      let resCS, selCS;
+      if (tieneManual && !equiposRecalcIter) {
+        const cant = estCS.cantidad ?? 1;
+        const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
+        const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
+        resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
+        selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
+      } else {
+        const tieneManualIter = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
+        if (tieneManualIter) {
           const cant = estCS.cantidad ?? 1;
           const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
           const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
           resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
           selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
-          } else {
-                  const tieneManualIter = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
-                  if (tieneManualIter) {
-                    const cant = estCS.cantidad ?? 1;
-                    const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
-                    const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
-                    resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
-                    selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
-                  } else {
-                    resCS = resultadoClorador;
-                    selCS = (estCS?.marca && estCS?.modelo)
-                      ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
-                      : null;
-                  }
-                }
+        } else {
+          resCS = resultadoClorador;
+          selCS = (estCS?.marca && estCS?.modelo)
+            ? { marca: estCS.marca, modelo: estCS.modelo, cantidad: estCS.cantidad ?? 1, flujoTotal: estCS.flujoTotal ?? flujoCalculo }
+            : null;
+        }
+      }
 
-                  const data = empacarFiltroRes(resCS ?? resultadoClorador, "Generador de cloro salino", selCS);
-                  if (data) sanitizacion.cloradorSalino = data;
-                }
-              }
+      const data = empacarFiltroRes(resCS ?? resultadoClorador, "Generador de cloro salino", selCS);
+      if (data) sanitizacion.cloradorSalino = data;
+    }
+  }
 
   if (sistemasSeleccionadosSanit?.lamparaUV) {
     const eqUV = est("lamparaUV");
     if (eqUV?.marca || eqUV?.modelo || eqUV?.cantidad) {
-      // En iteraciones usar el resultadoHidraulico recalculado (que ya tiene el equipo correcto)
       const resIter = equiposRecalcIter?.lamparaUV?.resultadoHidraulico;
-      // Si en iteraciones cambió el equipo, usar marca/modelo del recalc
       const marcaUV  = equiposRecalcIter?.lamparaUV?.marca  ?? eqUV?.marca;
       const modeloUV = equiposRecalcIter?.lamparaUV?.modelo ?? eqUV?.modelo;
       const cant = equiposRecalcIter?.lamparaUV?.cantidad ?? eqUV?.cantidad ?? cantParaKey("lamparaUV") ?? 1;
-      // Si hay recálculo, usar el flujo nominal del equipo nuevo (specs.flujo × cantidad)
-      // Si no, usar el flujo total del estado original
       const eqNuevoEnCatalogo = equiposRecalcIter?.lamparaUV
         ? generadoresUV.find(g => g.id === equiposRecalcIter.lamparaUV.selId)
         : null;
@@ -293,11 +289,9 @@ function generarReporte({
       const instalacion = eqCA?.instalacion ?? "enLinea";
       const flujoOp = parseFloat(flujoCalculo);
 
-      // FIX: si es en línea y el flujo de operación supera 90 GPM → excluir del CDT
       const esEnLineaExcluido = instalacion === "enLinea" && flujoOp > FLUJO_MAX_CLORADOR_EN_LINEA;
 
       if (esEnLineaExcluido) {
-        // Solo nota informativa — sin tabla hidráulica, sin carga
         sanitizacion.cloradorAutomatico = {
           label:    "Clorador automático (no aplicable)",
           excluido: true,
@@ -310,7 +304,6 @@ function generarReporte({
           },
         };
       } else {
-        // Incluir normalmente con tabla hidráulica
         const cant = eqCA?.cantidad ?? cantParaKey("cloradorAutomatico") ?? 1;
         const flujoTotalCA = eqCA?.flujoTotal ? parseFloat(eqCA.flujoTotal) : flujoCalculo;
         const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
@@ -403,6 +396,20 @@ function empacarCalentamiento(key, label, calentamiento) {
 }
 
 /* ================================================================
+   HELPERS para formatear tubería y velocidad
+   ================================================================ */
+function fmtTuberia(tub) {
+  if (!tub) return "—";
+  // viene como "tuberia 1.5" → convertir a '1.5"'
+  return tub.replace("tuberia ", "") + '"';
+}
+
+function fmtVelocidad(vel) {
+  if (vel == null || isNaN(parseFloat(vel))) return "—";
+  return `${parseFloat(vel).toFixed(2)} ft/s`;
+}
+
+/* ================================================================
    FUNCION PRINCIPAL
    ================================================================ */
 export function generarMemoriaCalculo({
@@ -414,6 +421,10 @@ export function generarMemoriaCalculo({
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas, equiposConfirmados, specsEquipos,
   tipoSistema,
+  // ── NUEVOS parámetros de tubería y velocidad ──
+  tubFiltrado, velFiltrado,
+  tubInfinity, velInfinity,
+  tubCanal,    velCanal,
 }) {
   const estadosMerged = {};
   const allKeys = new Set([...Object.keys(estados ?? {}), ...Object.keys(estadosActuales ?? {})]);
@@ -447,6 +458,19 @@ export function generarMemoriaCalculo({
   }
   if (!eqIter2) eqIter2 = eqIter1;
 
+  // ── tubería de descarga: prioridad tubFiltrado > tuberiaMaxGlobal > estadoBomba ──
+  const tubDescargaFinal = tubFiltrado
+    ? fmtTuberia(tubFiltrado)
+    : (tuberiaMaxGlobal ? fmtTuberia(tuberiaMaxGlobal) : (estadoBomba?.tubDescarga ?? "—"));
+
+  // ── tubería infinity: si no viene, no hay fallback real ──
+  const tubInfinityFinal = tubInfinity ? fmtTuberia(tubInfinity) : "—";
+
+  // ── tubería canal: si no viene, usar misma que filtrado (comparten línea) ──
+  const tubCanalFinal = tubCanal
+    ? fmtTuberia(tubCanal)
+    : (tubFiltrado ? fmtTuberia(tubFiltrado) : "—");
+
   const resumen = {
     area:        f2(datosEmpotrable?.area ?? 0),
     vol:         f2(vol ?? 0),
@@ -454,7 +478,15 @@ export function generarMemoriaCalculo({
     flujoInf:    f2(flujoInfinityVal ?? 0),
     flujoMax:    f2(flujoMaxGlobal),
     tubSuccion:  estadoBomba?.tubSuccion  ?? "—",
-    tubDescarga: tuberiaMaxGlobal ?? estadoBomba?.tubDescarga ?? "—",
+    // ── Tubería y velocidad de descarga (filtrado) ──
+    tubDescarga:  tubDescargaFinal,
+    velDescarga:  fmtVelocidad(velFiltrado),
+    // ── Tubería y velocidad del circuito infinity ──
+    tubInfinity:  tubInfinityFinal,
+    velInfinity:  fmtVelocidad(velInfinity),
+    // ── Tubería y velocidad del canal perimetral ──
+    tubCanal:     tubCanalFinal,
+    velCanal:     velCanal ? fmtVelocidad(velCanal) : fmtVelocidad(velFiltrado),
     bomba:        estadoBomba ? `${estadoBomba.marca} ${estadoBomba.modelo}` : "—",
     bombaMarca:   estadoBomba?.marca       ?? "—",
     bombaModelo:  estadoBomba?.modelo      ?? "—",
@@ -512,20 +544,19 @@ export function generarMemoriaCalculo({
     if (flujoC > 0) resumen.flujosRequeridos.push({ label: c.label, valor: flujoC });
   }
   if (sistemasSeleccionadosSanit?.cloradorSalino && resultadoClorador && !resultadoClorador.error) {
-      // Usar flujo del equipo manual si existe, si no el automático
-      const estCS = estadosMerged?.cloradorSalino;
-      const flujoCS = estCS?.flujoTotal != null && parseFloat(estCS.flujoTotal) > 0
-        ? parseFloat(estCS.flujoTotal)
-        : parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
-      if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Generador de cloro salino", valor: flujoCS });
-    }
-    if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
-      const eqCA = estadosMerged?.cloradorAutomatico;
-      const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
-      resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
-    }
+    const estCS = estadosMerged?.cloradorSalino;
+    const flujoCS = estCS?.flujoTotal != null && parseFloat(estCS.flujoTotal) > 0
+      ? parseFloat(estCS.flujoTotal)
+      : parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
+    if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Generador de cloro salino", valor: flujoCS });
+  }
+  if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
+    const eqCA = estadosMerged?.cloradorAutomatico;
+    const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
+    resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
+  }
 
-  const calentamientoReporte = calentamientoData; // ya construido arriba
+  const calentamientoReporte = calentamientoData;
   if (reporteDiseno) reporteDiseno.calentamiento = calentamientoReporte;
   if (reporteIter1)  reporteIter1.calentamiento  = calentamientoReporte;
   if (reporteIter2)  reporteIter2.calentamiento  = calentamientoReporte;

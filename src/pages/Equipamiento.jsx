@@ -2147,10 +2147,24 @@ useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.strin
   );
 }
 
-/* =====================================================
-   BLOQUE VERIFICACIÓN DEL DISEÑO
-===================================================== */
-function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable, tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba = null, equiposCalentamiento = [], sistemasSanitizacion = {}, sistemasFiltracion = {}, datosSanitizacion = {}, datosPorSistema = null, resultadoClorador = null, onAjustarCargas = null, flujoInfinityVal = null, flujoFiltradoVal = null, volumenTotalVal = null, sistemaActivo = null, modoCloradorSalino = "recomendado", selCloradorSalinoId = null, selCloradorSalinoCant = 1, cloradorEnLineaQuitado = false, flujoOperacion = null, onLimpiarOperacion = null, resultadoExterno = null, faseExterna = "idle", onResultadoChange = null, onReset = null }) {
+/* ================================================================
+   BloqueVerificacion
+   ================================================================ */
+
+function BloqueVerificacion({
+  flujoMaxGlobal, cargaTotalGlobal, estados, cargas, datosEmpotrable,
+  tieneDesbordeCanal, usoGeneral, bombaId, nBombas, estadoBomba,
+  equiposCalentamiento, sistemasSanitizacion, sistemasFiltracion,
+  datosSanitizacion, datosPorSistema, resultadoClorador, onAjustarCargas,
+  flujoInfinityVal, flujoFiltradoVal, volumenTotalVal, sistemaActivo,
+  modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant,
+  cloradorEnLineaQuitado, flujoOperacion, onLimpiarOperacion,
+  resultadoExterno, faseExterna, onResultadoChange, onReset,
+  // ── NUEVOS ──
+  tubFiltrado, velFiltrado,
+  tubInfinity, velInfinity,
+  tubCanal,    velCanal,
+}) {
   const [fase,           setFase]           = useState(faseExterna     ?? "idle");
   const [lineasTerminal, setLineasTerminal] = useState(
     (faseExterna === "listo" && resultadoExterno) ? [{ tipo: "ok", texto: "  ★ Análisis completado — ver resultados abajo" }] : []
@@ -2158,14 +2172,13 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
   const [resultado,      setResultado]      = useState(resultadoExterno ?? null);
   const contenedorRef             = useRef(null);
   const terminalRef               = useRef(null);
-  const autoScrollRef             = useRef(true);  // pausar auto-scroll si usuario sube
+  const autoScrollRef             = useRef(true);
 
   const FLUJO_MAX_SISTEMA  = 4500;
   const flujoMaxBombas     = estadoBomba?.flujoMaxBombas ?? null;
   const bloqueadoPorFlujo  = flujoMaxBombas != null && flujoMaxBombas > FLUJO_MAX_SISTEMA;
   const puedeVerificar     = flujoMaxGlobal && cargaTotalGlobal && bombaId && !bloqueadoPorFlujo;
 
-  // Convierte los pasos reales del algoritmo en líneas para el terminal
   const construirLineasTerminal = (res) => {
     const lineas = [];
     const f2 = (v) => parseFloat(v ?? 0).toFixed(2);
@@ -2181,14 +2194,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       lineas.push({ tipo: "ok", texto: `  Shut-off: ${f2(curva[0]?.carga_ft)} fthd  |  Q máx: ${f1(curva[curva.length-1]?.flujo_gpm)} GPM` });
     }
 
-    // Aviso shut-off — CDT de diseño supera el shut-off de la bomba
     if (parseFloat(cargaTotalGlobal) > parseFloat(curva[0]?.carga_ft ?? 0)) {
       lineas.push({ tipo: "error", texto: `  ⚠ AVISO: CDT de diseño (${f2(cargaTotalGlobal)} fthd) supera el shut-off de la bomba (${f2(curva[0]?.carga_ft)} fthd) — la bomba no puede arrancar con esta carga` });
     }
 
     lineas.push({ tipo: "sep", texto: "" });
 
-    // Separar pasos en iter1 y iter2
     const iters = res?.iteraciones ?? [];
     const pasosIter1 = [], pasosIter2 = [];
     let enIter2 = false;
@@ -2198,19 +2209,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       else         pasosIter1.push(it);
     }
 
-    // Helper: extraer solo los momentos clave de un grupo de pasos
-    // Muestra: primer paso, un punto intermedio representativo, y equilibrio
     const momentosClave = (pasos) => {
       const noEq  = pasos.filter(p => !p.esEquilibrio);
       const eq    = pasos.find(p =>  p.esEquilibrio);
       const clave = [];
-
-      if (noEq.length > 0) {
-        // Primer paso — punto de partida
-        clave.push({ ...noEq[0], tipo: "inicio" });
-      }
+      if (noEq.length > 0) clave.push({ ...noEq[0], tipo: "inicio" });
       if (noEq.length >= 3) {
-        // Punto intermedio — a ~60% del recorrido
         const midIdx = Math.floor(noEq.length * 0.6);
         clave.push({ ...noEq[midIdx], tipo: "medio" });
       } else if (noEq.length === 2) {
@@ -2227,28 +2231,22 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
         const cdtS = parseFloat(p.cargaSalida ?? 0).toFixed(2);
         const cdtB = parseFloat(p.cargaDispBomba ?? 0).toFixed(2);
         const delta = Math.abs(parseFloat(cdtB) - parseFloat(cdtS)).toFixed(2);
-
         if (p.tipo === "eq") {
-          lineas.push({ tipo: "eq",
-            texto: `  ★ Convergido → Q = ${q} GPM  |  CDT = ${cdtS} fthd` });
+          lineas.push({ tipo: "eq", texto: `  ★ Convergido → Q = ${q} GPM  |  CDT = ${cdtS} fthd` });
         } else if (p.tipo === "inicio") {
           const dir = parseFloat(cdtB) > parseFloat(cdtS) ? "bomba excede sistema" : "sistema excede bomba";
-          lineas.push({ tipo: "paso",
-            texto: `  ${simbolo} Iniciando en Q = ${q} GPM  |  Δ = ${delta} fthd  (${dir})` });
+          lineas.push({ tipo: "paso", texto: `  ${simbolo} Iniciando en Q = ${q} GPM  |  Δ = ${delta} fthd  (${dir})` });
         } else {
-          lineas.push({ tipo: "paso",
-            texto: `  ${simbolo} Ajustando...  Q = ${q} GPM  |  Δ = ${delta} fthd` });
+          lineas.push({ tipo: "paso", texto: `  ${simbolo} Ajustando...  Q = ${q} GPM  |  Δ = ${delta} fthd` });
         }
       }
     };
 
-    // Iter 1
     if (pasosIter1.length > 0) {
       lineas.push({ tipo: "titulo", texto: "▶ Iteración 1 — buscando punto de equilibrio..." });
       renderPasos(pasosIter1, "①");
     }
 
-    // Iter 2
     lineas.push({ tipo: "sep", texto: "" });
     if (pasosIter2.length > 0) {
       lineas.push({ tipo: "titulo", texto: "▶ Iteración 2 — verificando con equipos ajustados..." });
@@ -2263,20 +2261,15 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     lineas.push({ tipo: "ok", texto: `  Punto de operación: ${flujoFin.toFixed(1)} GPM  @  ${cdtFin.toFixed(2)} fthd` });
     lineas.push({ tipo: "ok", texto: `  Δ vs diseño: ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` });
 
-    // Aviso zona extralimitada — flujo de equilibrio supera el último punto publicado de curva
     const flujoMaxCurva  = parseFloat(curva[curva.length - 1]?.flujo_gpm ?? 0) * nBombas;
     const shutOffCarga   = parseFloat(curva[0]?.carga_ft ?? 0);
-    const shutOffFlujo   = parseFloat(curva[0]?.flujo_gpm ?? 0) * nBombas;
 
-    // Aviso zona extralimitada — equilibrio más allá del Q máx publicado
     if (flujoFin > flujoMaxCurva * 1.02) {
       lineas.push({ tipo: "sep", texto: "" });
       lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona extralimitada — el flujo de equilibrio (${flujoFin.toFixed(1)} GPM) supera el rango de curva publicado (${flujoMaxCurva.toFixed(1)} GPM)` });
       lineas.push({ tipo: "error", texto: `  Considera aumentar la CDT del sistema o seleccionar una bomba de menor capacidad` });
     }
 
-    // Aviso operación en shut-off — equilibrio cayó cerca del límite máximo de carga
-    // Si el CDT de equilibrio es >= 97% del shut-off, la bomba está trabajando al límite
     if (cdtFin >= shutOffCarga * 0.97) {
       lineas.push({ tipo: "sep", texto: "" });
       lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona de shut-off — CDT de equilibrio (${cdtFin.toFixed(2)} fthd) alcanza el límite de carga de la bomba (${shutOffCarga.toFixed(2)} fthd)` });
@@ -2288,14 +2281,12 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
 
   const iniciarVerificacion = () => {
     if (!puedeVerificar) return;
-    if (onLimpiarOperacion) onLimpiarOperacion(); // ← nueva línea
+    if (onLimpiarOperacion) onLimpiarOperacion();
     setFase("verificando"); setLineasTerminal([]); setResultado(null);
 
-    // Scroll — buscar .selector-contenido o .eq-contenido que es el scrollable real
     setTimeout(() => {
       const el = contenedorRef.current;
       if (!el) return;
-      // Buscar el contenedor con clase selector-contenido o eq-contenido
       const scrollableClasses = ["selector-contenido", "eq-contenido", "panel-derecho-contenido"];
       let scrollParent = null;
       let parent = el.parentElement;
@@ -2306,7 +2297,6 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
         if (scrollParent) break;
         parent = parent.parentElement;
       }
-      // Fallback: buscar por overflow
       if (!scrollParent) {
         parent = el.parentElement;
         while (parent && parent !== document.body) {
@@ -2317,9 +2307,6 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
           parent = parent.parentElement;
         }
       }
-      // selector-contenido es el contenedor correcto pero necesita tiempo
-      // para que el terminal crezca y genere scroll
-      // Buscar por clase directamente
       const selectorContenido = document.querySelector(".selector-contenido");
       if (selectorContenido && el) {
         const elRect     = el.getBoundingClientRect();
@@ -2330,7 +2317,6 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
     }, 80);
 
     autoScrollRef.current = true;
-    // Calcular primero
     let res = null;
     try {
       const cargasBase = Object.fromEntries(
@@ -2341,25 +2327,27 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       );
       const snapshotCargas  = { ...cargasBase };
       const snapshotCDT     = cargaTotalGlobal;
-      const snapshotEstados = JSON.parse(JSON.stringify(estados)); // copia profunda de cantidades originales
-      res = calcularEquilibrio({ bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal, estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal, usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado });
+      const snapshotEstados = JSON.parse(JSON.stringify(estados));
+      res = calcularEquilibrio({
+        bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal,
+        estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal,
+        usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado,
+      });
       if (res && !res.error) {
-      res._snapshotCargas  = snapshotCargas;
-      res._snapshotCDT     = snapshotCDT;
-      res._snapshotEstados = snapshotEstados;
-      res._snapshotFlujo   = flujoMaxGlobal;
-      res._snapshotCDTGlobal = cargaTotalGlobal;
-    }
+        res._snapshotCargas  = snapshotCargas;
+        res._snapshotCDT     = snapshotCDT;
+        res._snapshotEstados = snapshotEstados;
+        res._snapshotFlujo   = flujoMaxGlobal;
+        res._snapshotCDTGlobal = cargaTotalGlobal;
+      }
     } catch (e) { res = { error: e.message }; }
 
-    // Construir líneas a partir del resultado real
     const lineas = res?.error
       ? [{ tipo: "error", texto: `⚠ ${res.error}` }]
       : construirLineasTerminal(res);
 
-    // Reproducir línea a línea con delay
     const DELAY_BASE = 120;
-    const delays = lineas.map((l, i) => {
+    const delays = lineas.map((l) => {
       if (l.tipo === "sep")    return 40;
       if (l.tipo === "titulo") return 200;
       if (l.tipo === "eq")     return 350;
@@ -2372,12 +2360,9 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       setTimeout(() => {
         setLineasTerminal(prev => [...prev, linea]);
         setTimeout(() => {
-          // Auto-scroll del terminal — siempre hacia el fondo si autoScroll activo
           if (autoScrollRef.current && terminalRef.current) {
             terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
           }
-          // Re-intentar scroll del contenedor padre en cada línea nueva
-          // para cuando el contenido crezca y genere scroll
           const sc = document.querySelector(".selector-contenido");
           const el2 = contenedorRef.current;
           if (sc && el2 && sc.scrollHeight > sc.clientHeight) {
@@ -2390,26 +2375,24 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       }, t);
     });
 
-    // Mostrar resultado completo al terminar
     const totalDelay = acum + 400;
     setTimeout(() => {
-          setResultado(res);
-          setFase("listo");
-          if (onResultadoChange) onResultadoChange(res);
-        }, totalDelay);
-    };
+      setResultado(res);
+      setFase("listo");
+      if (onResultadoChange) onResultadoChange(res);
+    }, totalDelay);
+  };
 
   const resetear = () => {
-      setFase("idle");
-      setLineasTerminal([]);
-      setResultado(null);
-      if (onLimpiarOperacion) onLimpiarOperacion();
-      if (onReset) onReset();
-    };
+    setFase("idle");
+    setLineasTerminal([]);
+    setResultado(null);
+    if (onLimpiarOperacion) onLimpiarOperacion();
+    if (onReset) onReset();
+  };
 
   if (!flujoMaxGlobal || !cargaTotalGlobal || !bombaId) return null;
 
-  // Normalizar campos — calcularEquilibrio puede devolver flujo/carga o flujoEquilibrio/cargaEquilibrio
   const eq = resultado?.equilibrio
     ? {
         ...resultado.equilibrio,
@@ -2418,7 +2401,6 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
       }
     : null;
 
-  // Colores por tipo de línea del terminal
   const colorLinea = { titulo:"#60a5fa", info:"#94a3b8", ok:"#34d399", eq:"#34d399", paso:"#7dd3fc", paso_baja:"#f97316", sep:"#1e3a5f", error:"#f87171" };
 
   return (
@@ -2438,23 +2420,14 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                 Calcula el flujo y CDT de equilibrio usando 2 iteraciones con la motobomba seleccionada
               </div>
               {bloqueadoPorFlujo && (
-                <div style={{
-                  fontSize: "0.7rem", color: "#f97316", marginTop: "0.4rem",
-                  background: "rgba(249,115,22,0.08)",
-                  border: "1px solid rgba(249,115,22,0.25)",
-                  borderRadius: "6px", padding: "0.3rem 0.6rem"
-                }}>
+                <div style={{ fontSize: "0.7rem", color: "#f97316", marginTop: "0.4rem", background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)", borderRadius: "6px", padding: "0.3rem 0.6rem" }}>
                   ⚠ Flujo máximo de bombas ({parseFloat(flujoMaxBombas).toFixed(0)} GPM) supera el límite del sistema (4,500 GPM). Reduce la cantidad de bombas para continuar.
                 </div>
               )}
             </div>
             <button
               className="btn-primario"
-              style={{
-                whiteSpace: "nowrap", marginLeft: "1rem",
-                opacity: !puedeVerificar ? 0.4 : 1,
-                cursor: !puedeVerificar ? "not-allowed" : "pointer"
-              }}
+              style={{ whiteSpace: "nowrap", marginLeft: "1rem", opacity: !puedeVerificar ? 0.4 : 1, cursor: !puedeVerificar ? "not-allowed" : "pointer" }}
               disabled={!puedeVerificar}
               onClick={iniciarVerificacion}
             >
@@ -2463,10 +2436,8 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
           </div>
         )}
 
-        {/* ── Terminal animado ── */}
         {(fase === "verificando" || fase === "listo") && (
           <div style={{ marginBottom: fase === "listo" ? "1.25rem" : 0 }}>
-            {/* Header terminal */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"0.5rem" }}>
               <div style={{ display:"flex", alignItems:"center", gap:"0.5rem" }}>
                 <span style={{ fontSize:"0.65rem", fontWeight:700, color: fase==="verificando"?"#fbbf24":"#34d399", textTransform:"uppercase", letterSpacing:"0.07em" }}>
@@ -2477,10 +2448,9 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                 <button className="btn-secundario" style={{ fontSize: "0.65rem", padding: "0.2rem 0.6rem" }} onClick={resetear}>↺ Reverificar</button>
               )}
             </div>
-            {/* Cuerpo terminal */}
-            <div ref={terminalRef}
+            <div
+              ref={terminalRef}
               onScroll={(e) => {
-                // Solo reaccionar si el scroll fue en el terminal mismo (no en un padre)
                 if (e.target !== terminalRef.current) return;
                 const el = e.currentTarget;
                 const alFondo = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
@@ -2504,74 +2474,80 @@ function BloqueVerificacion({ flujoMaxGlobal, cargaTotalGlobal, estados, cargas,
                       {linea.texto}
                     </div>
               ))}
-              {/* Cursor parpadeante */}
               {fase === "verificando" && (
                 <span style={{ display:"inline-block", width:"8px", height:"13px", background:"#60a5fa", marginLeft:"2px", animation:"blink 1s step-end infinite", verticalAlign:"middle" }} />
               )}
             </div>
           </div>
         )}
+
         {fase === "listo" && resultado?.error && (
           <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", padding: "0.6rem 0.8rem", fontSize: "0.73rem", color: "#f87171" }}>⚠ {resultado.error}</div>
         )}
-        {fase === "listo" && eq && eq.flujoEq != null && !resultado.error && (<>
 
-          {/* Punto de operación — resultado del proceso iterativo */}
-          <div style={{ marginBottom: "0.75rem" }}>
-            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Punto de operación</div>
-            <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
-              <div className="bdc-stat"><span className="bdc-stat-valor" style={{ color: "#38bdf8" }}>{parseFloat(eq.flujoEq).toFixed(1)}</span><span className="bdc-stat-label">GPM operación</span></div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(eq.cargaEq).toFixed(2)}</span><span className="bdc-stat-label">fthd CDT sistema</span></div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat">
-                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.flujoEq - flujoMaxGlobal) < flujoMaxGlobal * 0.05 ? "#34d399" : "#f97316" }}>
-                  {(((eq.flujoEq - flujoMaxGlobal) / flujoMaxGlobal) * 100).toFixed(1)}%
-                </span>
-                <span className="bdc-stat-label">Δ flujo</span>
-              </div>
-              <div className="bdc-stat-sep" />
-              <div className="bdc-stat">
-                <span className="bdc-stat-valor" style={{ color: Math.abs(eq.cargaEq - cargaTotalGlobal) < cargaTotalGlobal * 0.05 ? "#34d399" : "#f97316" }}>
-                  {(((eq.cargaEq - cargaTotalGlobal) / cargaTotalGlobal) * 100).toFixed(1)}%
-                </span>
-                <span className="bdc-stat-label">Δ CDT</span>
+        {fase === "listo" && eq && eq.flujoEq != null && !resultado.error && (
+          <>
+            <div style={{ marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Punto de operación</div>
+              <div className="bdc-rec-stats" style={{ background: "rgba(56,189,248,0.05)", borderRadius: "8px", padding: "0.6rem 0.75rem" }}>
+                <div className="bdc-stat"><span className="bdc-stat-valor" style={{ color: "#38bdf8" }}>{parseFloat(eq.flujoEq).toFixed(1)}</span><span className="bdc-stat-label">GPM operación</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat"><span className="bdc-stat-valor">{parseFloat(eq.cargaEq).toFixed(2)}</span><span className="bdc-stat-label">fthd CDT sistema</span></div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor" style={{ color: Math.abs(eq.flujoEq - flujoMaxGlobal) < flujoMaxGlobal * 0.05 ? "#34d399" : "#f97316" }}>
+                    {(((eq.flujoEq - flujoMaxGlobal) / flujoMaxGlobal) * 100).toFixed(1)}%
+                  </span>
+                  <span className="bdc-stat-label">Δ flujo</span>
+                </div>
+                <div className="bdc-stat-sep" />
+                <div className="bdc-stat">
+                  <span className="bdc-stat-valor" style={{ color: Math.abs(eq.cargaEq - cargaTotalGlobal) < cargaTotalGlobal * 0.05 ? "#34d399" : "#f97316" }}>
+                    {(((eq.cargaEq - cargaTotalGlobal) / cargaTotalGlobal) * 100).toFixed(1)}%
+                  </span>
+                  <span className="bdc-stat-label">Δ CDT</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* ══ RESUMEN COMPLETO DE EQUIPOS + CONFIRMACIÓN ══ */}
-          <ResumenEquiposConfirmacion
-            sistemaActivo={sistemaActivo}
-            resultado={resultado}
-            eq={eq}
-            flujoMaxGlobal={flujoMaxGlobal}
-            cargaTotalGlobal={cargaTotalGlobal}
-            estadoBomba={estadoBomba}
-            equiposCalentamiento={equiposCalentamiento}
-            sistemasSanitizacion={sistemasSanitizacion}
-            sistemasFiltracion={sistemasFiltracion}
-            datosSanitizacion={datosSanitizacion}
-            estados={estados}
-            cargas={cargas}
-            datosEmpotrable={datosEmpotrable}
-            tieneDesbordeCanal={tieneDesbordeCanal}
-            datosPorSistema={datosPorSistema}
-            resultadoClorador={resultadoClorador}
-            sistemasSeleccionadosSanit={sistemasSanitizacion}
-            sistemasSeleccionadosFilt={sistemasFiltracion}
-            onAjustarCargas={onAjustarCargas}
-            flujoInfinityVal={flujoInfinityVal ?? null}
-            flujoFiltradoVal={flujoFiltradoVal ?? null}
-            volumenTotalVal={volumenTotalVal ?? null}
-            modoCloradorSalino={modoCloradorSalino}
-            selCloradorSalinoId={selCloradorSalinoId}
-            selCloradorSalinoCant={selCloradorSalinoCant}
-            cloradorEnLineaQuitado={cloradorEnLineaQuitado}
-            flujoOperacion={flujoOperacion}
-          />
-
-        </>)}
+            <ResumenEquiposConfirmacion
+              sistemaActivo={sistemaActivo}
+              resultado={resultado}
+              eq={eq}
+              flujoMaxGlobal={flujoMaxGlobal}
+              cargaTotalGlobal={cargaTotalGlobal}
+              estadoBomba={estadoBomba}
+              equiposCalentamiento={equiposCalentamiento}
+              sistemasSanitizacion={sistemasSanitizacion}
+              sistemasFiltracion={sistemasFiltracion}
+              datosSanitizacion={datosSanitizacion}
+              estados={estados}
+              cargas={cargas}
+              datosEmpotrable={datosEmpotrable}
+              tieneDesbordeCanal={tieneDesbordeCanal}
+              datosPorSistema={datosPorSistema}
+              resultadoClorador={resultadoClorador}
+              sistemasSeleccionadosSanit={sistemasSanitizacion}
+              sistemasSeleccionadosFilt={sistemasFiltracion}
+              onAjustarCargas={onAjustarCargas}
+              flujoInfinityVal={flujoInfinityVal ?? null}
+              flujoFiltradoVal={flujoFiltradoVal ?? null}
+              volumenTotalVal={volumenTotalVal ?? null}
+              modoCloradorSalino={modoCloradorSalino}
+              selCloradorSalinoId={selCloradorSalinoId}
+              selCloradorSalinoCant={selCloradorSalinoCant}
+              cloradorEnLineaQuitado={cloradorEnLineaQuitado}
+              flujoOperacion={flujoOperacion}
+              // ── NUEVOS ──
+              tubFiltrado={tubFiltrado ?? null}
+              velFiltrado={velFiltrado ?? null}
+              tubInfinity={tubInfinity ?? null}
+              velInfinity={velInfinity ?? null}
+              tubCanal={tubCanal ?? null}
+              velCanal={velCanal ?? null}
+            />
+          </>
+        )}
       </div>
     </div>
   );
@@ -2586,6 +2562,10 @@ const NOMBRES_EQ = {
   filtroArena: "Filtro de arena", prefiltro: "Prefiltro", filtroCartucho: "Filtro de cartucho",
 };
 
+/* ================================================================
+   ResumenEquiposConfirmacion
+   ================================================================ */
+
 function ResumenEquiposConfirmacion({
   resultado, eq, flujoMaxGlobal, cargaTotalGlobal,
   estadoBomba, equiposCalentamiento,
@@ -2594,15 +2574,14 @@ function ResumenEquiposConfirmacion({
   datosPorSistema, resultadoClorador,
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   onAjustarCargas,
-  flujoInfinityVal = null,
-  flujoFiltradoVal = null,
-  volumenTotalVal  = null,
-  sistemaActivo = null,
-  modoCloradorSalino = "recomendado",
-  selCloradorSalinoId = null,
-  selCloradorSalinoCant = 1,
-  cloradorEnLineaQuitado = false,
-  flujoOperacion = null,
+  flujoInfinityVal, flujoFiltradoVal, volumenTotalVal,
+  sistemaActivo,
+  modoCloradorSalino, selCloradorSalinoId, selCloradorSalinoCant,
+  cloradorEnLineaQuitado, flujoOperacion,
+  // ── NUEVOS ──
+  tubFiltrado, velFiltrado,
+  tubInfinity, velInfinity,
+  tubCanal,    velCanal,
 }) {
   const [confirmado, setConfirmado] = useState(false);
   const [equiposConfirmados, setEquiposConfirmados] = useState(null);
@@ -2617,8 +2596,7 @@ function ResumenEquiposConfirmacion({
   const uvCambio = uvRecalc?.cambio === true;
   const hayCambiosCheck = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
 
-  // Guardar punto de operación automáticamente cuando no hay cambios pendientes
-useEffect(() => {
+  useEffect(() => {
     if (resultado?.equilibrio?.flujo != null && onAjustarCargas) {
       onAjustarCargas({
         equipos: equiposRecalc,
@@ -2628,8 +2606,6 @@ useEffect(() => {
     }
   }, [resultado?.equilibrio?.flujo]);
 
-
-  // ── Detectar tema (reactivo) ──
   const [esClaro, setEsClaro] = useState(document.body.classList.contains("tema-claro"));
   useEffect(() => {
     const obs = new MutationObserver(() => setEsClaro(document.body.classList.contains("tema-claro")));
@@ -2637,8 +2613,7 @@ useEffect(() => {
     return () => obs.disconnect();
   }, []);
 
-  // ── Sección: grupo de filas ──
-    const FilaEquipo = ({ nombre, subNombre, diseño, equilibrio, excluido = false }) => {
+  const FilaEquipo = ({ nombre, subNombre, diseño, equilibrio, excluido = false }) => {
     const cambioCantidad = equilibrio?.cambioCantidad ?? false;
     const cambioCarga    = equilibrio?.cambioCarga    ?? false;
     const cambioEquipo   = equilibrio?.cambioEquipo   ?? false;
@@ -2654,13 +2629,7 @@ useEffect(() => {
     const bgEq        = hayAjuste ? "rgba(249,115,22,0.06)" : "transparent";
 
     return (
-      <div style={{
-        borderRadius: "6px", marginBottom: "0.2rem",
-        background: bg, border: `1px solid ${border}`,
-        boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-        overflow: "hidden",
-      }}>
-        {/* Header */}
+      <div style={{ borderRadius: "6px", marginBottom: "0.2rem", background: bg, border: `1px solid ${border}`, boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.25rem 0.6rem" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
             <span style={{ fontSize: "0.74rem", fontWeight: 500, color: colorBase }}>{nombre}</span>
@@ -2671,11 +2640,7 @@ useEffect(() => {
             : <span style={{ fontSize: "0.58rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "4px", background: "rgba(52,211,153,0.12)", color: "#34d399", flexShrink: 0 }}>✓ OK</span>
           }
         </div>
-
-        {/* Columnas Diseño / Equilibrio */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: colDivider }}>
-
-          {/* ── DISEÑO ── */}
           <div style={{ padding: "0.2rem 0.6rem 0.25rem", borderRight: colDivider }}>
             <div style={{ fontSize: "0.54rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.15rem" }}>Diseño</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}>
@@ -2686,80 +2651,65 @@ useEffect(() => {
               {diseño?.carga != null && <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorValDis }}><span style={{ color: "#64748b", fontWeight: 400 }}>Carga: </span>{parseFloat(diseño.carga).toFixed(2)} fthd</span>}
             </div>
           </div>
-
-          {/* ── EQUILIBRIO ── */}
-          <div style={{ padding: "0.2rem 0.6rem 0.25rem", background: bgEq, border: hayAjuste ? `0 solid transparent` : "none", borderLeft: borderEq }}>
+          <div style={{ padding: "0.2rem 0.6rem 0.25rem", background: bgEq, borderLeft: borderEq }}>
             <div style={{ fontSize: "0.54rem", color: hayAjuste ? "#f97316" : "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.15rem" }}>Equilibrio</div>
-
             {excluido ? (
               <span style={{ fontSize: "0.62rem", color: "#f97316" }}>Excluido — flujo {">"} {FLUJO_MAX_CLORADOR_EN_LINEA} GPM</span>
             ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}>
-                            {equilibrio?.marca && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorSub }}><span style={{ color: "#64748b" }}>Marca: </span>{equilibrio.marca}</span>}
-                            {equilibrio?.modelo && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorBase }}><span style={{ color: "#64748b" }}>Modelo: </span>{equilibrio.modelo}</span>}
-                            {equilibrio?.capacidad && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorBase, fontWeight: 600 }}><span style={{ color: "#64748b", fontWeight: 400 }}>Cap.: </span>{equilibrio.capacidad}</span>}
-                            {diseño?.cantidad != null && (
-                              cambioCantidad
-                                ? <span style={{ fontSize: "0.62rem" }}><span style={{ color: "#64748b" }}>Uds: </span><span style={{ textDecoration: "line-through", opacity: 0.7, marginRight: "0.2rem", color: esClaro ? "#475569" : "#94a3b8" }}>{diseño.cantidad}</span><span style={{ color: "#f97316", fontWeight: 600 }}>→ {equilibrio.cantidad}</span></span>
-                                : <span style={{ fontSize: "0.62rem", color: colorBase }}><span style={{ color: "#64748b" }}>Uds: </span>{diseño.cantidad}</span>
-                            )}
-                            {equilibrio?.carga != null && (
-                              cambioCarga
-                                ? <span style={{ fontSize: "0.67rem", fontWeight: 600 }}><span style={{ color: "#64748b", fontWeight: 400 }}>Carga: </span><span style={{ textDecoration: "line-through", opacity: 0.7, marginRight: "0.2rem", fontSize: "0.6rem", color: esClaro ? "#475569" : "#94a3b8" }}>{parseFloat(diseño.carga).toFixed(2)} fthd</span><span style={{ color: "#f97316" }}>{parseFloat(equilibrio.carga).toFixed(2)} fthd</span></span>
-                                : <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorValDis }}><span style={{ color: "#64748b", fontWeight: 400 }}>Carga: </span>{parseFloat(equilibrio.carga).toFixed(2)} fthd</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              };
-
-    const FilaSimple = ({ color, nombre, subNombre, detalle, carga, badge }) => {
-      const colorNombre = badge === "ajuste" ? "#f97316" : esClaro ? "#1e293b" : "#e2e8f0";
-      const colorSub    = esClaro ? "#475569" : "#94a3b8";
-      const colorDet    = esClaro ? "#475569" : "#94a3b8";
-      const bg          = badge === "ajuste" ? "rgba(249,115,22,0.07)" : esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
-      const border      = badge === "ajuste" ? "rgba(249,115,22,0.25)" : esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
-      return (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0.35rem 0.7rem", borderRadius: "6px", marginBottom: "0.25rem",
-          background: bg, border: `1px solid ${border}`,
-          boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-        }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: "0.76rem", fontWeight: 500, color: colorNombre, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
-            {subNombre && <span style={{ fontSize: "0.65rem", color: colorSub }}>{subNombre}</span>}
-          </div>
-          <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexShrink: 0, marginLeft: "0.5rem" }}>
-            {detalle && <span style={{ fontSize: "0.68rem", color: colorDet }}>{detalle}</span>}
-            {carga   && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: badge === "ajuste" ? "#f97316" : esClaro ? "#1d6fa8" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
-            {badge && (
-              <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "4px",
-                background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)",
-                color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b",
-              }}>
-                {badge === "ajuste" ? "↑ Ajuste" : badge === "ok" ? "✓ OK" : badge === "excluido" ? "Excluido" : badge}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}>
+                {equilibrio?.marca && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorSub }}><span style={{ color: "#64748b" }}>Marca: </span>{equilibrio.marca}</span>}
+                {equilibrio?.modelo && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorBase }}><span style={{ color: "#64748b" }}>Modelo: </span>{equilibrio.modelo}</span>}
+                {equilibrio?.capacidad && <span style={{ fontSize: "0.62rem", color: cambioEquipo ? "#f97316" : colorBase, fontWeight: 600 }}><span style={{ color: "#64748b", fontWeight: 400 }}>Cap.: </span>{equilibrio.capacidad}</span>}
+                {diseño?.cantidad != null && (
+                  cambioCantidad
+                    ? <span style={{ fontSize: "0.62rem" }}><span style={{ color: "#64748b" }}>Uds: </span><span style={{ textDecoration: "line-through", opacity: 0.7, marginRight: "0.2rem", color: esClaro ? "#475569" : "#94a3b8" }}>{diseño.cantidad}</span><span style={{ color: "#f97316", fontWeight: 600 }}>→ {equilibrio.cantidad}</span></span>
+                    : <span style={{ fontSize: "0.62rem", color: colorBase }}><span style={{ color: "#64748b" }}>Uds: </span>{diseño.cantidad}</span>
+                )}
+                {equilibrio?.carga != null && (
+                  cambioCarga
+                    ? <span style={{ fontSize: "0.67rem", fontWeight: 600 }}><span style={{ color: "#64748b", fontWeight: 400 }}>Carga: </span><span style={{ textDecoration: "line-through", opacity: 0.7, marginRight: "0.2rem", fontSize: "0.6rem", color: esClaro ? "#475569" : "#94a3b8" }}>{parseFloat(diseño.carga).toFixed(2)} fthd</span><span style={{ color: "#f97316" }}>{parseFloat(equilibrio.carga).toFixed(2)} fthd</span></span>
+                    : <span style={{ fontSize: "0.67rem", fontWeight: 600, color: colorValDis }}><span style={{ color: "#64748b", fontWeight: 400 }}>Carga: </span>{parseFloat(equilibrio.carga).toFixed(2)} fthd</span>
+                )}
+              </div>
             )}
           </div>
         </div>
-      );
-    };
+      </div>
+    );
+  };
+
+  const FilaSimple = ({ color, nombre, subNombre, detalle, carga, badge }) => {
+    const colorNombre = badge === "ajuste" ? "#f97316" : esClaro ? "#1e293b" : "#e2e8f0";
+    const colorSub    = esClaro ? "#475569" : "#94a3b8";
+    const colorDet    = esClaro ? "#475569" : "#94a3b8";
+    const bg          = badge === "ajuste" ? "rgba(249,115,22,0.07)" : esClaro ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.05)";
+    const border      = badge === "ajuste" ? "rgba(249,115,22,0.25)" : esClaro ? "rgba(29,111,168,0.12)" : "rgba(255,255,255,0.08)";
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.35rem 0.7rem", borderRadius: "6px", marginBottom: "0.25rem", background: bg, border: `1px solid ${border}`, boxShadow: esClaro ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem", flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: "0.76rem", fontWeight: 500, color: colorNombre, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
+          {subNombre && <span style={{ fontSize: "0.65rem", color: colorSub }}>{subNombre}</span>}
+        </div>
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexShrink: 0, marginLeft: "0.5rem" }}>
+          {detalle && <span style={{ fontSize: "0.68rem", color: colorDet }}>{detalle}</span>}
+          {carga   && <span style={{ fontSize: "0.7rem", fontWeight: 600, color: badge === "ajuste" ? "#f97316" : esClaro ? "#1d6fa8" : "#60a5fa", fontVariantNumeric: "tabular-nums" }}>{carga}</span>}
+          {badge && (
+            <span style={{ fontSize: "0.6rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "4px", background: badge === "ajuste" ? "rgba(249,115,22,0.15)" : badge === "ok" ? "rgba(52,211,153,0.12)" : "rgba(100,116,139,0.15)", color: badge === "ajuste" ? "#f97316" : badge === "ok" ? "#34d399" : "#64748b" }}>
+              {badge === "ajuste" ? "↑ Ajuste" : badge === "ok" ? "✓ OK" : badge === "excluido" ? "Excluido" : badge}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const SeccionTitulo = ({ emoji, titulo }) => (
-    <div style={{ fontSize: "0.65rem", color: esClaro ? "#1d6fa8" : "#90cdf4", fontWeight: 700,
-      textTransform: "uppercase", letterSpacing: "0.06em", margin: "0.75rem 0 0.3rem",
-      paddingLeft: "0.4rem", borderLeft: `3px solid ${esClaro ? "#1d6fa8" : "#1d6fa8"}`,
-      display: "flex", alignItems: "center", gap: "0.4rem" }}>
+    <div style={{ fontSize: "0.65rem", color: esClaro ? "#1d6fa8" : "#90cdf4", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0.75rem 0 0.3rem", paddingLeft: "0.4rem", borderLeft: `3px solid ${esClaro ? "#1d6fa8" : "#1d6fa8"}`, display: "flex", alignItems: "center", gap: "0.4rem" }}>
       <span>{emoji}</span><span>{titulo}</span>
     </div>
   );
 
   const hayCambios = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
-  // Calcular exclusión del clorador directamente desde el flujo de equilibrio
   const flujoEquilibrio = resultado?.equilibrio?.flujo ?? flujoMaxGlobal;
   const cloradorExcluidoLocal = sistemasSeleccionadosSanit?.cloradorAutomatico
     && estados?.cloradorAutomatico?.instalacion === "enLinea"
@@ -2779,123 +2729,69 @@ useEffect(() => {
       </div>
 
       {/* ── Calentamiento ── */}
-      {equiposCalentamiento?.length > 0 && (<>
-        <SeccionTitulo emoji="🔥" titulo="Calentamiento" />
-        {equiposCalentamiento.map(eqCal => (
-          <FilaEquipo key={eqCal.key}
-            nombre={eqCal.label}
-            diseño={{
-              marca: eqCal.marca,
-              modelo: eqCal.modelo,
-              capacidad: eqCal.capUnitaria ? `${Math.round(parseFloat(eqCal.capUnitaria)).toLocaleString("es-MX")} BTU/h` : null,
-              cantidad: eqCal.cantidad,
-              carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null,
-            }}
-            equilibrio={{
-              marca: eqCal.marca,
-              modelo: eqCal.modelo,
-              capacidad: eqCal.capUnitaria ? `${Math.round(parseFloat(eqCal.capUnitaria)).toLocaleString("es-MX")} BTU/h` : null,
-              cantidad: eqCal.cantidad,
-              carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null,
-              cambioCantidad: false, cambioEquipo: false, cambioCarga: false,
-            }}
-          />
-        ))}
-      </>)}
+      {equiposCalentamiento?.length > 0 && (
+        <>
+          <SeccionTitulo emoji="🔥" titulo="Calentamiento" />
+          {equiposCalentamiento.map(eqCal => (
+            <FilaEquipo key={eqCal.key}
+              nombre={eqCal.label}
+              diseño={{ marca: eqCal.marca, modelo: eqCal.modelo, capacidad: eqCal.capUnitaria ? `${Math.round(parseFloat(eqCal.capUnitaria)).toLocaleString("es-MX")} BTU/h` : null, cantidad: eqCal.cantidad, carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null }}
+              equilibrio={{ marca: eqCal.marca, modelo: eqCal.modelo, capacidad: eqCal.capUnitaria ? `${Math.round(parseFloat(eqCal.capUnitaria)).toLocaleString("es-MX")} BTU/h` : null, cantidad: eqCal.cantidad, carga: eqCal.cargaTotal != null ? parseFloat(eqCal.cargaTotal) : null, cambioCantidad: false, cambioEquipo: false, cambioCarga: false }}
+            />
+          ))}
+        </>
+      )}
 
       {/* ── Sanitización ── */}
-      {Object.keys(sistemasSanitizacion ?? {}).some(k => sistemasSanitizacion[k]) && (<>
-        <SeccionTitulo emoji="🧪" titulo="Sanitización" />
+      {Object.keys(sistemasSanitizacion ?? {}).some(k => sistemasSanitizacion[k]) && (
+        <>
+          <SeccionTitulo emoji="🧪" titulo="Sanitización" />
+          {sistemasSanitizacion?.cloradorSalino && (() => {
+            const d = datosSanitizacion?.cloradorSalino;
+            return (
+              <FilaEquipo nombre="Generador de cloro salino"
+                diseño={{ marca: d?.marca, modelo: d?.modelo, capacidad: d?.spec ?? null, cantidad: d?.cantidad, carga: cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null }}
+                equilibrio={{ marca: d?.marca, modelo: d?.modelo, capacidad: d?.spec ?? null, cantidad: d?.cantidad, carga: cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null, cambioCantidad: false, cambioEquipo: false, cambioCarga: false }}
+              />
+            );
+          })()}
+          {sistemasSanitizacion?.cloradorAutomatico && (() => {
+            const d = datosSanitizacion?.cloradorAutomatico;
+            return (
+              <FilaEquipo nombre="Clorador automático"
+                diseño={{ marca: d?.marca, modelo: d?.modelo, capacidad: d?.spec ?? null, cantidad: d?.cantidad, carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null }}
+                equilibrio={{ marca: d?.marca, modelo: d?.modelo, capacidad: d?.spec ?? null, cantidad: d?.cantidad, carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null, cambioCantidad: false, cambioCarga: false, cambioEquipo: false }}
+                excluido={cloradorExcluidoLocal}
+              />
+            );
+          })()}
+          {sistemasSanitizacion?.lamparaUV && (() => {
+            const d = datosSanitizacion?.lamparaUV;
+            const marcaUV  = uvRecalc?.marca  ?? d?.marca;
+            const modeloUV = uvRecalc?.modelo ?? d?.modelo;
+            const cantOrigUV   = uvRecalc?.cantOriginal ?? d?.cantidad;
+            const cantActualUV = uvRecalc?.cantidad     ?? d?.cantidad;
+            const cargaDis = cargas?.lamparaUV != null ? parseFloat(cargas.lamparaUV) : null;
+            const cargaEq  = uvRecalc?.cargaTotal != null ? parseFloat(uvRecalc.cargaTotal) : cargaDis;
+            const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
+            const cambioCantidad = uvRecalc?.cambio === true && cantOrigUV !== cantActualUV;
+            const cambioEquipo   = uvRecalc?.selId && estados?.lamparaUV?.selId && uvRecalc.selId !== estados.lamparaUV.selId;
+            const eqUVobj    = generadoresUV.find(g => g.marca === d?.marca    && g.modelo === d?.modelo);
+            const eqUVEqobj  = generadoresUV.find(g => g.marca === marcaUV     && g.modelo === modeloUV);
+            return (
+              <FilaEquipo nombre="Lámpara UV"
+                diseño={{ marca: d?.marca, modelo: d?.modelo, capacidad: eqUVobj?.specs?.flujo ? `${eqUVobj.specs.flujo} GPM` : null, cantidad: cantOrigUV, carga: cargaDis }}
+                equilibrio={{ marca: marcaUV, modelo: modeloUV, capacidad: eqUVEqobj?.specs?.flujo ? `${eqUVEqobj.specs.flujo} GPM` : null, cantidad: cantActualUV, carga: cargaEq, cambioCarga, cambioCantidad, cambioEquipo }}
+              />
+            );
+          })()}
+        </>
+      )}
 
-            {sistemasSanitizacion?.cloradorSalino && (() => {
-              const d = datosSanitizacion?.cloradorSalino;
-              const carga = cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null;
-              return (
-                <FilaEquipo
-                  nombre="Generador de cloro salino"
-                  diseño={{
-                    marca: d?.marca,
-                    modelo: d?.modelo,
-                    capacidad: d?.spec ?? null,
-                    cantidad: d?.cantidad,
-                    carga: cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null,
-                  }}
-                  equilibrio={{
-                    marca: d?.marca,
-                    modelo: d?.modelo,
-                    capacidad: d?.spec ?? null,
-                    cantidad: d?.cantidad,
-                    carga: cargas?.cloradorSalino != null ? parseFloat(cargas.cloradorSalino) : null,
-                    cambioCantidad: false, cambioEquipo: false, cambioCarga: false,
-                  }}
-                />
-              );
-            })()}
-
-            {sistemasSanitizacion?.cloradorAutomatico && (() => {
-              const d = datosSanitizacion?.cloradorAutomatico;
-              return (
-                <FilaEquipo
-                  nombre="Clorador automático"
-                  diseño={{
-                    marca: d?.marca,
-                    modelo: d?.modelo,
-                    capacidad: d?.spec ?? null,
-                    cantidad: d?.cantidad,
-                    carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null,
-                  }}
-                  equilibrio={{
-                    marca: d?.marca,
-                    modelo: d?.modelo,
-                    capacidad: d?.spec ?? null,
-                    cantidad: d?.cantidad,
-                    carga: cargas?.cloradorAutomatico != null ? parseFloat(cargas.cloradorAutomatico) : null,
-                    cambioCantidad: false, cambioCarga: false, cambioEquipo: false,
-                  }}
-                  excluido={cloradorExcluidoLocal}
-                />
-              );
-            })()}
-
-        {/* Aviso cuando clorador en línea fue quitado — ya manejado arriba */}
-
-        {sistemasSanitizacion?.lamparaUV && (() => {
-          const d = datosSanitizacion?.lamparaUV;
-          const marcaUV  = d?.marca;
-          const modeloUV = d?.modelo;
-          const marcaEqUV  = uvRecalc?.marca  ?? marcaUV;
-          const modeloEqUV = uvRecalc?.modelo ?? modeloUV;
-          const cantOrigUV   = uvRecalc?.cantOriginal ?? d?.cantidad;
-          const cantActualUV = uvRecalc?.cantidad     ?? d?.cantidad;
-          const cargaDis = cargas?.lamparaUV != null ? parseFloat(cargas.lamparaUV) : null;
-          const cargaEq  = uvRecalc?.cargaTotal != null ? parseFloat(uvRecalc.cargaTotal) : cargaDis;
-          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
-          const cambioCantidad = uvRecalc?.cambio === true && cantOrigUV !== cantActualUV;
-          const cambioEquipo   = uvRecalc?.selId && estados?.lamparaUV?.selId && uvRecalc.selId !== estados.lamparaUV.selId;
-          const eqUVobj = generadoresUV.find(g => g.marca === marcaUV && g.modelo === modeloUV);
-          const eqUVEqobj = generadoresUV.find(g => g.marca === marcaEqUV && g.modelo === modeloEqUV);
-          return (
-            <FilaEquipo
-              nombre="Lámpara UV"
-              diseño={{
-                marca: marcaUV, modelo: modeloUV,
-                capacidad: eqUVobj?.specs?.flujo ? `${eqUVobj.specs.flujo} GPM` : null,
-                cantidad: cantOrigUV, carga: cargaDis,
-              }}
-              equilibrio={{
-                marca: marcaEqUV, modelo: modeloEqUV,
-                capacidad: eqUVEqobj?.specs?.flujo ? `${eqUVEqobj.specs.flujo} GPM` : null,
-                cantidad: cantActualUV, carga: cargaEq,
-                cambioCarga, cambioCantidad, cambioEquipo,
-              }}
-            />
-          );
-        })()}
-      </>)}
-       
       {/* ── Filtración ── */}
-      {Object.keys(sistemasFiltracion ?? {}).some(k => sistemasFiltracion[k]) && (<>
-        <SeccionTitulo emoji="🧹" titulo="Filtración" />
+      {Object.keys(sistemasFiltracion ?? {}).some(k => sistemasFiltracion[k]) && (
+        <>
+          <SeccionTitulo emoji="🧹" titulo="Filtración" />
           {["prefiltro","filtroArena","filtroCartucho"].map(key => {
             if (!sistemasFiltracion[key]) return null;
             const est = estados[key];
@@ -2926,70 +2822,57 @@ useEffect(() => {
             return (
               <FilaEquipo key={key}
                 nombre={nombre}
-                diseño={{
-                  marca, modelo: infoDis.modelo, capacidad: infoDis.capacidad,
-                  cantidad: cantDis, carga: cargaDis,
-                }}
-                equilibrio={{
-                  marca: marcaEq, modelo: infoEq.modelo, capacidad: infoEq.capacidad,
-                  cantidad: cantEq, carga: cargaEq,
-                  cambioCantidad, cambioEquipo, cambioCarga,
-                }}
+                diseño={{ marca, modelo: infoDis.modelo, capacidad: infoDis.capacidad, cantidad: cantDis, carga: cargaDis }}
+                equilibrio={{ marca: marcaEq, modelo: infoEq.modelo, capacidad: infoEq.capacidad, cantidad: cantEq, carga: cargaEq, cambioCantidad, cambioEquipo, cambioCarga }}
               />
             );
           })}
-      </>)}
+        </>
+      )}
 
       {/* ── Empotrables ── */}
-        {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (
-          <SeccionTitulo emoji="💧" titulo="Empotrables" />
-        )}
-          {["retorno","desnatador","drenCanal","drenFondo","barredora"].map(key => {
-          const est = estados[key];
-          const rec = equiposRecalc[key];
-          if (!est && !rec) return null;
-          if (key === "desnatador" && tieneDesbordeCanal) return null;
-          if (key === "drenCanal"  && !tieneDesbordeCanal) return null;
-          const nombre   = NOMBRES_EQ[key];
-          const marca    = est?.marca  ?? "—";
-          const modelo   = est?.modelo ?? "—";
-          const marcaEq  = rec?.marca  ?? marca;
-          const modeloEq = rec?.modelo ?? modelo;
-          const cantDis  = rec?.cantOriginal ?? est?.cantidad;
-          const cantEq   = rec?.cantidad     ?? est?.cantidad;
-          const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
-          const cargaEq  = rec?.sumaFinal != null ? parseFloat(rec.sumaFinal) : cargaDis;
-          const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
-          const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
-          const getEmpotrabInfo = (mrc, mdl) => {
-            const cats = [retornos, desnatadores, barredoras, drenesFondo, drenesCanal];
-            for (const cat of cats) {
-              const eq = cat.find(e => e.marca === mrc && e.modelo === mdl);
-              if (eq) {
-                const tam = eq.specs?.tamano;
-                const puerto = eq.specs?.dimensionPuerto;
-                return { modelo: eq.modelo, capacidad: tam ? `${tam}"` : puerto ? `${puerto}"` : null };
-              }
+      {["retorno","desnatador","barredora","drenFondo","drenCanal"].some(k => estados[k] || equiposRecalc[k]) && (
+        <SeccionTitulo emoji="💧" titulo="Empotrables" />
+      )}
+      {["retorno","desnatador","drenCanal","drenFondo","barredora"].map(key => {
+        const est = estados[key];
+        const rec = equiposRecalc[key];
+        if (!est && !rec) return null;
+        if (key === "desnatador" && tieneDesbordeCanal) return null;
+        if (key === "drenCanal"  && !tieneDesbordeCanal) return null;
+        const nombre   = NOMBRES_EQ[key];
+        const marca    = est?.marca  ?? "—";
+        const modelo   = est?.modelo ?? "—";
+        const marcaEq  = rec?.marca  ?? marca;
+        const modeloEq = rec?.modelo ?? modelo;
+        const cantDis  = rec?.cantOriginal ?? est?.cantidad;
+        const cantEq   = rec?.cantidad     ?? est?.cantidad;
+        const cargaDis = cargas[key] != null ? parseFloat(cargas[key]) : null;
+        const cargaEq  = rec?.sumaFinal != null ? parseFloat(rec.sumaFinal) : cargaDis;
+        const cambioCantidad = rec?.cambio === true && cantDis !== cantEq;
+        const cambioCarga    = cargaEq != null && cargaDis != null && Math.abs(cargaEq - cargaDis) > 0.01;
+        const getEmpotrabInfo = (mrc, mdl) => {
+          const cats = [retornos, desnatadores, barredoras, drenesFondo, drenesCanal];
+          for (const cat of cats) {
+            const eq = cat.find(e => e.marca === mrc && e.modelo === mdl);
+            if (eq) {
+              const tam = eq.specs?.tamano;
+              const puerto = eq.specs?.dimensionPuerto;
+              return { modelo: eq.modelo, capacidad: tam ? `${tam}"` : puerto ? `${puerto}"` : null };
             }
-            return { modelo: mdl, capacidad: null };
-          };
-          const empDis = getEmpotrabInfo(marca, modelo);
-          const empEq  = getEmpotrabInfo(marcaEq, modeloEq);
-          return (
-            <FilaEquipo key={key}
-              nombre={nombre}
-              diseño={{
-                marca, modelo: empDis.modelo, capacidad: empDis.capacidad,
-                cantidad: cantDis, carga: cargaDis,
-              }}
-              equilibrio={{
-                marca: marcaEq, modelo: empEq.modelo, capacidad: empEq.capacidad,
-                cantidad: cantEq, carga: cargaEq,
-                cambioCantidad, cambioCarga, cambioEquipo: false,
-              }}
-            />
-          );
-        })}
+          }
+          return { modelo: mdl, capacidad: null };
+        };
+        const empDis = getEmpotrabInfo(marca, modelo);
+        const empEq  = getEmpotrabInfo(marcaEq, modeloEq);
+        return (
+          <FilaEquipo key={key}
+            nombre={nombre}
+            diseño={{ marca, modelo: empDis.modelo, capacidad: empDis.capacidad, cantidad: cantDis, carga: cargaDis }}
+            equilibrio={{ marca: marcaEq, modelo: empEq.modelo, capacidad: empEq.capacidad, cantidad: cantEq, carga: cargaEq, cambioCantidad, cambioCarga, cambioEquipo: false }}
+          />
+        );
+      })}
 
       {/* ── Motobomba ── */}
       <SeccionTitulo emoji="⚙️" titulo="Motobomba" />
@@ -2997,25 +2880,9 @@ useEffect(() => {
         const bombaObj = estadoBomba?.bombaId ? motobombas1v.find(b => b.id === estadoBomba.bombaId) : null;
         const capHP = bombaObj?.potencia_hp ? `${bombaObj.potencia_hp} HP` : (estadoBomba?.potenciaHP ? `${estadoBomba.potenciaHP} HP` : null);
         return (
-          <FilaEquipo
-            nombre="Motobomba"
-            diseño={{
-              marca: estadoBomba?.marca ?? "—",
-              modelo: estadoBomba?.modelo ?? "—",
-              capacidad: capHP,
-              cantidad: estadoBomba?.nBombas ?? 1,
-              carga: cargaTotalGlobal != null ? parseFloat(cargaTotalGlobal) : null,
-            }}
-            equilibrio={{
-              marca: estadoBomba?.marca ?? "—",
-              modelo: estadoBomba?.modelo ?? "—",
-              capacidad: capHP,
-              cantidad: estadoBomba?.nBombas ?? 1,
-              carga: eq.cargaEq != null ? parseFloat(eq.cargaEq) : null,
-              cambioCantidad: false, cambioEquipo: false,
-              cambioCarga: eq.cargaEq != null && cargaTotalGlobal != null
-                && Math.abs(parseFloat(eq.cargaEq) - parseFloat(cargaTotalGlobal)) > 0.01,
-            }}
+          <FilaEquipo nombre="Motobomba"
+            diseño={{ marca: estadoBomba?.marca ?? "—", modelo: estadoBomba?.modelo ?? "—", capacidad: capHP, cantidad: estadoBomba?.nBombas ?? 1, carga: cargaTotalGlobal != null ? parseFloat(cargaTotalGlobal) : null }}
+            equilibrio={{ marca: estadoBomba?.marca ?? "—", modelo: estadoBomba?.modelo ?? "—", capacidad: capHP, cantidad: estadoBomba?.nBombas ?? 1, carga: eq.cargaEq != null ? parseFloat(eq.cargaEq) : null, cambioCantidad: false, cambioEquipo: false, cambioCarga: eq.cargaEq != null && cargaTotalGlobal != null && Math.abs(parseFloat(eq.cargaEq) - parseFloat(cargaTotalGlobal)) > 0.01 }}
           />
         );
       })()}
@@ -3023,31 +2890,20 @@ useEffect(() => {
       {/* ── Botones de acción ── */}
       <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexDirection: "column" }}>
 
-        {/* Confirmar ajustes (solo si hay cambios y no está confirmado aún) */}
         {hayCambios && !confirmado && (
           <div style={{ padding: "0.65rem 0.8rem", background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.25)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
             <div>
               {(() => {
                 const nCambios = Object.values(equiposRecalc).filter(e => e?.cambio).length;
-                return (
-                  <div style={{ fontSize: "0.73rem", color: "#f97316", fontWeight: 600 }}>
-                    {nCambios} equipo{nCambios !== 1 ? "s requieren" : " requiere"} ajuste de cantidad
-                  </div>
-                );
+                return (<div style={{ fontSize: "0.73rem", color: "#f97316", fontWeight: 600 }}>{nCambios} equipo{nCambios !== 1 ? "s requieren" : " requiere"} ajuste de cantidad</div>);
               })()}
-              <div style={{ fontSize: "0.67rem", color: "#94a3b8", marginTop: "0.1rem" }}>
-                Se actualizarán las cargas con las cantidades del punto de equilibrio
-              </div>
+              <div style={{ fontSize: "0.67rem", color: "#94a3b8", marginTop: "0.1rem" }}>Se actualizarán las cargas con las cantidades del punto de equilibrio</div>
             </div>
             <button
               className="btn-primario"
               style={{ whiteSpace: "nowrap", fontSize: "0.75rem", padding: "0.45rem 1rem", background: "linear-gradient(135deg, #9a3412, #7c2d12)", borderColor: "rgba(249,115,22,0.4)" }}
               onClick={() => {
-                if (onAjustarCargas) onAjustarCargas({
-                  equipos: equiposRecalc,
-                  flujo:   resultado?.equilibrio?.flujo ?? null,
-                  cdt:     resultado?.equilibrio?.carga ?? null,
-                });
+                if (onAjustarCargas) onAjustarCargas({ equipos: equiposRecalc, flujo: resultado?.equilibrio?.flujo ?? null, cdt: resultado?.equilibrio?.carga ?? null });
                 setEquiposConfirmados(equiposRecalc);
                 setConfirmado(true);
               }}
@@ -3057,19 +2913,18 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Todos OK o ya confirmado */}
         {(!hayCambios || confirmado) && (
           <div style={{ padding: "0.45rem 0.7rem", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: "6px", fontSize: "0.7rem", color: "#34d399" }}>
             ✓ {confirmado ? "Ajustes confirmados — equipos actualizados" : "Todos los equipos cubren el flujo de equilibrio"}
           </div>
         )}
 
-        {/* Generar memoria de cálculo — bloqueado si hay cambios pendientes de confirmar */}
         {hayCambios && !confirmado && (
           <div style={{ fontSize:"0.7rem", color:"#f97316", background:"rgba(249,115,22,0.06)", border:"1px solid rgba(249,115,22,0.2)", borderRadius:"6px", padding:"0.4rem 0.7rem" }}>
             ⚠ Confirma los ajustes de equipos antes de generar la memoria
           </div>
         )}
+
         <button
           className="btn-primario"
           disabled={hayCambios && !confirmado}
@@ -3077,22 +2932,14 @@ useEffect(() => {
           onClick={() => {
             if (hayCambios && !confirmado) return;
             try {
-              // DEBUG temporal
               console.log("=== GENERAR MEMORIA ===");
               console.log("modoCloradorSalino:", modoCloradorSalino);
               console.log("selCloradorSalinoId:", selCloradorSalinoId);
               console.log("selCloradorSalinoCant:", selCloradorSalinoCant);
               console.log("estados.cloradorSalino:", estados?.cloradorSalino);
 
-              // Estado del clorador salino:
-              // Si modo manual y hay id → construir desde catálogo (más preciso)
-              // Si modo manual sin id → usar estados.cloradorSalino (tiene datos del último montaje)
-              // Si modo recomendado → usar estados.cloradorSalino (tiene datos del recomendado)
               let estadoCloradorSalinoActual = estados?.cloradorSalino ?? null;
-              // Si modo manual y selCloradorSalinoId tiene valor, buscar en catálogo
-              // Si no tiene id pero estados.cloradorSalino tiene spec manual → construir desde spec
               if (modoCloradorSalino === "manual") {
-                // Prioridad 1: buscar en catálogo por id
                 const equipo = selCloradorSalinoId
                   ? generadoresDeCloro.find(g => g.id === selCloradorSalinoId)
                   : null;
@@ -3111,8 +2958,6 @@ useEffect(() => {
                     }
                   } catch { /* continuar al fallback */ }
                 }
-                // Prioridad 2: estados.cloradorSalino ya tiene los datos correctos del manual
-                // (el useEffect de BloqueCloradorSalino lo actualiza con marca/modelo/spec del manual)
                 if (!equipo || !estadoCloradorSalinoActual?.marca) {
                   const est = estados?.cloradorSalino;
                   if (est?.marca && est?.modelo) {
@@ -3139,7 +2984,6 @@ useEffect(() => {
                 flujoMaxGlobal,
                 tipoSistema: sistemaActivo ?? null,
                 sistemaActivo: sistemaActivo ? (datosPorSistema?.[sistemaActivo] ?? null) : null,
-                // Usar el CDT y cargas del momento del cálculo, no el estado actual (que puede haber sido modificado por "Confirmar")
                 cargaTotalGlobal: resultado?._snapshotCDT ?? cargaTotalGlobal,
                 tuberiaMaxGlobal: estadoBomba?.tubDescarga ?? null,
                 flujoVolumen:     flujoMaxGlobal,
@@ -3154,6 +2998,13 @@ useEffect(() => {
                 sistemasSeleccionadosSanit,
                 sistemasSeleccionadosFilt,
                 cargas: resultado?._snapshotCargas ?? cargas,
+                // ── NUEVOS: tubería y velocidad por circuito ──
+                tubFiltrado:  tubFiltrado  ?? null,
+                velFiltrado:  velFiltrado  ?? null,
+                tubInfinity:  tubInfinity  ?? null,
+                velInfinity:  velInfinity  ?? null,
+                tubCanal:     tubCanal     ?? null,
+                velCanal:     velCanal     ?? null,
               });
               window.open("/memoria-calculo", "_blank");
             } catch (e) {
@@ -3219,9 +3070,15 @@ export default function Equipamiento({
   setDatosPorSistema, configBombas, resultadoClorador,
   flujoMaxGlobal, cargaTotalGlobal,
   onSanitizacionChange,
-  flujoInfinityVal = null,
-  flujoFiltradoVal = null,
-  volumenTotalVal  = null,
+  flujoInfinityVal,
+  flujoFiltradoVal,
+  volumenTotalVal,
+  tubFiltrado,
+  velFiltrado,
+  tubInfinity,
+  velInfinity,
+  tubCanal,
+  velCanal,
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
 
@@ -3841,97 +3698,100 @@ export default function Equipamiento({
                 selCantExterno={selMotobombaCant} setSelCantExterno={setSelMotobombaCant}
               />
               </div>
-            {estadoBomba && (
-              <div className="selector-grupo">
-                  <BloqueVerificacion
-                    resultadoExterno={verificacionResultado}
-                    faseExterna={verificacionFase}
-                    onResultadoChange={(r) => {
-                      setVerificacionResultado(r);
-                      setVerificacionFase(r ? "listo" : "idle");
-                      const snapshot = r ? construirSnapshotSistema(
-                        estados,
-                        sistemasSeleccionadosSanit,
-                        sistemasSeleccionadosFilt,
-                        datosPorSistema,
-                      ) : null;
-                      setDatosPorSistema(ps => ({
-                        ...ps,
-                        equipamiento: {
-                          ...(ps.equipamiento ?? {}),
-                          verificacionResultado: r,
-                          verificacionSnapshot:  snapshot,
-                        },
-                      }));
-                    }}
-                    onReset={() => {
-                      setVerificacionResultado(null);
-                      setVerificacionFase("idle");
-                      setVerificacionLineas([]);
-                    }}
-                    sistemaActivo={sistemaActivo}
-                  flujoMaxGlobal={flujoMaxGlobal}
-                  cargaTotalGlobal={cargaTotalGlobal}
-                  estados={estados}
-                  cargas={cargasTodas}
-                  datosEmpotrable={datosEmpotrable}
-                  tieneDesbordeCanal={tieneDesbordeCanal}
-                  usoGeneral={usoGeneral}
-                  bombaId={estadoBomba?.bombaId ?? null}
-                  nBombas={estadoBomba?.nBombas ?? 1}
-                  estadoBomba={estadoBomba}
-                  equiposCalentamiento={equiposCalentamiento}
-                  sistemasSanitizacion={sistemasSeleccionadosSanit}
-                  sistemasFiltracion={sistemasSeleccionadosFilt}
-                  datosSanitizacion={{
-                    cloradorSalino: estados?.cloradorSalino ?? (resultadoClorador && !resultadoClorador.error ? {
-                      marca: resultadoClorador.seleccion?.marca,
-                      modelo: resultadoClorador.seleccion?.modelo,
-                      cantidad: resultadoClorador.seleccion?.cantidad,
-                      flujoTotal: resultadoClorador.seleccion?.flujoTotal,
-                    } : null),
-                    cloradorAutomatico: estados?.cloradorAutomatico ?? null,
-                    lamparaUV: estados?.lamparaUV ?? null,
-                  }}
-                  datosPorSistema={datosPorSistema}
-                  resultadoClorador={resultadoClorador}
-                  onAjustarCargas={(payload) => {
-                    // payload = { equipos, flujo, cdt }
-                    // NO se modifican las cargas de diseño en App.
-                    // Se guarda el punto de operación para mostrarlo como toggle separado.
-                    setDatosPorSistema(ps => ({
-                      ...ps,
-                      equipamiento: {
-                        ...(ps.equipamiento ?? {}),
-                        puntoOperacion: {
-                          equipos:   payload.equipos ?? payload,
-                          flujo:     payload.flujo   ?? null,
-                          cdt:       payload.cdt     ?? null,
-                          timestamp: Date.now(),
-                        },
-                      },
-                    }));
-                  }}
-                  flujoInfinityVal={flujoInfinityVal ?? null}
-                  flujoFiltradoVal={flujoFiltradoVal ?? null}
-                  volumenTotalVal={volumenTotalVal ?? null}
-                  modoCloradorSalino={modoCloradorSalino}
-                  selCloradorSalinoId={selCloradorSalinoId}
-                  selCloradorSalinoCant={selCloradorSalinoCant}
-                  cloradorEnLineaQuitado={cloradorEnLineaExcede}
-                  flujoOperacion={flujoUVEfectivo}
-                  onLimpiarOperacion={() => {
-                    setDatosPorSistema(ps => ({
-                      ...ps,
-                      equipamiento: {
-                        ...(ps.equipamiento ?? {}),
-                        puntoOperacion: null,
-                      },
-                    }));
-                  }}
-                  />
-              </div>
-            )}
+                {estadoBomba && (
+                  <div className="selector-grupo">
+                    <BloqueVerificacion
+                      resultadoExterno={verificacionResultado}
+                      faseExterna={verificacionFase}
+                      onResultadoChange={(r) => {
+                        setVerificacionResultado(r);
+                        setVerificacionFase(r ? "listo" : "idle");
+                        const snapshot = r ? construirSnapshotSistema(
+                          estados,
+                          sistemasSeleccionadosSanit,
+                          sistemasSeleccionadosFilt,
+                          datosPorSistema,
+                        ) : null;
+                        setDatosPorSistema(ps => ({
+                          ...ps,
+                          equipamiento: {
+                            ...(ps.equipamiento ?? {}),
+                            verificacionResultado: r,
+                            verificacionSnapshot:  snapshot,
+                          },
+                        }));
+                      }}
+                      onReset={() => {
+                        setVerificacionResultado(null);
+                        setVerificacionFase("idle");
+                        setVerificacionLineas([]);
+                      }}
+                      sistemaActivo={sistemaActivo}
+                      flujoMaxGlobal={flujoMaxGlobal}
+                      cargaTotalGlobal={cargaTotalGlobal}
+                      estados={estados}
+                      cargas={cargasTodas}
+                      datosEmpotrable={datosEmpotrable}
+                      tieneDesbordeCanal={tieneDesbordeCanal}
+                      usoGeneral={usoGeneral}
+                      bombaId={estadoBomba?.bombaId ?? null}
+                      nBombas={estadoBomba?.nBombas ?? 1}
+                      estadoBomba={estadoBomba}
+                      equiposCalentamiento={equiposCalentamiento}
+                      sistemasSanitizacion={sistemasSeleccionadosSanit}
+                      sistemasFiltracion={sistemasSeleccionadosFilt}
+                      datosSanitizacion={{
+                        cloradorSalino: estados?.cloradorSalino ?? (resultadoClorador && !resultadoClorador.error ? {
+                          marca: resultadoClorador.seleccion?.marca,
+                          modelo: resultadoClorador.seleccion?.modelo,
+                          cantidad: resultadoClorador.seleccion?.cantidad,
+                          flujoTotal: resultadoClorador.seleccion?.flujoTotal,
+                        } : null),
+                        cloradorAutomatico: estados?.cloradorAutomatico ?? null,
+                        lamparaUV: estados?.lamparaUV ?? null,
+                      }}
+                      datosPorSistema={datosPorSistema}
+                      resultadoClorador={resultadoClorador}
+                      onAjustarCargas={(payload) => {
+                        setDatosPorSistema(ps => ({
+                          ...ps,
+                          equipamiento: {
+                            ...(ps.equipamiento ?? {}),
+                            puntoOperacion: {
+                              equipos:   payload.equipos ?? payload,
+                              flujo:     payload.flujo   ?? null,
+                              cdt:       payload.cdt     ?? null,
+                              timestamp: Date.now(),
+                            },
+                          },
+                        }));
+                      }}
+                      flujoInfinityVal={flujoInfinityVal ?? null}
+                      flujoFiltradoVal={flujoFiltradoVal ?? null}
+                      volumenTotalVal={volumenTotalVal ?? null}
+                      modoCloradorSalino={modoCloradorSalino}
+                      selCloradorSalinoId={selCloradorSalinoId}
+                      selCloradorSalinoCant={selCloradorSalinoCant}
+                      cloradorEnLineaQuitado={cloradorEnLineaExcede}
+                      flujoOperacion={flujoUVEfectivo}
+                      onLimpiarOperacion={() => {
+                        setDatosPorSistema(ps => ({
+                          ...ps,
+                          equipamiento: {
+                            ...(ps.equipamiento ?? {}),
+                            puntoOperacion: null,
+                          },
+                        }));
+                      }}
+                      tubFiltrado={tubFiltrado ?? null}
+                      velFiltrado={velFiltrado ?? null}
+                      tubInfinity={tubInfinity ?? null}
+                      velInfinity={velInfinity ?? null}
+                      tubCanal={tubCanal ?? null}
+                      velCanal={velCanal ?? null}
+                    />
+                  </div>
+                )}
           </>)}
 
         </div>

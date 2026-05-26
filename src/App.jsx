@@ -1139,6 +1139,12 @@ export default function App() {
               flujoInfinityVal={flujoInfinitySistema > 0 ? flujoInfinitySistema : null}
               flujoFiltradoVal={flujoFiltrado > 0 ? flujoFiltrado : null}
               volumenTotalVal={volumenTotal > 0 ? volumenTotal : null}
+              tubFiltrado={tuberiaFiltrado ?? null}
+              velFiltrado={velocidadFiltrado ?? null}
+              tubInfinity={tuberiaInfinity ?? null}
+              velInfinity={velocidadInfinity ?? null}
+              tubCanal={null}
+              velCanal={null}
             />
           )}
         </div>

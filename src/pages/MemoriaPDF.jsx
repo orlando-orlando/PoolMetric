@@ -179,107 +179,143 @@ function TablaEquipos({ filas, color = AZUL, headers }) {
 }
 
 /* ═══ PÁGINA 1: PORTADA ═══ */
-function Portada({ memoria, logoEmpresa, fecha }) {
-  const { resumen, reportes = [] } = memoria;
 
-  /* Misma lógica de detección que PaginaFiltrado */
-  const flujosReq = resumen.flujosRequeridos ?? [];
-  let flujoInfinity = resumen.flujoInfinity ? parseFloat(resumen.flujoInfinity) : null;
-  if (!flujoInfinity) {
-    const fReq = flujosReq.find(f => /infinity|desborde|rebose/i.test(f.label) && f.valor != null);
-    if (fReq) flujoInfinity = parseFloat(fReq.valor);
-  }
-  let flujoCanal = resumen.flujoCanal ? parseFloat(resumen.flujoCanal) : null;
-  if (!flujoCanal) {
-    const fReq = flujosReq.find(f => /canal/i.test(f.label) && f.valor != null);
-    if (fReq) flujoCanal = parseFloat(fReq.valor);
-  }
-  if (!flujoCanal) {
-    const dc = reportes[0]?.empotrables?.drenCanal;
-    if (dc) { const fq = dc.seleccion?.flujoTotal ?? dc.flujoTotal; if (fq) flujoCanal = parseFloat(fq); }
-  }
-  const tieneInfinity = flujoInfinity && flujoInfinity > 0;
-  const tieneCanal    = flujoCanal    && flujoCanal    > 0;
+function Portada({ memoria, logoEmpresa, fecha }) {
+  const { resumen } = memoria;
+
+  const NOMBRES_SISTEMA = {
+    alberca:                     "Hidráulico de Alberca",
+    jacuzzi:                     "Hidráulico de Jacuzzi",
+    chapoteadero:                "Hidráulico de Chapoteadero",
+    espejoAgua:                  "Hidráulico de Espejo de Agua",
+    albercaJacuzzi1:             "Hidráulico de Alberca con Jacuzzi",
+    albercaChapo1:               "Hidráulico de Alberca con Chapoteadero",
+    albercaJacuzziJacuzzi:       "Hidráulico de Alberca con Jacuzzi y Jacuzzi",
+    albercaChapoAsoleadero:      "Hidráulico de Alberca, Chapoteadero y Asoleadero",
+    albercaJacuzziChapo:         "Hidráulico de Alberca, Jacuzzi y Chapoteadero",
+    albercaAsoleaderoAsoleadero: "Hidráulico de Alberca con Asoleaderos",
+  };
+
+  const nombreSistema = NOMBRES_SISTEMA[resumen.tipoSistema] ?? "Hidráulico de Alberca";
+
+  const datosSistema = [
+    {
+      label: "Área de alberca",
+      val:   resumen.area ? `${resumen.area} m²` : "—",
+    },
+    {
+      label: "Volumen",
+      val:   resumen.vol  ? `${resumen.vol} m³`  : "—",
+    },
+    {
+      label: "Flujo de diseño",
+      val:   resumen.flujoMax ? `${resumen.flujoMax} GPM` : "—",
+    },
+    {
+      label: "CDT de diseño",
+      val:   resumen.cdtDiseno
+        ? `${resumen.cdtDiseno} fthd  ·  ${f2(parseFloat(resumen.cdtDiseno) * 0.43353)} PSI`
+        : "—",
+    },
+    {
+      label: "Flujo de operación",
+      val:   resumen.flujoFinal ? `${resumen.flujoFinal} GPM` : "—",
+    },
+    {
+      label: "CDT de operación",
+      val:   resumen.cdtFinal
+        ? `${resumen.cdtFinal} fthd  ·  ${f2(parseFloat(resumen.cdtFinal) * 0.43353)} PSI`
+        : "—",
+    },
+  ];
 
   return (
-    <div className="pagina" style={{ ...A4, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-        <div style={{ background:AZUL, borderRadius:"8px", padding:"8px 18px" }}>
-          <div style={{ color:"#fff", fontWeight:900, fontSize:"16pt", letterSpacing:"0.08em" }}>
-            POOL<span style={{ color:"#93c5fd" }}>METRIC</span>
+    <div className="pagina" style={{ ...A4, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+
+      {/* ── Header con logos ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ background: AZUL, borderRadius: "8px", padding: "8px 18px" }}>
+          <div style={{ color: "#fff", fontWeight: 900, fontSize: "16pt", letterSpacing: "0.08em" }}>
+            POOL<span style={{ color: "#93c5fd" }}>METRIC</span>
           </div>
-          <div style={{ color:"#93c5fd", fontSize:"7pt", fontWeight:600, letterSpacing:"0.15em" }}>HYDRAULIC DESIGN</div>
+          <div style={{ color: "#93c5fd", fontSize: "7pt", fontWeight: 600, letterSpacing: "0.15em" }}>
+            HYDRAULIC DESIGN
+          </div>
         </div>
         {logoEmpresa && (
-          <div style={{ border:`1px solid ${BORDE}`, borderRadius:"8px", padding:"8px 16px", display:"flex", alignItems:"center" }}>
-            <img src={logoEmpresa} alt="Logo" style={{ maxHeight:"50px", maxWidth:"120px", objectFit:"contain" }} />
+          <div style={{ border: `1px solid ${BORDE}`, borderRadius: "8px", padding: "8px 16px", display: "flex", alignItems: "center" }}>
+            <img src={logoEmpresa} alt="Logo" style={{ maxHeight: "50px", maxWidth: "120px", objectFit: "contain" }} />
           </div>
         )}
       </div>
 
-      <div style={{ textAlign:"center", padding:"20mm 0" }}>
-        <div style={{ fontSize:"7pt", color:GRIS, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", marginBottom:"12px" }}>Documento técnico</div>
-        <div style={{ fontSize:"26pt", fontWeight:900, color:AZUL, lineHeight:1.1, marginBottom:"8px" }}>Memoria de Cálculo</div>
-        <div style={{ fontSize:"16pt", fontWeight:700, color:AZUL_MED, marginBottom:"24px" }}>
-          {(() => {
-            const NOMBRES_SISTEMA = {
-              alberca:                     "Hidráulico de Alberca",
-              jacuzzi:                     "Hidráulico de Jacuzzi",
-              chapoteadero:                "Hidráulico de Chapoteadero",
-              espejoAgua:                  "Hidráulico de Espejo de Agua",
-              albercaJacuzzi1:             "Hidráulico de Alberca con Jacuzzi",
-              albercaChapo1:               "Hidráulico de Alberca con Chapoteadero",
-              albercaJacuzziJacuzzi:       "Hidráulico de Alberca con Jacuzzi y Jacuzzi",
-              albercaChapoAsoleadero:      "Hidráulico de Alberca, Chapoteadero y Asoleadero",
-              albercaJacuzziChapo:         "Hidráulico de Alberca, Jacuzzi y Chapoteadero",
-              albercaAsoleaderoAsoleadero: "Hidráulico de Alberca con Asoleaderos",
-            };
-            const tipo = resumen.tipoSistema ?? null;
-            return NOMBRES_SISTEMA[tipo] ?? "Hidráulico de Alberca";
-          })()}
+      {/* ── Título central ── */}
+      <div style={{ textAlign: "center", padding: "20mm 0" }}>
+        <div style={{ fontSize: "7pt", color: GRIS, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: "12px" }}>
+          Documento técnico
         </div>
-        <div style={{ width:"60px", height:"3px", background:AZUL_MED, margin:"0 auto 24px" }} />
-        <div style={{ fontSize:"9pt", color:GRIS }}>Diseño y selección de equipos hidráulicos</div>
+        <div style={{ fontSize: "26pt", fontWeight: 900, color: AZUL, lineHeight: 1.1, marginBottom: "8px" }}>
+          Memoria de Cálculo
+        </div>
+        <div style={{ fontSize: "16pt", fontWeight: 700, color: AZUL_MED, marginBottom: "24px" }}>
+          {nombreSistema}
+        </div>
+        <div style={{ width: "60px", height: "3px", background: AZUL_MED, margin: "0 auto 24px" }} />
+        <div style={{ fontSize: "9pt", color: GRIS }}>
+          Diseño y selección de equipos hidráulicos
+        </div>
       </div>
 
+      {/* ── Bloque de datos del sistema — 6 datos en grid 3×2 ── */}
       <div>
-        <div style={{ background:AZUL_CLR, borderRadius:"8px", padding:"14px 18px", marginBottom:"16px" }}>
-          <div style={{ fontSize:"7.5pt", fontWeight:700, color:AZUL, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:"10px" }}>Datos del sistema</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
-            {[
-              { label:"Área de alberca",      val: resumen.area ? `${resumen.area} m²` : "—" },
-              { label:"Volumen",              val: resumen.vol  ? `${resumen.vol} m³`  : "—" },
-              { label:"Flujo de filtrado",    val: `${resumen.flujoMax} GPM` },
-              tieneInfinity ? { label:"Flujo infinity",  val: `${f2(flujoInfinity)} GPM` } : null,
-              tieneCanal    ? { label:"Flujo canal perimetral", val: `${f2(flujoCanal)} GPM` } : null,
-              { label:"Flujo máximo global",  val: `${resumen.flujoMax} GPM` },
-              { label:"CDT operación",        val: resumen.cdtFinal ? `${resumen.cdtFinal} fthd` : "—" },
-              { label:"CDT en PSI",           val: resumen.cdtFinal ? `${f2(parseFloat(resumen.cdtFinal)*0.43353)} PSI` : "—" },
-            ].filter(Boolean).map(({ label, val }) => (
+        <div style={{ background: AZUL_CLR, borderRadius: "8px", padding: "14px 18px", marginBottom: "16px" }}>
+          <div style={{
+            fontSize: "7.5pt", fontWeight: 700, color: AZUL,
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            marginBottom: "14px",
+          }}>
+            Datos del sistema
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px" }}>
+            {datosSistema.map(({ label, val }) => (
               <div key={label}>
-                <div style={{ fontSize:"7pt", color:GRIS, fontWeight:600 }}>{label}</div>
-                <div style={{ fontSize:"10pt", fontWeight:800, color:AZUL }}>{val}</div>
+                <div style={{ fontSize: "7pt", color: GRIS, fontWeight: 600, marginBottom: "3px" }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: "10pt", fontWeight: 800, color: AZUL }}>
+                  {val}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
+        {/* ── Motobomba seleccionada ── */}
         {resumen.bomba && resumen.bomba !== "—" && (
-          <div style={{ border:`2px solid ${AZUL_MED}`, borderRadius:"8px", padding:"10px 16px", display:"flex", alignItems:"center", gap:"16px" }}>
-            <div style={{ background:AZUL_MED, borderRadius:"6px", padding:"6px 10px" }}>
-              <span style={{ color:"#fff", fontSize:"7pt", fontWeight:700 }}>MOTOBOMBA</span>
+          <div style={{
+            border: `2px solid ${AZUL_MED}`, borderRadius: "8px",
+            padding: "10px 16px", display: "flex", alignItems: "center", gap: "16px",
+          }}>
+            <div style={{ background: AZUL_MED, borderRadius: "6px", padding: "6px 10px" }}>
+              <span style={{ color: "#fff", fontSize: "7pt", fontWeight: 700 }}>MOTOBOMBA</span>
             </div>
             <div>
-              <span style={{ fontSize:"9pt", fontWeight:700, color:AZUL }}>{resumen.bombaMarca} {resumen.bombaModelo}</span>
-              <span style={{ fontSize:"8pt", color:GRIS, marginLeft:"10px" }}>{resumen.bombaPotencia} HP · {resumen.nBombas} {resumen.nBombas === 1 ? "unidad" : "unidades"}</span>
+              <span style={{ fontSize: "9pt", fontWeight: 700, color: AZUL }}>
+                {resumen.bombaMarca} {resumen.bombaModelo}
+              </span>
+              <span style={{ fontSize: "8pt", color: GRIS, marginLeft: "10px" }}>
+                {resumen.bombaPotencia} HP · {resumen.nBombas} {resumen.nBombas === 1 ? "unidad" : "unidades"}
+              </span>
             </div>
           </div>
         )}
 
-        <div style={{ textAlign:"center", marginTop:"20px", fontSize:"7.5pt", color:GRIS }}>
+        {/* ── Pie de página de portada ── */}
+        <div style={{ textAlign: "center", marginTop: "20px", fontSize: "7.5pt", color: GRIS }}>
           Generado el {fecha} · PoolMetric Hydraulic Design
         </div>
       </div>
+
     </div>
   );
 }
@@ -414,17 +450,18 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
 }
 
 /* ═══ PÁGINA 3: FILTRADO — incluye infinity y canal perimetral ═══ */
+
 function PaginaFiltrado({ memoria, logoEmpresa, fecha }) {
   const { resumen, reportes = [] } = memoria;
 
-  /* ── Detectar infinity y canal desde todas las fuentes posibles ──
-     1. resumen.flujoInfinity / resumen.flujoCanal  (si el cerebro los pone ahí)
-     2. resumen.flujosRequeridos[] array  { label, valor }
-     3. reportes[0].empotrables.drenCanal  (canal perimetral como empotrable)
-  */
   const flujosReq = resumen.flujosRequeridos ?? [];
 
-  /* flujo infinity */
+  /* ── Flujo de filtrado real ── */
+  const flujoFiltrado = resumen.flujoVol && parseFloat(resumen.flujoVol) > 0
+    ? parseFloat(resumen.flujoVol)
+    : null;
+
+  /* ── Flujo infinity ── */
   let flujoInfinity = resumen.flujoInfinity
     ? parseFloat(resumen.flujoInfinity)
     : null;
@@ -434,164 +471,266 @@ function PaginaFiltrado({ memoria, logoEmpresa, fecha }) {
     );
     if (fReq) flujoInfinity = parseFloat(fReq.valor);
   }
-
-  /* flujo canal */
-  let flujoCanal = resumen.flujoCanal
-    ? parseFloat(resumen.flujoCanal)
-    : null;
-  if (!flujoCanal) {
-    const fReq = flujosReq.find(f =>
-      /canal/i.test(f.label) && f.valor != null
-    );
-    if (fReq) flujoCanal = parseFloat(fReq.valor);
-  }
-  /* último recurso: drenCanal empotrable */
-  if (!flujoCanal) {
-    const dc = reportes[0]?.empotrables?.drenCanal;
-    if (dc) {
-      const fq = dc.seleccion?.flujoTotal ?? dc.flujoTotal;
-      if (fq) flujoCanal = parseFloat(fq);
-    }
+  /* También intentar desde flujoInf del resumen */
+  if (!flujoInfinity && resumen.flujoInf && parseFloat(resumen.flujoInf) > 0) {
+    flujoInfinity = parseFloat(resumen.flujoInf);
   }
 
   const tieneInfinity = flujoInfinity && flujoInfinity > 0;
-  const tieneCanal    = flujoCanal    && flujoCanal    > 0;
 
-  /* datos de tubería/velocidad — intentar desde resumen, luego desde reportes */
-  const tubInfinity = resumen.tubInfinity
-    ?? reportes[0]?.empotrables?.drenCanal?.seleccion?.tuberia
-    ?? null;
-  const velInfinity = resumen.velInfinity ?? null;
-  const tubCanal    = resumen.tubCanal
-    ?? reportes[0]?.empotrables?.drenCanal?.seleccion?.tuberia
-    ?? null;
-  const velCanal    = resumen.velCanal ?? null;
-  const tubDescarga = resumen.tubDescarga ?? resumen.tuberia ?? null;
-  const velDescarga = resumen.velDescarga ?? null;
+  /* ── Canal perimetral — solo detectar si existe, no usa flujo propio ── */
+  const tieneCanal = (() => {
+    const fReq = flujosReq.find(f => /canal/i.test(f.label));
+    if (fReq) return true;
+    const dc = reportes[0]?.empotrables?.drenCanal;
+    if (dc) return true;
+    return false;
+  })();
 
-  /* Flujo máximo real = mayor entre filtrado, infinity y canal */
+  /* ── Tubería y velocidad ── */
+  const tubDescarga = resumen.tubDescarga && resumen.tubDescarga !== "—"
+    ? resumen.tubDescarga
+    : "—";
+  const velDescarga = resumen.velDescarga && resumen.velDescarga !== "—"
+    ? resumen.velDescarga
+    : "—";
+
+  const tubInfinityVal = resumen.tubInfinity && resumen.tubInfinity !== "—"
+    ? resumen.tubInfinity
+    : "—";
+  const velInfinityVal = resumen.velInfinity && resumen.velInfinity !== "—"
+    ? resumen.velInfinity
+    : "—";
+
+  /* ── Área total para volúmenes de almacenamiento ── */
+  const areaTotal = resumen.area ? parseFloat(resumen.area) : 0;
+
+  /* Volumen almacenamiento infinity: área × 0.07 m → en litros */
+  const volAlmInfinity = areaTotal > 0
+    ? parseFloat((areaTotal * 0.07 * 1000).toFixed(0))
+    : null;
+
+  /* Volumen almacenamiento canal: área × 0.05 m → en litros */
+  const volAlmCanal = areaTotal > 0
+    ? parseFloat((areaTotal * 0.05 * 1000).toFixed(0))
+    : null;
+
+  /* ── Flujo máximo global para tabla resumen ── */
   const flujoGlobal = Math.max(
     parseFloat(resumen.flujoMax || 0),
     tieneInfinity ? flujoInfinity : 0,
-    tieneCanal    ? flujoCanal    : 0,
   );
 
-  /* Filas de la tabla resumen */
+  /* ── Filas tabla resumen — solo circuitos con flujo real ── */
   const filasResumen = [
-    [
+    flujoFiltrado ? [
       "Filtrado principal",
-      resumen.flujoMax ?? "—",
-      tubDescarga ?? "Ver memoria de cálculo",
-      velDescarga ? `${velDescarga} ft/s` : "Ver memoria de cálculo",
+      `${f2(flujoFiltrado)} GPM`,
+      tubDescarga,
+      velDescarga,
       "Tasa de recirculación",
-    ],
+    ] : null,
     tieneInfinity ? [
       "Infinity / desborde",
-      f2(flujoInfinity) + " GPM",
-      tubInfinity ?? "Ver memoria de cálculo",
-      velInfinity ? `${velInfinity} ft/s` : "Ver memoria de cálculo",
+      `${f2(flujoInfinity)} GPM`,
+      tubInfinityVal,
+      velInfinityVal,
       "Lámina de agua en borde",
-    ] : null,
-    tieneCanal ? [
-      "Canal perimetral",
-      f2(flujoCanal) + " GPM",
-      tubCanal ?? "Ver memoria de cálculo",
-      velCanal ? `${velCanal} ft/s` : "Ver memoria de cálculo",
-      "Rebosadero perimetral",
     ] : null,
   ].filter(Boolean);
 
   return (
     <div className="pagina" style={{ ...A4 }}>
-      <HeaderPagina logoEmpresa={logoEmpresa} seccionLabel="Sección 1 — Circuito de filtrado" seccionColor={TEAL} />
-      <SeccionTitulo color={TEAL} bg={TEAL_CLR}>Sección 1 — Circuito de filtrado</SeccionTitulo>
+      <HeaderPagina
+        logoEmpresa={logoEmpresa}
+        seccionLabel="Sección 1 — Circuito de filtrado"
+        seccionColor={TEAL}
+      />
+      <SeccionTitulo color={TEAL} bg={TEAL_CLR}>
+        Sección 1 — Circuito de filtrado
+      </SeccionTitulo>
 
       <CajaFundamento titulo="Fundamento del circuito de filtrado" color={TEAL} bg={TEAL_CLR}>
-        El circuito de filtrado es el circuito hidráulico principal de la alberca. Su función es recircular el volumen total del agua a través de los equipos de filtración y sanitización para mantener la calidad del agua. La tasa de recirculación (turnover rate) determina el tiempo en que todo el volumen de agua pasa por el sistema de filtración, siendo el estándar para uso residencial de 6 horas y para uso comercial de 4 horas o menos.
+        El circuito de filtrado es el circuito hidráulico principal de la alberca. Su función es
+        recircular el volumen total del agua a través de los equipos de filtración y sanitización
+        para mantener la calidad del agua. La tasa de recirculación (turnover rate) determina el
+        tiempo en que todo el volumen de agua pasa por el sistema de filtración, siendo el estándar
+        para uso residencial de 6 horas y para uso comercial de 4 horas o menos.
         <FormulaBox
           formula="Q_filtrado = V_total (L) / t_recirculación (h) / 3,785"
           descripcion="Gasto de filtrado en GPM — V en litros, t en horas"
         />
-        En sistemas con desborde tipo infinity o canal perimetral, el circuito de filtrado y el circuito de desborde pueden tener flujos independientes. El flujo que gobierna la selección de la motobomba principal es el mayor de todos los circuitos.
+        En sistemas con desborde tipo infinity o canal perimetral, el circuito de filtrado y el
+        circuito de desborde pueden tener flujos independientes. El flujo que gobierna la selección
+        de la motobomba principal es el mayor de todos los circuitos.
       </CajaFundamento>
 
-      {/* ─── Circuito principal ─── */}
-      <div style={{ marginBottom:"10px" }}>
-        <div style={{ fontSize:"7.5pt", fontWeight:700, color:TEAL, textTransform:"uppercase", marginBottom:"5px" }}>Circuito principal de filtrado</div>
+      {/* ─── Circuito principal de filtrado ─── */}
+      <div style={{ marginBottom: "10px" }}>
+        <div style={{
+          fontSize: "7.5pt", fontWeight: 700, color: TEAL,
+          textTransform: "uppercase", marginBottom: "5px",
+        }}>
+          Circuito principal de filtrado
+        </div>
         <TablaParametros color={TEAL} filas={[
-          ["Flujo de filtrado",    `${resumen.flujoMax} GPM`,  "Flujo máximo del circuito principal"],
-          ["Área total",           resumen.area ? `${resumen.area} m²` : "—", "Superficie total de la alberca"],
-          ["Volumen total",        resumen.vol  ? `${resumen.vol} m³`  : "—", "Volumen total del sistema"],
-          ["Tubería de descarga",  resumen.tubDescarga || resumen.tuberia || "Ver memoria de cálculo", "Diámetro seleccionado por velocidad"],
+          [
+            "Flujo de filtrado",
+            flujoFiltrado ? `${f2(flujoFiltrado)} GPM` : "—",
+            "Flujo del circuito principal de recirculación",
+          ],
+          [
+            "Área total",
+            resumen.area ? `${resumen.area} m²` : "—",
+            "Superficie total de la alberca",
+          ],
+          [
+            "Volumen total",
+            resumen.vol ? `${resumen.vol} m³` : "—",
+            "Volumen total del sistema",
+          ],
+          [
+            "Tubería de descarga",
+            tubDescarga,
+            "Diámetro seleccionado por velocidad máx. 6.5 ft/s",
+          ],
+          [
+            "Velocidad en descarga",
+            velDescarga,
+            "Velocidad real en tubería de descarga",
+          ],
         ]} />
       </div>
 
-      {/* ─── Infinity ─── */}
+      {/* ─── Circuito infinity ─── */}
       {tieneInfinity && (
-        <div style={{ marginBottom:"10px" }} className="sec-bloque">
-          <div style={{ fontSize:"7.5pt", fontWeight:700, color:CYAN, textTransform:"uppercase", marginBottom:"5px" }}>Circuito infinity / desborde</div>
+        <div style={{ marginBottom: "10px" }} className="sec-bloque">
+          <div style={{
+            fontSize: "7.5pt", fontWeight: 700, color: CYAN,
+            textTransform: "uppercase", marginBottom: "5px",
+          }}>
+            Circuito infinity / desborde
+          </div>
           <CajaFundamento color={CYAN} bg={CYAN_CLR}>
-            El circuito infinity recircula el agua que desborda por el borde de la alberca hacia el tanque de compensación. El flujo se calcula en función del largo del borde infinity y la lámina de agua de diseño. Este circuito puede tener su propia motobomba dedicada o compartir la principal.
+            El circuito infinity recircula el agua que desborda por el borde de la alberca hacia
+            el tanque de compensación. El flujo se calcula mediante la fórmula de Francis para
+            vertedero rectangular de pared delgada, en función del largo del borde infinity y la
+            altura de la lámina de agua (profundidad de cortina). El tanque de compensación debe
+            tener capacidad suficiente para almacenar el volumen de agua del sistema cuando la
+            alberca se vacía por el borde.
             <FormulaBox
-              formula="Q_infinity = L_borde (m) × e_lámina (m/s) × 264.17"
-              descripcion="Flujo infinity en GPM — e_lámina = espesor de lámina de agua"
+              formula="Q = 36 × L (ft) × H^1.5 (ft)  →  GPM"
+              descripcion="Fórmula de Francis — L = largo del borde (ft), H = altura de lámina (ft)"
             />
           </CajaFundamento>
           <TablaParametros color={CYAN} filas={[
-            ["Flujo infinity",       `${f2(flujoInfinity)} GPM`, "Flujo del circuito de desborde"],
-            ["Tubería del circuito", tubInfinity ?? "Ver memoria de cálculo", "Diámetro de la línea infinity"],
-            ["Velocidad",           velInfinity ? `${velInfinity} ft/s` : "Ver memoria de cálculo", "Velocidad en tubería infinity"],
-            ["Motobomba dedicada",  resumen.bombaDedicadaInfinity ?? "—", "¿Se usa bomba exclusiva para infinity?"],
+            [
+              "Flujo infinity",
+              `${f2(flujoInfinity)} GPM`,
+              "Flujo del circuito de desborde — fórmula de Francis",
+            ],
+            [
+              "Tubería del circuito",
+              tubInfinityVal,
+              "Diámetro seleccionado por velocidad máx. 6.5 ft/s",
+            ],
+            [
+              "Velocidad",
+              velInfinityVal,
+              "Velocidad real en tubería infinity",
+            ],
+            [
+              "Motobomba dedicada",
+              resumen.bombaDedicadaInfinity ?? "—",
+              "¿Se usa bomba exclusiva para infinity?",
+            ],
+            [
+              "Volumen de almacenamiento requerido",
+              volAlmInfinity != null
+                ? `${volAlmInfinity.toLocaleString("es-MX")} L  (${resumen.area} m² × 0.07 m)`
+                : "—",
+              "Capacidad mínima del tanque de compensación infinity",
+            ],
           ]} />
         </div>
       )}
 
       {/* ─── Canal perimetral ─── */}
       {tieneCanal && (
-        <div style={{ marginBottom:"10px" }} className="sec-bloque">
-          <div style={{ fontSize:"7.5pt", fontWeight:700, color:INDIGO, textTransform:"uppercase", marginBottom:"5px" }}>Circuito canal perimetral</div>
+        <div style={{ marginBottom: "10px" }} className="sec-bloque">
+          <div style={{
+            fontSize: "7.5pt", fontWeight: 700, color: INDIGO,
+            textTransform: "uppercase", marginBottom: "5px",
+          }}>
+            Canal perimetral
+          </div>
           <CajaFundamento color={INDIGO} bg={INDIGO_CLR}>
-            El canal perimetral (rebosadero) es un sistema de recolección de agua que rodea parcial o totalmente la alberca. El agua rebosa por los bordes y es recogida en el canal, desde donde es bombeada de regreso al sistema. A diferencia del infinity, el canal perimetral generalmente comparte el circuito principal de filtrado. El caudal del canal se dimensiona en función del perímetro activo del rebosadero y la lámina hidráulica de diseño.
-            <FormulaBox
-              formula="Q_canal = P_perimetro (m) × q_especifico (L/s·m) × 15.85"
-              descripcion="Flujo canal en GPM — q_especifico según tipo de rebosadero"
-            />
+            El canal perimetral (rebosadero) es un sistema de recolección de agua que rodea parcial
+            o totalmente la alberca. El agua rebosa por los bordes y es recogida en el canal, desde
+            donde es retornada al sistema mediante el circuito principal de filtrado. A diferencia
+            del infinity, el canal perimetral no genera un flujo independiente — comparte el
+            circuito de filtrado. El dimensionamiento del canal se basa en el volumen de
+            almacenamiento necesario para absorber las variaciones de nivel durante la operación
+            normal y los picos de uso.
           </CajaFundamento>
           <TablaParametros color={INDIGO} filas={[
-            ["Flujo canal perimetral", `${f2(flujoCanal)} GPM`, "Flujo del circuito de canal"],
-            ["Tubería del circuito",   tubCanal ?? "Ver memoria de cálculo", "Diámetro de la línea de canal"],
-            ["Velocidad",              velCanal ? `${velCanal} ft/s` : "Ver memoria de cálculo", "Velocidad en tubería canal"],
+            [
+              "Volumen de almacenamiento requerido",
+              volAlmCanal != null
+                ? `${volAlmCanal.toLocaleString("es-MX")} L  (${resumen.area} m² × 0.05 m)`
+                : "—",
+              "Capacidad mínima del canal o tanque de compensación perimetral",
+            ],
           ]} />
         </div>
       )}
 
-      {/* ─── Tabla resumen flujos ─── */}
-      <div style={{ marginTop:"8px" }}>
-        <div style={{ fontSize:"7.5pt", fontWeight:700, color:TEAL, textTransform:"uppercase", marginBottom:"5px" }}>Resumen de flujos por circuito</div>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"7.5pt" }}>
-          <thead>
-            <tr>
-              {["Circuito","Flujo (GPM)","Tubería","Velocidad","Criterio"].map(h => (
-                <th key={h} style={{ ...thStyle, background:TEAL }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filasResumen.map((fila, i) => (
-              <tr key={i} style={{ background: i%2===0 ? "#fff" : GRIS_CLR }}>
-                {fila.map((cel, j) => (
-                  <td key={j} style={{ ...tdStyle, fontWeight: j===0 ? 600 : 400, color: j===1 ? TEAL : "#1e293b" }}>{cel ?? "—"}</td>
+      {/* ─── Tabla resumen de flujos ─── */}
+      {filasResumen.length > 0 && (
+        <div style={{ marginTop: "8px" }}>
+          <div style={{
+            fontSize: "7.5pt", fontWeight: 700, color: TEAL,
+            textTransform: "uppercase", marginBottom: "5px",
+          }}>
+            Resumen de flujos por circuito
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "7.5pt" }}>
+            <thead>
+              <tr>
+                {["Circuito", "Flujo (GPM)", "Tubería", "Velocidad", "Criterio"].map(h => (
+                  <th key={h} style={{ ...thStyle, background: TEAL }}>{h}</th>
                 ))}
               </tr>
-            ))}
-            <tr style={{ background:TEAL_CLR }}>
-              <td style={{ ...tdStyle, fontWeight:800, color:TEAL }}>FLUJO MÁXIMO GLOBAL</td>
-              <td style={{ ...tdStyle, fontWeight:800, color:TEAL }}>{flujoGlobal} GPM</td>
-              <td colSpan={3} style={{ ...tdStyle, color:GRIS, fontSize:"7pt" }}>Gobierna la selección de la motobomba principal</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filasResumen.map((fila, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : GRIS_CLR }}>
+                  {fila.map((cel, j) => (
+                    <td key={j} style={{
+                      ...tdStyle,
+                      fontWeight: j === 0 ? 600 : 400,
+                      color: j === 1 ? TEAL : "#1e293b",
+                    }}>
+                      {cel ?? "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr style={{ background: TEAL_CLR }}>
+                <td style={{ ...tdStyle, fontWeight: 800, color: TEAL }}>
+                  FLUJO MÁXIMO GLOBAL
+                </td>
+                <td style={{ ...tdStyle, fontWeight: 800, color: TEAL }}>
+                  {f2(flujoGlobal)} GPM
+                </td>
+                <td colSpan={3} style={{ ...tdStyle, color: GRIS, fontSize: "7pt" }}>
+                  Gobierna la selección de la motobomba principal
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <FooterPagina fecha={fecha} />
     </div>
