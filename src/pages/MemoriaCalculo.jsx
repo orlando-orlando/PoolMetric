@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
+const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 const f2 = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(2); };
 
 /* ═══════════ TABLAS BASE ═══════════ */
@@ -506,18 +507,24 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
           </tr></thead>
           <tbody>
             {resumen.flujosRequeridos.map((item, ri) => {
-              const esMáx = item.valor != null && f2(item.valor) === resumen.flujoMax;
-              const esNull = item.valor == null;
+              const esNull    = item.valor == null;
+              const esExcluido = item.excluido === true;
+              const esMáx     = !esExcluido && item.valor != null
+                && Math.abs(parseFloat(item.valor) - parseFloat(resumen.flujoMax)) < 0.01;
               return (
-                <tr key={ri} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)" }}>
-                  <td style={{ ...td, textAlign:"left", color: esMáx?"#60a5fa":"#e2e8f0", fontWeight: esMáx?700:500, padding:"6px 14px" }}>
+                <tr key={ri} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)", opacity: esExcluido ? 0.5 : 1 }}>
+                  <td style={{ ...td, fontWeight: esMáx?700:400, color: esExcluido?"#475569": esMáx?"#60a5fa":"#e2e8f0" }}>
                     {item.label}
                   </td>
-                  <td style={{ ...td, color: esNull?"#475569": esMáx?"#60a5fa":"#38bdf8", fontWeight: esMáx?700:400, padding:"6px 14px" }}>
-                    {esNull ? <span style={{fontSize:"0.7rem",color:"#475569"}}>usa flujo máx</span> : f2(item.valor)+" GPM"}
+                  <td style={{ ...td, color: esExcluido?"#475569": esNull?"#475569": esMáx?"#60a5fa":"#38bdf8", fontWeight: esMáx?700:400 }}>
+                    {esNull
+                      ? <span style={{fontSize:"0.7rem",color:"#475569"}}>usa flujo máx</span>
+                      : f2(item.valor)+" GPM"
+                    }
                   </td>
-                  <td style={{ ...td, padding:"6px 14px", fontSize:"0.72rem" }}>
-                    {esMáx && <span style={{color:"#60a5fa",fontWeight:700}}>↑ máximo</span>}
+                  <td style={{ ...td, fontSize:"0.72rem" }}>
+                    {esMáx    && <span style={{color:"#60a5fa",fontWeight:700}}>↑ máximo</span>}
+                    {esExcluido && <span style={{color:"#f97316",fontWeight:600}}>excluido — {">"}{FLUJO_MAX_CLORADOR_EN_LINEA} GPM</span>}
                   </td>
                 </tr>
               );
@@ -575,11 +582,27 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                       }
                     }
                     const noSuma = esBarredora || (esSuccion && !gobierna);
-                    return <td key={i} style={{ ...td, color: v==null?"#334155":noSuma?"#475569":"#60a5fa", padding:"6px 12px", textAlign:"center" }}>
+                    const esExcluidoCA = key === "cloradorAutomatico"
+                      && r?.sanitizacion?.cloradorAutomatico?.excluido === true;
+                    return <td key={i} style={{
+                      ...td,
+                      color: v==null ? "#334155" : esExcluidoCA ? "#475569" : noSuma ? "#475569" : "#60a5fa",
+                      padding:"6px 12px",
+                      textAlign:"center",
+                    }}>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", justifyContent:"center" }}>
-                        <span>{v!=null ? f2(v)+" fthd" : "—"}</span>
-                        {v!=null && noSuma && <span style={{ fontSize:"0.58rem", color:"#475569" }}>no suma</span>}
-                        {v!=null && esSuccion && gobierna && <span style={{ fontSize:"0.58rem", color:"#34d399" }}>↑</span>}
+                        <span style={{ color: esExcluidoCA ? "#475569" : undefined }}>
+                          {v!=null ? f2(v)+" fthd" : "—"}
+                        </span>
+                        {esExcluidoCA && v!=null && (
+                          <span style={{ fontSize:"0.58rem", color:"#f97316", fontWeight:600 }}>excluido</span>
+                        )}
+                        {!esExcluidoCA && v!=null && noSuma && (
+                          <span style={{ fontSize:"0.58rem", color:"#475569" }}>no suma</span>
+                        )}
+                        {!esExcluidoCA && v!=null && esSuccion && gobierna && (
+                          <span style={{ fontSize:"0.58rem", color:"#34d399" }}>↑</span>
+                        )}
                       </span>
                     </td>;
                   })}

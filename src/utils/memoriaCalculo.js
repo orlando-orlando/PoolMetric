@@ -550,11 +550,19 @@ export function generarMemoriaCalculo({
       : parseFloat(resultadoClorador.seleccion?.flujoTotal ?? 0);
     if (flujoCS > 0) resumen.flujosRequeridos.push({ label: "Generador de cloro salino", valor: flujoCS });
   }
-  if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
-    const eqCA = estadosMerged?.cloradorAutomatico;
-    const flujoCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
-    resumen.flujosRequeridos.push({ label: "Clorador automático", valor: flujoCA > 0 ? flujoCA : null });
-  }
+    if (sistemasSeleccionadosSanit?.cloradorAutomatico) {
+      const eqCA        = estadosMerged?.cloradorAutomatico;
+      const flujoCA     = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : null;
+      const instalacion = eqCA?.instalacion ?? "enLinea";
+      const esExcluido  = instalacion === "enLinea"
+        && flujoCA != null
+        && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+      resumen.flujosRequeridos.push({
+        label:    "Clorador automático",
+        valor:    flujoCA > 0 ? flujoCA : null,
+        excluido: esExcluido,
+      });
+    }
 
   const calentamientoReporte = calentamientoData;
   if (reporteDiseno) reporteDiseno.calentamiento = calentamientoReporte;

@@ -321,17 +321,120 @@ function Portada({ memoria, logoEmpresa, fecha }) {
 }
 
 /* ═══ PÁGINA 2: METODOLOGÍA HAZEN-WILLIAMS (parte 1 — teoría) ═══ */
+
 function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
-  const { resumen } = memoria;
+  const { resumen, reportes = [], calentamiento = [] } = memoria;
+
+  /* ── Helpers ── */
+  const f2n = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
+  const fmtFthd = (v) => {
+    const n = f2n(v);
+    return n != null ? `${n.toFixed(2)} fthd` : "—";
+  };
+  const fmtPSI = (v) => {
+    const n = f2n(v);
+    return n != null ? `${(n * 0.43353).toFixed(2)} PSI` : "—";
+  };
+
+  /* ── Extraer CDT de cada equipo en cada reporte ──
+     Empotrables: cargaDinamicaTotal
+     Filtros / Sanitizacion / Calentamiento: cargaTotal
+  */
+  const EQUIPOS_ORDEN = [
+    { key: "bombaCalor",          label: "Bomba de calor",            tipo: "calentamiento" },
+    { key: "panelSolar",          label: "Panel solar",               tipo: "calentamiento" },
+    { key: "caldera",             label: "Caldera de gas",            tipo: "calentamiento" },
+    { key: "calentadorElectrico", label: "Calentador eléctrico",      tipo: "calentamiento" },
+    { key: "cloradorSalino",      label: "Generador de cloro salino", tipo: "sanitizacion"  },
+    { key: "cloradorAutomatico",  label: "Clorador automático",       tipo: "sanitizacion"  },
+    { key: "lamparaUV",           label: "Lámpara UV",                tipo: "sanitizacion"  },
+    { key: "prefiltro",           label: "Prefiltro",                 tipo: "filtro"        },
+    { key: "filtroArena",         label: "Filtro de arena",           tipo: "filtro"        },
+    { key: "filtroCartucho",      label: "Filtro de cartucho",        tipo: "filtro"        },
+    { key: "retorno",             label: "Retorno",                   tipo: "empotrable"    },
+    { key: "desnatador",          label: "Desnatador",                tipo: "empotrable"    },
+    { key: "drenCanal",           label: "Dren de canal",             tipo: "empotrable"    },
+    { key: "drenFondo",           label: "Dren de fondo",             tipo: "empotrable"    },
+    { key: "barredora",           label: "Barredora",                 tipo: "empotrable", informativo: true },
+  ];
+
+  const getCDT = (reporte, key, tipo) => {
+    if (!reporte) return null;
+    if (tipo === "calentamiento") {
+      const item = Array.isArray(calentamiento)
+        ? calentamiento.find(c => c?.key === key)
+        : null;
+      return item?.cargaTotal != null ? f2n(item.cargaTotal) : null;
+    }
+    if (tipo === "empotrable") {
+      const d = reporte.empotrables?.[key];
+      if (!d) return null;
+      return f2n(d.cargaDinamicaTotal ?? d.cargaTotal);
+    }
+    if (tipo === "filtro") {
+      const d = reporte.filtros?.[key];
+      if (!d) return null;
+      return f2n(d.cargaTotal);
+    }
+    if (tipo === "sanitizacion") {
+      const d = reporte.sanitizacion?.[key];
+      if (!d || d.excluido) return null;
+      return f2n(d.cargaTotal);
+    }
+    return null;
+  };
+
+  /* Filtrar solo equipos que tienen al menos un valor en algún reporte */
+  const equiposConDatos = EQUIPOS_ORDEN.filter(eq => {
+    if (eq.tipo === "calentamiento") {
+      return Array.isArray(calentamiento) && calentamiento.some(c => c?.key === eq.key);
+    }
+    return reportes.some(r => {
+      const d = r?.empotrables?.[eq.key]
+        ?? r?.filtros?.[eq.key]
+        ?? r?.sanitizacion?.[eq.key];
+      if (!d) return false;
+      if (d.excluido) return false;
+      return true;
+    });
+  });
+
+  const ITER_LABELS = ["Diseño original", "Iteración 1", "Iteración 2"];
+  const ITER_COLORS = ["#475569", "#0891b2", "#16a34a"];
+
+  /* ── Calcular CDT total sumado por iteración ── */
+  const cdtTotalesPorIter = [
+    resumen.cdtDiseno,
+    resumen.cdtIter1,
+    resumen.cdtIter2,
+  ];
+
+  /* ── Flujos requeridos ── */
+  const flujosReq = resumen.flujosRequeridos ?? [];
+  const flujoMaxGlobal = parseFloat(resumen.flujoMax ?? 0);
+
   return (
     <>
-      {/* ── Página 2a: toda la teoría ── */}
+      {/* ── Página 2a: teoría ── */}
       <div className="pagina" style={{ ...A4 }}>
         <HeaderPagina logoEmpresa={logoEmpresa} />
-        <SeccionTitulo color={AZUL} bg={AZUL_CLR}>Metodología hidráulica — Ecuación de Hazen-Williams</SeccionTitulo>
+        <SeccionTitulo color={AZUL} bg={AZUL_CLR}>
+          Metodología hidráulica — Ecuación de Hazen-Williams
+        </SeccionTitulo>
 
         <CajaFundamento titulo="Origen y fundamento" color={AZUL} bg={AZUL_CLR}>
-          La ecuación de Hazen-Williams fue desarrollada por Allen Hazen y Gardner Williams en 1906 como una fórmula empírica para calcular la pérdida de carga por fricción en tuberías a presión que conducen agua. A diferencia de la ecuación de Darcy-Weisbach, que requiere conocer el factor de fricción de Moody (dependiente del número de Reynolds y la rugosidad relativa), Hazen-Williams simplifica el cálculo mediante un coeficiente de rugosidad C que engloba las características del material de la tubería. Esta simplificación la hace especialmente adecuada para sistemas de distribución de agua a temperatura ambiente como los circuitos hidráulicos de albercas, donde las condiciones de flujo son prácticamente constantes y la viscosidad del agua no varía significativamente.
+          La ecuación de Hazen-Williams fue desarrollada por Allen Hazen y Gardner Williams en 1906
+          como una fórmula empírica para calcular la pérdida de carga por fricción en tuberías a
+          presión que conducen agua. A diferencia de la ecuación de Darcy-Weisbach, que requiere
+          conocer el factor de fricción de Moody (dependiente del número de Reynolds y la rugosidad
+          relativa), Hazen-Williams simplifica el cálculo mediante un coeficiente de rugosidad C
+          que engloba las características del material de la tubería. Esta simplificación la hace
+          especialmente adecuada para sistemas de distribución de agua a temperatura ambiente como
+          los circuitos hidráulicos de albercas, donde las condiciones de flujo son prácticamente
+          constantes y la viscosidad del agua no varía significativamente.
         </CajaFundamento>
 
         <CajaFundamento titulo="Ecuación base" color={AZUL} bg={AZUL_CLR}>
@@ -343,98 +446,335 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
             formula="hf = (10.67 · L · Q^1.852) / (C^1.852 · D^4.87)"
             descripcion="Pérdida de carga por fricción (m) — Q en m³/s, D en metros"
           />
-          <div style={{ marginTop:"6px" }}>
-            Donde: <strong>C</strong> = coeficiente de Hazen-Williams (PVC: 150, acero: 120, cobre: 130) · <strong>R</strong> = radio hidráulico (m) · <strong>S</strong> = pendiente hidráulica (m/m) · <strong>L</strong> = longitud del tramo (m) · <strong>D</strong> = diámetro interno (m) · <strong>Q</strong> = gasto volumétrico (m³/s)
+          <div style={{ marginTop: "6px" }}>
+            Donde: <strong>C</strong> = coeficiente de Hazen-Williams (PVC: 150, acero: 120,
+            cobre: 130) · <strong>R</strong> = radio hidráulico (m) · <strong>S</strong> = pendiente
+            hidráulica (m/m) · <strong>L</strong> = longitud del tramo (m) · <strong>D</strong> =
+            diámetro interno (m) · <strong>Q</strong> = gasto volumétrico (m³/s)
           </div>
         </CajaFundamento>
 
         <CajaFundamento titulo="Conversión a pies de columna de agua (fthd)" color={AZUL} bg={AZUL_CLR}>
-          En el diseño hidráulico de albercas se trabaja en unidades inglesas (GPM, pies) por convención del sector. La pérdida de carga en fthd (feet of head) se obtiene adaptando la ecuación:
+          En el diseño hidráulico de albercas se trabaja en unidades inglesas (GPM, pies) por
+          convención del sector. La pérdida de carga en fthd (feet of head) se obtiene adaptando
+          la ecuación:
           <FormulaBox
             formula="hf (fthd/100ft) = (1.318 · C · R^0.63 · S^0.54)^-1 · Q^1.852"
             descripcion="Forma adaptada para GPM y pulgadas de diámetro"
           />
-          La carga dinámica total (CDT) del sistema es la suma de todas las pérdidas en los tramos de tubería más las pérdidas por accesorios (tees, codos, reducciones) calculadas mediante longitudes equivalentes.
+          La carga dinámica total (CDT) del sistema es la suma de todas las pérdidas en los tramos
+          de tubería más las pérdidas por accesorios (tees, codos, reducciones) calculadas mediante
+          longitudes equivalentes.
         </CajaFundamento>
 
         <CajaFundamento titulo="Longitudes equivalentes de accesorios" color={AZUL} bg={AZUL_CLR}>
-          Los accesorios hidráulicos (codos, tees, reducciones) generan pérdidas de presión que se expresan como la longitud de tubería recta que produciría la misma pérdida. Este método, denominado <em>longitud equivalente</em>, permite sumar todas las pérdidas de manera uniforme.
+          Los accesorios hidráulicos (codos, tees, reducciones) generan pérdidas de presión que se
+          expresan como la longitud de tubería recta que produciría la misma pérdida. Este método,
+          denominado <em>longitud equivalente</em>, permite sumar todas las pérdidas de manera
+          uniforme.
           <FormulaBox
             formula="h_accesorio = (C_base / 100) · L_equivalente"
             descripcion="Pérdida en accesorio = carga base × longitud equivalente del accesorio"
           />
-          Las longitudes equivalentes se obtienen de tablas estándar según el diámetro de la tubería y el tipo de accesorio (codo 90°, tee paso directo, tee derivación, reducción concéntrica).
+          Las longitudes equivalentes se obtienen de tablas estándar según el diámetro de la
+          tubería y el tipo de accesorio (codo 90°, tee paso directo, tee derivación, reducción
+          concéntrica).
         </CajaFundamento>
 
         <CajaFundamento titulo="Velocidades de diseño" color={AZUL} bg={AZUL_CLR}>
-          Para garantizar un diseño eficiente y evitar erosión o ruido excesivo, se aplican los siguientes límites de velocidad:
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginTop:"6px" }}>
+          Para garantizar un diseño eficiente y evitar erosión o ruido excesivo, se aplican los
+          siguientes límites de velocidad:
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "6px" }}>
             {[
-              ["Tubería de succión",  "≤ 1.2 m/s  (≤ 4.5 ft/s)",  "Evita cavitación en la bomba"],
-              ["Tubería de descarga", "≤ 2.0 m/s  (≤ 6.5 ft/s)",  "Minimiza pérdidas y ruido"],
+              ["Tubería de succión",  "≤ 1.2 m/s  (≤ 4.5 ft/s)", "Evita cavitación en la bomba"],
+              ["Tubería de descarga", "≤ 2.0 m/s  (≤ 6.5 ft/s)", "Minimiza pérdidas y ruido"],
             ].map(([tipo, vel, desc]) => (
-              <div key={tipo} style={{ background:AZUL_CLR, borderRadius:"4px", padding:"6px 10px" }}>
-                <div style={{ fontWeight:700, color:AZUL, fontSize:"7.5pt" }}>{tipo}</div>
-                <div style={{ fontSize:"8.5pt", fontWeight:700, color:AZUL_MED }}>{vel}</div>
-                <div style={{ fontSize:"7pt", color:GRIS }}>{desc}</div>
+              <div key={tipo} style={{ background: AZUL_CLR, borderRadius: "4px", padding: "6px 10px" }}>
+                <div style={{ fontWeight: 700, color: AZUL, fontSize: "7.5pt" }}>{tipo}</div>
+                <div style={{ fontSize: "8.5pt", fontWeight: 700, color: AZUL_MED }}>{vel}</div>
+                <div style={{ fontSize: "7pt", color: GRIS }}>{desc}</div>
               </div>
             ))}
           </div>
         </CajaFundamento>
 
         <CajaFundamento titulo="Carga dinámica total (CDT) del sistema" color={AZUL} bg={AZUL_CLR}>
-          La CDT es la energía total por unidad de peso que la motobomba debe suministrar al fluido para mantener el caudal de diseño. Incluye:
-          <div style={{ marginTop:"4px" }}>
+          La CDT es la energía total por unidad de peso que la motobomba debe suministrar al fluido
+          para mantener el caudal de diseño. Incluye:
+          <div style={{ marginTop: "4px" }}>
             <strong>CDT = Σ pérdidas tramos + Σ pérdidas accesorios + carga estática + pérdidas en equipos</strong>
           </div>
-          <div style={{ marginTop:"4px" }}>
-            Donde la <em>carga estática</em> aplica solo cuando la bomba debe elevar el fluido a una altura mayor a la del nivel de succión. La conversión entre unidades es: <strong>1 fthd = 0.4335 PSI = 0.3048 m.c.a.</strong>
+          <div style={{ marginTop: "4px" }}>
+            Donde la <em>carga estática</em> aplica solo cuando la bomba debe elevar el fluido a
+            una altura mayor a la del nivel de succión. La conversión entre unidades es:{" "}
+            <strong>1 fthd = 0.4335 PSI = 0.3048 m.c.a.</strong>
           </div>
         </CajaFundamento>
 
         <FooterPagina fecha={fecha} />
       </div>
 
-      {/* ── Página 2b: parámetros generales del sistema (página separada para no desbordarse) ── */}
+      {/* ── Página 2b: parámetros generales + tablas nuevas ── */}
       {resumen.flujoMax && (
         <div className="pagina" style={{ ...A4 }}>
-          <HeaderPagina logoEmpresa={logoEmpresa} seccionLabel="Metodología — Parámetros del sistema" seccionColor={AZUL} />
-          <SeccionTitulo color={AZUL} bg={AZUL_CLR}>Metodología hidráulica — Parámetros generales del sistema diseñado</SeccionTitulo>
+          <HeaderPagina
+            logoEmpresa={logoEmpresa}
+            seccionLabel="Metodología — Parámetros del sistema"
+            seccionColor={AZUL}
+          />
+          <SeccionTitulo color={AZUL} bg={AZUL_CLR}>
+            Metodología hidráulica — Parámetros generales del sistema diseñado
+          </SeccionTitulo>
 
+          {/* ════════════════════════════════════════
+              TABLA 1 — CARGAS POR EQUIPO
+          ════════════════════════════════════════ */}
+          {equiposConDatos.length > 0 && (
+            <div style={{ marginBottom: "12px" }} className="tabla-section">
+              <div style={{
+                fontSize: "7.5pt", fontWeight: 700, color: AZUL,
+                textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "5px",
+              }}>
+                Cargas hidráulicas por equipo (fthd)
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "7pt" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, textAlign: "left", width: "30%" }}>Equipo</th>
+                    {ITER_LABELS.slice(0, Math.max(reportes.length, 1)).map((label, i) => (
+                      <th key={label} style={{
+                        ...thStyle,
+                        background: i === 0 ? "#334155" : i === 1 ? "#0e7490" : "#166534",
+                        textAlign: "center",
+                        width: "20%",
+                      }}>
+                        {label}
+                      </th>
+                    ))}
+                    <th style={{ ...thStyle, textAlign: "center", width: "10%", background: "#334155" }}>
+                      Nota
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equiposConDatos.map((eq, i) => {
+                    const cdts = reportes.map(r => getCDT(r, eq.key, eq.tipo));
+                    return (
+                      <tr key={eq.key} style={{ background: i % 2 === 0 ? "#fff" : GRIS_CLR }}>
+                        <td style={{ ...tdStyle, fontWeight: 600, color: "#334155", fontSize: "7pt" }}>
+                          {eq.label}
+                        </td>
+                        {cdts.map((cdt, j) => (
+                          <td key={j} style={{
+                            ...tdStyle,
+                            textAlign: "center",
+                            color: cdt != null ? (j === 0 ? "#334155" : j === 1 ? "#0891b2" : "#16a34a") : GRIS,
+                            fontWeight: cdt != null ? 600 : 400,
+                            fontSize: "7pt",
+                          }}>
+                            {cdt != null ? `${cdt.toFixed(2)} fthd` : "—"}
+                          </td>
+                        ))}
+                        <td style={{
+                          ...tdStyle,
+                          textAlign: "center",
+                          fontSize: "6.5pt",
+                          color: eq.informativo ? GRIS : "#16a34a",
+                        }}>
+                          {eq.informativo ? "Inf." : "Suma"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Fila CDT total */}
+                  <tr style={{ background: AZUL_CLR }}>
+                    <td style={{ ...tdStyle, fontWeight: 800, color: AZUL, fontSize: "7pt" }}>
+                      CDT TOTAL SISTEMA
+                    </td>
+                    {cdtTotalesPorIter.slice(0, Math.max(reportes.length, 1)).map((cdt, i) => (
+                      <td key={i} style={{
+                        ...tdStyle,
+                        textAlign: "center",
+                        fontWeight: 800,
+                        color: i === 0 ? AZUL : i === 1 ? "#0891b2" : "#16a34a",
+                        fontSize: "7pt",
+                      }}>
+                        {cdt ? `${cdt} fthd` : "—"}
+                      </td>
+                    ))}
+                    <td style={{ ...tdStyle }} />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════
+              TABLA 2 — FLUJOS MÁXIMOS CONSIDERADOS
+          ════════════════════════════════════════ */}
+          {flujosReq.length > 0 && (
+            <div style={{ marginBottom: "12px" }} className="tabla-section">
+              <div style={{
+                fontSize: "7.5pt", fontWeight: 700, color: AZUL,
+                textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "5px",
+              }}>
+                Flujos máximos considerados por circuito / equipo
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "7pt" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, textAlign: "left", width: "45%" }}>Circuito / Equipo</th>
+                    <th style={{ ...thStyle, textAlign: "center", width: "25%" }}>Flujo (GPM)</th>
+                    <th style={{ ...thStyle, textAlign: "center", width: "30%" }}>Observación</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flujosReq.map((item, i) => {
+                    const esMáx = item.valor != null
+                      && Math.abs(parseFloat(item.valor) - flujoMaxGlobal) < 0.01;
+                    return (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : GRIS_CLR }}>
+                        <td style={{
+                          ...tdStyle,
+                          fontWeight: esMáx ? 700 : 500,
+                          color: esMáx ? AZUL : "#334155",
+                          fontSize: "7pt",
+                        }}>
+                          {item.label}
+                        </td>
+                        <td style={{
+                          ...tdStyle,
+                          textAlign: "center",
+                          fontWeight: esMáx ? 800 : 500,
+                          color: esMáx ? AZUL : (item.valor != null ? "#334155" : GRIS),
+                          fontSize: "7pt",
+                        }}>
+                          {item.valor != null ? `${parseFloat(item.valor).toFixed(2)} GPM` : "Usa flujo máx."}
+                        </td>
+                        <td style={{
+                          ...tdStyle,
+                          textAlign: "center",
+                          fontSize: "6.5pt",
+                          color: esMáx ? AZUL : GRIS,
+                          fontWeight: esMáx ? 700 : 400,
+                        }}>
+                          {esMáx ? "↑ Gobierna" : ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Fila flujo máximo global */}
+                  <tr style={{ background: AZUL_CLR }}>
+                    <td style={{ ...tdStyle, fontWeight: 800, color: AZUL, fontSize: "7pt" }}>
+                      FLUJO MÁXIMO GLOBAL
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "center", fontWeight: 800, color: AZUL, fontSize: "7pt" }}>
+                      {resumen.flujoMax} GPM
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "center", fontSize: "6.5pt", color: GRIS }}>
+                      Selección de motobomba
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════
+              LO QUE YA EXISTÍA — punto de operación
+          ════════════════════════════════════════ */}
           <CajaFundamento titulo="Punto de diseño y operación" color={AZUL} bg={AZUL_CLR}>
-            Los parámetros siguientes resumen el resultado del proceso iterativo de equilibrio hidráulico. El flujo máximo de diseño es el que se utiliza para dimensionar todos los equipos; el flujo de operación real es el punto donde la curva característica de la bomba seleccionada se intersecta con la curva del sistema. Una variación dentro de ±10% es aceptable y confirma que el diseño es válido.
+            Los parámetros siguientes resumen el resultado del proceso iterativo de equilibrio
+            hidráulico. El flujo máximo de diseño es el que se utiliza para dimensionar todos los
+            equipos; el flujo de operación real es el punto donde la curva característica de la
+            bomba seleccionada se intersecta con la curva del sistema. Una variación dentro de
+            ±10% es aceptable y confirma que el diseño es válido.
           </CajaFundamento>
 
-          <div style={{ marginTop:"10px" }}>
+          <div style={{ marginTop: "8px", marginBottom: "10px" }}>
             <TablaParametros color={AZUL} filas={[
-              ["Flujo máximo de diseño",    `${resumen.flujoMax} GPM`,      "Flujo que gobierna la selección de equipos"],
-              ["Flujo de operación real",   resumen.flujoFinal ? `${resumen.flujoFinal} GPM` : "—", "Punto de equilibrio bomba-sistema"],
-              ["CDT de diseño",             resumen.cdtDiseno  ? `${resumen.cdtDiseno} fthd` : "—", "Suma total de pérdidas en diseño original"],
-              ["CDT de operación",          resumen.cdtFinal   ? `${resumen.cdtFinal} fthd`  : "—", "CDT en el punto de operación real"],
-              ["CDT de operación (PSI)",    resumen.cdtFinal   ? `${f2(parseFloat(resumen.cdtFinal)*0.43353)} PSI` : "—", "Conversión: 1 fthd = 0.4335 PSI"],
-              ["Variación flujo vs diseño", resumen.flujoFinal && resumen.flujoMax ? `${(((parseFloat(resumen.flujoFinal)-parseFloat(resumen.flujoMax))/parseFloat(resumen.flujoMax))*100).toFixed(1)}%` : "—", "Diferencia entre flujo diseño y operación — aceptable ±10%"],
+              [
+                "Flujo máximo de diseño",
+                `${resumen.flujoMax} GPM`,
+                "Flujo que gobierna la selección de equipos",
+              ],
+              [
+                "Flujo de operación real",
+                resumen.flujoFinal ? `${resumen.flujoFinal} GPM` : "—",
+                "Punto de equilibrio bomba-sistema",
+              ],
+              [
+                "CDT de diseño",
+                resumen.cdtDiseno ? `${resumen.cdtDiseno} fthd` : "—",
+                "Suma total de pérdidas en diseño original",
+              ],
+              [
+                "CDT de operación",
+                resumen.cdtFinal ? `${resumen.cdtFinal} fthd` : "—",
+                "CDT en el punto de operación real",
+              ],
+              [
+                "CDT de operación (PSI)",
+                resumen.cdtFinal
+                  ? `${f2(parseFloat(resumen.cdtFinal) * 0.43353)} PSI`
+                  : "—",
+                "Conversión: 1 fthd = 0.4335 PSI",
+              ],
+              [
+                "Variación flujo vs diseño",
+                resumen.flujoFinal && resumen.flujoMax
+                  ? `${(((parseFloat(resumen.flujoFinal) - parseFloat(resumen.flujoMax)) / parseFloat(resumen.flujoMax)) * 100).toFixed(1)}%`
+                  : "—",
+                "Diferencia entre flujo diseño y operación — aceptable ±10%",
+              ],
             ]} />
           </div>
 
+          {/* Progresión del equilibrio hidráulico */}
           {resumen.flujoIter1 && (
-            <div style={{ marginTop:"14px" }}>
-              <div style={{ fontSize:"7.5pt", fontWeight:700, color:AZUL, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:"5px" }}>Progresión del equilibrio hidráulico</div>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"7.5pt" }}>
+            <div style={{ marginTop: "14px" }} className="tabla-section">
+              <div style={{
+                fontSize: "7.5pt", fontWeight: 700, color: AZUL,
+                textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "5px",
+              }}>
+                Progresión del equilibrio hidráulico
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "7.5pt" }}>
                 <thead>
-                  <tr>{["Etapa","Flujo (GPM)","CDT (fthd)","CDT (PSI)","Estado"].map(h=><th key={h} style={thStyle}>{h}</th>)}</tr>
+                  <tr>
+                    {["Etapa", "Flujo (GPM)", "CDT (fthd)", "CDT (PSI)", "Estado"].map(h => (
+                      <th key={h} style={thStyle}>{h}</th>
+                    ))}
+                  </tr>
                 </thead>
                 <tbody>
                   {[
                     ["Diseño original", resumen.flujoMax,   resumen.cdtDiseno, "Cálculo inicial"],
                     ["Iteración 1",     resumen.flujoIter1, resumen.cdtIter1,  "Equilibrio bomba-sistema"],
-                    resumen.flujoIter2 ? ["Iteración 2", resumen.flujoIter2, resumen.cdtIter2, resumen.flujoIter2 === resumen.flujoIter1 ? "✓ Convergido" : "Recálculo"] : null,
+                    resumen.flujoIter2 ? [
+                      "Iteración 2",
+                      resumen.flujoIter2,
+                      resumen.cdtIter2,
+                      resumen.flujoIter2 === resumen.flujoIter1 ? "✓ Convergido" : "Recálculo",
+                    ] : null,
                   ].filter(Boolean).map((fila, i) => (
-                    <tr key={i} style={{ background: i%2===0?"#fff":GRIS_CLR }}>
-                      <td style={{ ...tdStyle, fontWeight:600 }}>{fila[0]}</td>
-                      <td style={{ ...tdStyle, textAlign:"center", color:AZUL, fontWeight:600 }}>{fila[1]} GPM</td>
-                      <td style={{ ...tdStyle, textAlign:"center" }}>{fila[2]} fthd</td>
-                      <td style={{ ...tdStyle, textAlign:"center" }}>{fila[2] ? f2(parseFloat(fila[2])*0.43353) : "—"} PSI</td>
-                      <td style={{ ...tdStyle, textAlign:"center", color: fila[3]?.includes("✓")?"#16a34a":GRIS, fontWeight: fila[3]?.includes("✓")?700:400 }}>{fila[3]}</td>
+                    <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : GRIS_CLR }}>
+                      <td style={{ ...tdStyle, fontWeight: 600 }}>{fila[0]}</td>
+                      <td style={{ ...tdStyle, textAlign: "center", color: AZUL, fontWeight: 600 }}>
+                        {fila[1]} GPM
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>{fila[2]} fthd</td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        {fila[2] ? f2(parseFloat(fila[2]) * 0.43353) : "—"} PSI
+                      </td>
+                      <td style={{
+                        ...tdStyle,
+                        textAlign: "center",
+                        color: fila[3]?.includes("✓") ? "#16a34a" : GRIS,
+                        fontWeight: fila[3]?.includes("✓") ? 700 : 400,
+                      }}>
+                        {fila[3]}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

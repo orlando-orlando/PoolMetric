@@ -305,7 +305,7 @@ body.no-scroll { overflow: hidden !important; }
 /* ==========================================================
    🧩 Selector técnico
    ========================================================== */
-.selector-tecnico { background: rgba(15,23,42,0.55); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; height: calc(100vh - 3rem); max-height: calc(100vh - 3rem); overflow: hidden; animation: expandVerticalSoft 0.35s ease-out forwards; }
+.selector-tecnico { background: #060f1c; border: 1px solid rgba(45,136,224,0.15); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; height: calc(100vh - 3rem); max-height: calc(100vh - 3rem); overflow: hidden; animation: expandVerticalSoft 0.35s ease-out forwards; }
 .selector-contenido { flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 6px; animation: fadeInSoft 0.2s ease; }
 .selector-contenido.entrada { animation: fadeInUpSoft 0.22s ease forwards; }
 .selector-contenido.salida { animation: fadeOutDownSoft 0.22s ease forwards; }

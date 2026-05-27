@@ -591,7 +591,9 @@ export default function App() {
     }, [seccion, tabIdxActual, tabActivaEq, enEqEstable, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
 
   // flujosCandidatos: solo incluye equipos del paso activo o anteriores
-  const flujosCandidatos = useMemo(() => {
+  const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
+
+const flujosCandidatos = useMemo(() => {
     const lista = [];
     // Filtrado + Infinity: siempre disponibles desde Dimensiones
     if (flujoFiltrado > 0)        lista.push({ label: "Filtrado",  valor: flujoFiltrado });
@@ -616,8 +618,17 @@ export default function App() {
       if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
         const estCA = estados?.cloradorAutomatico;
         if (estCA?.flujoTotal != null) {
-          const flujoCA = parseFloat(estCA.flujoTotal);
-          if (flujoCA > 0) lista.push({ label: "Clorador automático", valor: flujoCA });
+          const flujoCA     = parseFloat(estCA.flujoTotal);
+          const instalacion = estCA?.instalacion ?? "enLinea";
+          const esEnLineaExcedido = instalacion === "enLinea"
+            && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+          if (flujoCA > 0) {
+            lista.push({
+              label:    "Clorador automático",
+              valor:    flujoCA,
+              excluido: esEnLineaExcedido,
+            });
+          }
         }
       }
     }
@@ -631,8 +642,9 @@ export default function App() {
   ]);
 
   const flujoMaxGlobal = useMemo(() => {
-    if (!flujosCandidatos.length) return null;
-    return Math.max(...flujosCandidatos.map(f => f.valor));
+    const activos = flujosCandidatos.filter(f => !f.excluido);
+    if (!activos.length) return null;
+    return Math.max(...activos.map(f => f.valor));
   }, [flujosCandidatos]);
 
   const { tuberiaMaxGlobal, velocidadMaxGlobal } = useMemo(() => {
@@ -680,18 +692,22 @@ export default function App() {
     if (vis.sanitizacion) {
       if (cloradorSeleccionado && cargaClorador != null)
         lista.push({ label: "Generador de cloro salino", valor: parseFloat(cargaClorador), grupo: "sanitizacion" });
-      if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
-        const estCA = estados?.cloradorAutomatico;
-        const flujoCA = flujoMaxGlobal ?? 0;
-        const cloradorEnLineaDesdeDiseno = estCA?.instalacion === "enLinea" && flujoCA > 90;
-        lista.push({
-          label: "Clorador automático",
-          valor: parseFloat(cargaCloradorAutomatico),
-          grupo: "sanitizacion",
-          noSuma: cloradorEnLineaDesdeDiseno,
-          desc: cloradorEnLineaDesdeDiseno ? "excluido" : undefined,
-        });
-      }
+        if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+          const estCA = estados?.cloradorAutomatico;
+          // Usar el flujo real del clorador, no el flujo máximo global
+          const flujoCA = estCA?.flujoTotal != null
+            ? parseFloat(estCA.flujoTotal)
+            : (flujoMaxGlobal ?? 0);
+          const cloradorEnLineaExcedido = estCA?.instalacion === "enLinea"
+            && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+          lista.push({
+            label: "Clorador automático",
+            valor: parseFloat(cargaCloradorAutomatico),
+            grupo: "sanitizacion",
+            noSuma: cloradorEnLineaExcedido,
+            desc: cloradorEnLineaExcedido ? "excluido" : undefined,
+          });
+        }
       if (uvSeleccionado && cargaLamparaUV != null)
         lista.push({ label: "Lámpara UV", valor: parseFloat(cargaLamparaUV), grupo: "sanitizacion" });
     }
@@ -863,7 +879,7 @@ export default function App() {
             </ResultadoToggle>
 
             {/* ── Toggle Filtrado ── */}
-            <ResultadoToggle variante="filtrado" emoji="💧" label="Filtrado"
+            <ResultadoToggle variante="filtrado" emoji="💧" label="Circuito Hidráulico"
               abierto={toggleFiltrado} onToggle={() => setToggleFiltrado(v => !v)}
               deshabilitado={!vis.filtrado}
             >
@@ -991,11 +1007,17 @@ export default function App() {
                   <AnimatedToggleCuerpo abierto={toggleFlujoMax} variante="totales-flujo">
                     <div className="resultado-totales-desglose resultado-totales-desglose--flujo">
                       {flujosCandidatos.map((f, i) => {
-                        const esMax = f.valor === flujoMaxGlobal;
+                        const esMax = !f.excluido && f.valor === flujoMaxGlobal;
                         return (
-                          <div key={i} className={`resultado-totales-desglose-fila ${esMax ? "fila-gobierna" : "fila-secundaria"}`}>
-                            <span className="desglose-label">{f.label}{esMax && <span className="desglose-badge desglose-badge--gobierna">↑ máx</span>}</span>
-                            <span className="desglose-valor">{fmtGPM(f.valor)}</span>
+                          <div key={i} className={`resultado-totales-desglose-fila ${f.excluido ? "fila-no-suma" : esMax ? "fila-gobierna" : "fila-secundaria"}`}>
+                            <span className="desglose-label">
+                              {f.label}
+                              {esMax     && <span className="desglose-badge desglose-badge--gobierna">↑ máx</span>}
+                              {f.excluido && <span className="desglose-badge desglose-badge--nosuma">excluido</span>}
+                            </span>
+                            <span className="desglose-valor" style={{ color: f.excluido ? "#64748b" : undefined }}>
+                              {fmtGPM(f.valor)}
+                            </span>
                           </div>
                         );
                       })}
