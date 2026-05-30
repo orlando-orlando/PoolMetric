@@ -1,4 +1,12 @@
 import { useState, useEffect, useRef } from "react";
+import { retornos }    from "../data/retornos";
+import { desnatadores } from "../data/desnatadores";
+import { barredoras }  from "../data/barredoras";
+import { drenesFondo } from "../data/drenesFondo";
+import { drenesCanal } from "../data/drenesCanal";
+import { filtrosArena }    from "../data/filtrosArena";
+import { prefiltros }      from "../data/prefiltros";
+import { filtrosCartucho } from "../data/filtrosCartucho";
 
 /* ═══ ESTILOS GLOBALES DE IMPRESIÓN ═══ */
 const printStyles = `
@@ -402,7 +410,23 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
     });
   });
 
-  const ITER_LABELS = ["Diseño original", "Iteración 1", "Iteración 2"];
+  // Detectar qué empotrable de succión gobierna en cada reporte
+const succKeys = ["desnatador", "drenCanal", "drenFondo"];
+const gobiernaSuccion = (reporte, key) => {
+  if (!succKeys.includes(key)) return null; // no es de succión
+  const candidatos = succKeys
+    .map(k => {
+      const d = reporte?.empotrables?.[k];
+      if (!d) return null;
+      return { k, carga: parseFloat(d.cargaDinamicaTotal ?? d.cargaTotal ?? 0) };
+    })
+    .filter(Boolean);
+  if (candidatos.length <= 1) return true; // único, siempre gobierna
+  const max = candidatos.reduce((a, b) => b.carga > a.carga ? b : a);
+  return max.k === key;
+};
+
+const ITER_LABELS = ["Diseño original", "Iteración 1", "Iteración 2"];
   const ITER_COLORS = ["#475569", "#0891b2", "#16a34a"];
 
   /* ── Calcular CDT total sumado por iteración ── */
@@ -564,25 +588,52 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
                         <td style={{ ...tdStyle, fontWeight: 600, color: "#334155", fontSize: "7pt" }}>
                           {eq.label}
                         </td>
-                        {cdts.map((cdt, j) => (
-                          <td key={j} style={{
-                            ...tdStyle,
-                            textAlign: "center",
-                            color: cdt != null ? (j === 0 ? "#334155" : j === 1 ? "#0891b2" : "#16a34a") : GRIS,
-                            fontWeight: cdt != null ? 600 : 400,
-                            fontSize: "7pt",
-                          }}>
-                            {cdt != null ? `${cdt.toFixed(2)} fthd` : "—"}
-                          </td>
-                        ))}
-                        <td style={{
-                          ...tdStyle,
-                          textAlign: "center",
-                          fontSize: "6.5pt",
-                          color: eq.informativo ? GRIS : "#16a34a",
-                        }}>
-                          {eq.informativo ? "Inf." : "Suma"}
-                        </td>
+                          {cdts.map((cdt, j) => {
+                            const esExcluidoCA = eq.key === "cloradorAutomatico" && cdt == null;
+                            return (
+                              <td key={j} style={{
+                                ...tdStyle,
+                                textAlign: "center",
+                                color: esExcluidoCA ? "#b45309" : cdt != null ? (j === 0 ? "#334155" : j === 1 ? "#0891b2" : "#16a34a") : GRIS,
+                                fontWeight: cdt != null ? 600 : 400,
+                                fontSize: "7pt",
+                              }}>
+                                {esExcluidoCA ? "Excluido" : cdt != null ? `${cdt.toFixed(2)} fthd` : "—"}
+                              </td>
+                            );
+                          })}
+                        {(() => {
+                          const esCloradorExcluido = eq.key === "cloradorAutomatico"
+                            && reportes.some(r => r?.sanitizacion?.cloradorAutomatico?.excluido === true
+                              || r?.equilibrio?.equipos?.cloradorAutomatico?.excluido === true);
+
+                          // Para empotrables de succión: verificar si gobierna usando el primer reporte
+                          const esSuccion = succKeys.includes(eq.key);
+                          const gobierna  = esSuccion ? gobiernaSuccion(reportes[0], eq.key) : null;
+                          const noSuma    = esSuccion && gobierna === false;
+
+                          const color = esCloradorExcluido ? "#b45309"
+                            : noSuma ? GRIS
+                            : eq.informativo ? GRIS
+                            : "#16a34a";
+
+                          const texto = esCloradorExcluido ? "Excluido >90 GPM"
+                            : noSuma ? "No suma"
+                            : eq.informativo ? "Inf."
+                            : "Suma";
+
+                          return (
+                            <td style={{
+                              ...tdStyle,
+                              textAlign: "center",
+                              fontSize: "6.5pt",
+                              color,
+                              fontWeight: esCloradorExcluido ? 600 : 400,
+                            }}>
+                              {texto}
+                            </td>
+                          );
+                        })()}
                       </tr>
                     );
                   })}
@@ -655,10 +706,10 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
                           ...tdStyle,
                           textAlign: "center",
                           fontSize: "6.5pt",
-                          color: esMáx ? AZUL : GRIS,
-                          fontWeight: esMáx ? 700 : 400,
+                          color: item.excluido ? "#b45309" : esMáx ? AZUL : GRIS,
+                          fontWeight: item.excluido ? 600 : esMáx ? 700 : 400,
                         }}>
-                          {esMáx ? "↑ Gobierna" : ""}
+                          {item.excluido ? "Excluido >90 GPM" : esMáx ? "↑ Gobierna" : ""}
                         </td>
                       </tr>
                     );
@@ -1144,9 +1195,10 @@ function PaginaCalentamiento({ memoria, logoEmpresa, fecha }) {
   /* ─── Tabla de equipos de calentamiento con Flujo, CDT y BTU/h ─── */
   const filasEquiposCalentamiento = calentamiento.map(eq => {
     const sel = eq.seleccion ?? {};
-    const capBTU = sel.capUnitaria
-      ? `${Math.round(sel.capUnitaria).toLocaleString("es-MX")} BTU/h`
-      : (eq.cargaTotal ? `CDT: ${f2(eq.cargaTotal)} fthd` : "—");
+    const capRaw = sel.capUnitaria ?? sel.capOutputUnitario ?? sel.capUnitariaKcal ?? null;
+    const capBTU = capRaw
+      ? `${Math.round(capRaw).toLocaleString("es-MX")} BTU/h`
+      : "—";
     const flujoEq = sel.flujoTotal ? `${f2(sel.flujoTotal)} GPM` : "—";
     const cdtEq   = eq.cargaTotal  ? `${f2(eq.cargaTotal)} fthd` : "—";
     return [
@@ -1178,7 +1230,7 @@ function PaginaCalentamiento({ memoria, logoEmpresa, fecha }) {
           El cálculo de la demanda de calentamiento en una alberca se basa en el balance energético del sistema: la potencia del equipo de calentamiento debe ser capaz de reponer todas las pérdidas de calor para mantener la temperatura deseada del agua en el mes más frío del año. Las principales pérdidas de calor son:
           <div style={{ marginTop:"5px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
             {[
-              ["Evaporación (mayor pérdida)",  "Q_evap = A × M_e × Calor_vap",          "Calor cedido al evaporar agua en la superficie. Depende de la diferencia de humedad entre el agua y el aire, la velocidad del viento y la temperatura del agua."],
+              ["Evaporación",  "Q_evap = A × M_e × Calor_vap",          "Calor cedido al evaporar agua en la superficie. Depende de la diferencia de humedad entre el agua y el aire, la velocidad del viento y la temperatura del agua."],
               ["Convección",                   "Q_conv = h_c × A × (T_agua − T_aire)",  "Calor transferido por contacto del aire con la superficie del agua. Mayor con viento fuerte o albercas expuestas."],
               ["Radiación",                    "Q_rad = ε × σ × A × (T_agua⁴ − T_cielo⁴)", "Emisión de calor infrarrojo desde la superficie del agua hacia el cielo. Sigue la ley de Stefan-Boltzmann."],
               ["Transmisión (paredes/fondo)",  "Q_trans = U × A × (T_agua − T_suelo)",  "Pérdida de calor a través de las paredes y el fondo de la alberca. Depende del coeficiente de transmisión del material constructivo."],
@@ -1483,7 +1535,15 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               "Prefiltro / separador centrífugo",
               prefiltro.seleccion?.marca ?? "—",
               prefiltro.seleccion?.modelo ?? "—",
-              prefiltro.seleccion?.diameter ? `${prefiltro.seleccion.diameter}"` : "—",
+              (() => {
+                const sel = prefiltro.seleccion ?? {};
+                const gpm = sel.flujoPorPrefiltro ?? sel.flujoTotal ?? sel.maxFlow ?? null;
+                const diam = sel.diameter ?? null;
+                if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
+                if (gpm) return `${f2(gpm)} GPM`;
+                if (diam) return `${diam}"`;
+                return "—";
+              })(),
               prefiltro.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
@@ -1504,7 +1564,15 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               "Filtro de arena",
               filtroArena.seleccion?.marca ?? "—",
               filtroArena.seleccion?.modelo ?? "—",
-              filtroArena.seleccion?.diameter ? `${filtroArena.seleccion.diameter}"  ·  Arena: ${filtroArena.seleccion.arena ?? "—"} kg` : "—",
+              (() => {
+                const sel = filtroArena.seleccion ?? {};
+                const gpm = sel.flujoPorFiltro ?? sel.flujoTotal ?? sel.maxFlow ?? null;
+                const diam = sel.diameter ?? null;
+                if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
+                if (gpm) return `${f2(gpm)} GPM`;
+                if (diam) return `${diam}"`;
+                return "—";
+              })(),
               filtroArena.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
@@ -1525,7 +1593,15 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               "Filtro de cartucho",
               filtroCartucho.seleccion?.marca ?? "—",
               filtroCartucho.seleccion?.modelo ?? "—",
-              filtroCartucho.seleccion?.filtrationArea ? `${filtroCartucho.seleccion.filtrationArea} ft²` : "—",
+              (() => {
+                const sel = filtroCartucho.seleccion ?? {};
+                const gpm = sel.flujoEfectivo ?? sel.flujoTotal ?? sel.maxFlow ?? null;
+                const area = sel.filtrationArea ?? null;
+                if (gpm && area) return `${f2(gpm)} GPM · ${area} ft²`;
+                if (gpm) return `${f2(gpm)} GPM`;
+                if (area) return `${area} ft²`;
+                return "—";
+              })(),
               filtroCartucho.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
@@ -1620,7 +1696,13 @@ function PaginaEmpotrables({ memoria, logoEmpresa, fecha }) {
           <tbody>
             {Object.entries(emp).map(([key, data], i) => {
               const sel = data?.seleccion ?? {};
-              const spec = sel.tamano ? `${sel.tamano}"` : sel.dimensionPuerto ? `${sel.dimensionPuerto}"` : "—";
+              const spec = sel.tamano
+                ? `${sel.tamano}"`
+                : sel.dimensionPuerto
+                ? `${sel.dimensionPuerto}"`
+                : sel.spec != null
+                ? `${sel.spec}"`
+                : "—";
               const rol = key === "barredora" ? "Informativo" : key === "retorno" ? "Suma CDT" : "Mayor gobierna";
               return (
                 <tr key={key} style={{ background: i%2===0?"#fff":GRIS_CLR }}>
@@ -1756,7 +1838,10 @@ function getCapacidadEquipo(key, resumen, reportes, calentamiento) {
   if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(key)) {
     const item = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
     if (!item) return "—";
-    const cap = item.seleccion?.capUnitaria;
+    const cap = item.seleccion?.capUnitaria
+      ?? item.seleccion?.capOutputUnitario
+      ?? item.seleccion?.capUnitariaKcal
+      ?? null;
     return cap ? `${Math.round(cap).toLocaleString("es-MX")} BTU/h` : "—";
   }
 
@@ -1784,29 +1869,71 @@ function getCapacidadEquipo(key, resumen, reportes, calentamiento) {
     return flujo ? `${f2(flujo)} GPM` : "—";
   }
 
-  /* Filtración */
+  /* Filtración — GPM desde catálogo o flujoTotal/cantidad */
   if (key === "prefiltro") {
     const d = r.filtros?.prefiltro;
-    return d?.seleccion?.diameter ? `${d.seleccion.diameter}"` : "—";
+    if (!d?.seleccion) return "—";
+    const sel = d.seleccion;
+    const eqCat = prefiltros.find(p => p.marca === sel.marca && p.modelo === sel.modelo);
+    const cant = sel.cantidad ?? 1;
+    const gpm = sel.flujoPorPrefiltro
+      ?? eqCat?.specs?.maxFlow
+      ?? (cant > 0 && sel.flujoTotal ? parseFloat(sel.flujoTotal) / cant : null);
+    const diam = sel.diameter ?? eqCat?.specs?.diameter ?? null;
+    if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
+    if (gpm) return `${f2(gpm)} GPM`;
+    if (diam) return `${diam}"`;
+    return "—";
   }
   if (key === "filtroArena") {
     const d = r.filtros?.filtroArena;
     if (!d?.seleccion) return "—";
-    const diam = d.seleccion.diameter ? `${d.seleccion.diameter}"` : "";
-    const arena = d.seleccion.arena ? `  Arena: ${d.seleccion.arena} kg` : "";
-    return diam ? `${diam}${arena}` : "—";
+    const sel = d.seleccion;
+    const eqCat = filtrosArena.find(f => f.marca === sel.marca && f.modelo === sel.modelo);
+    const cant = sel.cantidad ?? 1;
+    const gpm = sel.flujoPorFiltro
+      ?? eqCat?.specs?.maxFlow
+      ?? (cant > 0 && sel.flujoTotal ? parseFloat(sel.flujoTotal) / cant : null);
+    const diam = sel.diameter ?? eqCat?.specs?.diameter ?? null;
+    if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
+    if (gpm) return `${f2(gpm)} GPM`;
+    if (diam) return `${diam}"`;
+    return "—";
   }
   if (key === "filtroCartucho") {
     const d = r.filtros?.filtroCartucho;
-    return d?.seleccion?.filtrationArea ? `${d.seleccion.filtrationArea} ft²` : "—";
+    if (!d?.seleccion) return "—";
+    const sel = d.seleccion;
+    const eqCat = filtrosCartucho.find(f => f.marca === sel.marca && f.modelo === sel.modelo);
+    const cant = sel.cantidad ?? 1;
+    const gpm = sel.flujoEfectivo
+      ?? eqCat?.specs?.flujoComercial
+      ?? eqCat?.specs?.flujoResidencial
+      ?? (cant > 0 && sel.flujoTotal ? parseFloat(sel.flujoTotal) / cant : null);
+    const area = sel.filtrationArea ?? eqCat?.specs?.filtrationArea ?? null;
+    if (gpm && area) return `${f2(gpm)} GPM · ${area} ft²`;
+    if (gpm) return `${f2(gpm)} GPM`;
+    if (area) return `${area} ft²`;
+    return "—";
   }
 
-  /* Empotrables — diámetro */
+  /* Empotrables — capacidad nominal desde catálogo */
   const data = r.empotrables?.[key];
   if (!data?.seleccion) return "—";
   const sel = data.seleccion;
-  if (sel.tamano)        return `${sel.tamano}"`;
-  if (sel.dimensionPuerto) return `${sel.dimensionPuerto}"`;
+  const catalogos = { retorno: retornos, desnatador: desnatadores, barredora: barredoras, drenFondo: drenesFondo, drenCanal: drenesCanal };
+  const cat = catalogos[key] ?? [];
+  const eqCat = cat.find(e => e.marca === sel.marca && e.modelo === sel.modelo);
+  const flujoNominal = eqCat?.specs?.flujo ?? eqCat?.specs?.maxFlow ?? null;
+  const especEmp = sel.tamano ? `${sel.tamano}"`
+    : sel.dimensionPuerto ? `${sel.dimensionPuerto}"`
+    : sel.spec != null ? `${sel.spec}"`
+    : eqCat?.specs?.tamano ? `${eqCat.specs.tamano}"`
+    : eqCat?.specs?.dimensionPuerto ? `${eqCat.specs.dimensionPuerto}"`
+    : null;
+  if (flujoNominal && especEmp) return `${f2(flujoNominal)} GPM · ${especEmp}`;
+  if (flujoNominal) return `${f2(flujoNominal)} GPM`;
+  if (especEmp) return especEmp;
   return "—";
 }
 
@@ -1976,16 +2103,20 @@ function PaginaDisclaimers({ memoria, logoEmpresa, fecha }) {
       texto: "La presente memoria de cálculo hidráulico ha sido generada con fines de ingeniería de diseño y selección de equipos para sistemas de recirculación y tratamiento de agua en albercas. Los resultados, cálculos y selecciones contenidos en este documento son válidos para las condiciones y parámetros ingresados al momento de su generación. Cualquier modificación en las dimensiones de la alberca, tipo de equipos, longitudes de tubería u otras variables de diseño requiere la regeneración completa de la memoria.",
     },
     {
+      titulo: "Validez del diseño",
+      texto: "Este documento asume que todos los datos ingresados por el usuario (dimensiones de la alberca, longitudes de tubería, alturas de instalación, tipos de equipos y configuración del sistema) son correctos y verificados en campo. La precisión del diseño hidráulico depende directamente de la calidad de los datos de entrada. PoolMetric no asume responsabilidad por diseños incorrectos derivados de datos erróneos, incompletos o no verificados proporcionados por el usuario.",
+    },
+    {
       titulo: "Limitaciones del método Hazen-Williams",
-      texto: "La ecuación de Hazen-Williams es una fórmula empírica válida para flujo turbulento de agua a temperatura ambiente (10–30 °C) en tuberías a presión. No es aplicable a fluidos distintos al agua, a flujo laminar (Re < 4,000), ni a temperaturas extremas que modifiquen significativamente la viscosidad del fluido. Los coeficientes de rugosidad C utilizados corresponden a tuberías nuevas; el envejecimiento del material puede reducir C en un 10–20% con el tiempo, incrementando las pérdidas de carga reales.",
+      texto: "La ecuación de Hazen-Williams es una fórmula ampliamente aceptada para flujo turbulento de agua a temperatura ambiente (10–30 °C) en tuberías a presión, validada por AWWA M51 (Manual of Water Supply Practices) y Crane Technical Paper 410. No es aplicable a fluidos distintos al agua, a flujo laminar (Re < 4,000), ni a temperaturas extremas que modifiquen significativamente la viscosidad del fluido. Los coeficientes de rugosidad C utilizados corresponden a tuberías nuevas; el envejecimiento del material puede reducir C en un 10–20% con el tiempo, incrementando las pérdidas de carga reales.",
     },
     {
       titulo: "Responsabilidad de instalación",
-      texto: "Este documento es una herramienta de apoyo técnico para el proyectista e instalador. La responsabilidad de la correcta instalación, pruebas hidrostáticas, puesta en marcha y operación del sistema recae en el contratista o instalador certificado. PoolMetric y sus desarrolladores no asumen responsabilidad por daños materiales, personales o económicos derivados de una instalación incorrecta, uso inapropiado del sistema o interpretación errónea de este documento.",
+      texto: "Este documento es una herramienta de apoyo técnico para el proyectista e instalador. La responsabilidad de la correcta instalación, pruebas hidrostáticas, puesta en marcha y operación del sistema recae en el contratista o instalador certificado. Este documento no sustituye los permisos de construcción ni las aprobaciones requeridas por las autoridades locales competentes. PoolMetric y sus desarrolladores no asumen responsabilidad por daños materiales, personales o económicos derivados de una instalación incorrecta, uso inapropiado del sistema o interpretación errónea de este documento.",
     },
     {
       titulo: "Normas y estándares de referencia",
-      texto: "El diseño hidráulico sigue los criterios establecidos por: ANSI/APSP-7 (norma de seguridad para drenes de fondo), PSDA 2007 — Pool and Spa Safety Act (EUA), NOM-010-CONAGUA (criterios de calidad del agua para uso recreativo), y las recomendaciones del PHTA (Pool & Hot Tub Alliance) para tasas de recirculación, velocidades de diseño y selección de equipos. Para proyectos que requieran cumplimiento normativo certificado, se recomienda la revisión por un ingeniero hidráulico colegiado.",
+      texto: "El diseño hidráulico sigue los criterios establecidos por: ANSI/APSP/ICC-1 (albercas públicas y comerciales), ANSI/APSP/ICC-5 (albercas residenciales enterradas), ANSI/APSP/ICC-15 (tasas de recirculación, velocidades y selección de equipos hidráulicos), ANSI/APSP-7 (seguridad antiatrapamiento en drenes de fondo), PSDA 2007 — Pool and Spa Safety Act, y las recomendaciones del PHTA (Pool & Hot Tub Alliance). El método de cálculo hidráulico está respaldado por AWWA M51 y Crane Technical Paper 410. Para proyectos que requieran cumplimiento normativo certificado, se recomienda la revisión por un ingeniero hidráulico colegiado.",
     },
     {
       titulo: "Vigencia y actualización",

@@ -288,8 +288,10 @@ function generarReporte({
     if (tieneCA) {
       const instalacion = eqCA?.instalacion ?? "enLinea";
       const flujoOp = parseFloat(flujoCalculo);
+      const flujoRealCA = eqCA?.flujoTotal != null ? parseFloat(eqCA.flujoTotal) : flujoOp;
 
-      const esEnLineaExcluido = instalacion === "enLinea" && flujoOp > FLUJO_MAX_CLORADOR_EN_LINEA;
+      const esEnLineaExcluido = instalacion === "enLinea"
+        && (flujoRealCA > FLUJO_MAX_CLORADOR_EN_LINEA || flujoOp > FLUJO_MAX_CLORADOR_EN_LINEA);
 
       if (esEnLineaExcluido) {
         sanitizacion.cloradorAutomatico = {

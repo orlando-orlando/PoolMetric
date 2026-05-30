@@ -647,6 +647,14 @@ const flujosCandidatos = useMemo(() => {
     return Math.max(...activos.map(f => f.valor));
   }, [flujosCandidatos]);
 
+  const cloradorEnLineaExcede = useMemo(() => {
+    if (!cloradorAutomaticoSeleccionado) return false;
+    const estCA = estados?.cloradorAutomatico;
+    if (estCA?.instalacion !== "enLinea") return false;
+    const flujoCA = parseFloat(estCA?.flujoTotal ?? 0);
+    return flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+  }, [cloradorAutomaticoSeleccionado, estados]);
+
   const { tuberiaMaxGlobal, velocidadMaxGlobal } = useMemo(() => {
     if (!flujoMaxGlobal || flujoMaxGlobal <= 0) return { tuberiaMaxGlobal: null, velocidadMaxGlobal: null };
     const { velocidadFlujo } = velocidadCargaFlujo(flujoMaxGlobal);
@@ -1167,6 +1175,7 @@ const flujosCandidatos = useMemo(() => {
               velInfinity={velocidadInfinity ?? null}
               tubCanal={null}
               velCanal={null}
+              cloradorEnLineaExcede={cloradorEnLineaExcede}
             />
           )}
         </div>

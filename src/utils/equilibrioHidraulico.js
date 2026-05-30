@@ -18,6 +18,8 @@ import { calcularCargaPrefiltroManual }      from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual } from "./filtroCartucho";
 import { calcularCargaUVManual }             from "./generadorUV";
 
+const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
+
 function flujoEnCurva(curva, cargaObjetivo) {
   if (!curva || curva.length === 0) return null;
   if (cargaObjetivo > curva[0].carga_ft) return 0;
@@ -77,6 +79,29 @@ function recalcularEmpotrable(key, estadoOrig, flujoNuevo, datosEmpotrable, fnCa
   let estado = { ...estadoOrig };
   let eq = catalogo.find(e => e.id === estado.selId);
   if (!eq) return null;
+
+  // Tolerancia del 1% — si el flujo nuevo no supera la capacidad instalada + 1%, no recalcular
+  const flujoEfEmp = eq.specs.flujo ?? eq.specs.maxFlow ?? 0;
+  const capacidadInstaladaEmp = flujoEfEmp * (estadoOrig.cantidad ?? 1);
+  const toleranciaEmp = capacidadInstaladaEmp * 0.01;
+  if (flujoNuevo <= capacidadInstaladaEmp + toleranciaEmp) {
+    // Recalcular la carga aunque no cambie la cantidad
+    try {
+      const tipo = estado.tipo ?? normTipo(eq.specs.tamano ?? eq.specs.dimensionPuerto ?? "");
+      const res = fnCalculo(flujoNuevo, tipo, datosEmpotrable, estadoOrig.cantidad ?? 1);
+      const sumaConAccesorio = res?.sumaFinal != null ? parseFloat(res.sumaFinal) + 1.5 : null;
+      if (sumaConAccesorio != null) {
+        return {
+          cantidad: estadoOrig.cantidad ?? 1, cantOriginal: estadoOrig.cantidad ?? 1,
+          cambio: false,
+          sumaFinal: sumaConAccesorio,
+          modelo: eq.modelo, marca: eq.marca,
+          resultadoHidraulico: res,
+        };
+      }
+    } catch { /* si falla, retornar null */ }
+    return null;
+  }
 
   let cantMinNueva;
   if (key === "barredora") {
@@ -205,8 +230,34 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   }
   if (!flujoEf || flujoEf <= 0) return null;
 
+  // Tolerancia del 1% — si el flujo nuevo no supera la capacidad instalada + 1%, no recalcular
+  const capacidadInstaladaFilt = flujoEf * cantOriginal;
+  const toleranciaFilt = capacidadInstaladaFilt * 0.01;
+  if (flujoNuevo <= capacidadInstaladaFilt + toleranciaFilt) {
+    // Aunque no cambia la cantidad, recalcular la carga con el flujo nuevo
+    try {
+      const res = fnManual(flujoEf, cantOriginal, flujoNuevo);
+      if (res && !res.error) {
+        return {
+          cantidad: cantOriginal, cantOriginal,
+          cambio: false,
+          cargaTotal: res?.cargaTotal ?? null,
+          cargaTotalPSI: res?.cargaTotalPSI ?? null,
+          modelo, marca,
+          resultadoHidraulico: res,
+        };
+      }
+    } catch { /* si falla, retornar null como antes */ }
+    return null;
+  }
+
+  // Modo manual — respetar cantidad elegida por el usuario
+  // Solo buscar equipo de mayor capacidad, no subir cantidad
+  const esModoManual = estado?.modo === "manual";
+  const cantMaxPermitida = esModoManual ? cantOriginal : CANT_MAX_FILTROS;
+
   const catalActivos = catalogo
-      .filter(c => c.metadata?.activo !== false)
+      .filter(c => c.metadata?.activo !== false && c.marca === marca)
       .map(c => ({ c, cap: c.specs?.maxFlow ?? c.specs?.flujoComercial ?? 0 }))
       .sort((a, b) => a.cap - b.cap);
 
@@ -231,7 +282,9 @@ function recalcularFiltro(key, estado, flujoNuevo, fnManual, catalogo, usoGenera
   let marcaFinal   = marca;
 
   const flujoTotalActual = flujoEf * cantOriginal;
-  const cantMax = key === "prefiltro" ? CANT_MAX_PREFILTROS : CANT_MAX_FILTROS;
+  const UMBRAL_FILTRO_UNICO = 70; // GPM
+  const cantMaxPorCapacidad = flujoEf < UMBRAL_FILTRO_UNICO ? 1 : CANT_MAX_FILTROS;
+  const cantMax = esModoManual ? cantOriginal : (key === "prefiltro" ? CANT_MAX_PREFILTROS : cantMaxPorCapacidad);
 
 if (flujoTotalActual >= flujoNuevo) {
     cantFinal = cantOriginal;
@@ -241,8 +294,9 @@ if (flujoTotalActual >= flujoNuevo) {
     const modelosDisponibles = catalActivos.filter(({ cap }) => cap >= flujoEf);
     let resuelto = false;
 
-    for (const { c: modeloCand, cap: capCand } of modelosDisponibles) {
-      for (let cant = 1; cant <= cantMax; cant++) {
+for (const { c: modeloCand, cap: capCand } of modelosDisponibles) {
+      const cantMaxCand = esModoManual ? cantOriginal : (capCand < UMBRAL_FILTRO_UNICO ? 1 : CANT_MAX_FILTROS);
+      for (let cant = 1; cant <= cantMaxCand; cant++) {
         if (capCand * cant >= flujoNuevo) {
           flujoEfFinal = capCand;
           modeloFinal  = modeloCand.modelo;
@@ -301,6 +355,26 @@ function recalcularUV(estado, flujoNuevo) {
 
   const cantOriginal    = estado.cantidad ?? 1;
   const capacidadActual = eqActual.specs.flujo;
+
+  // Tolerancia del 1% — si el flujo nuevo no supera la capacidad instalada + 1%, no recalcular
+  const capacidadInstaladaUV = capacidadActual * cantOriginal;
+  const toleranciaUV = capacidadInstaladaUV * 0.01;
+  if (flujoNuevo <= capacidadInstaladaUV + toleranciaUV) {
+    try {
+      const res = calcularCargaUVManual(eqActual.specs.flujo, cantOriginal, flujoNuevo);
+      if (res && !res.error) {
+        return {
+          cantidad: cantOriginal, cantOriginal,
+          cambio: false,
+          marca: eqActual.marca, modelo: eqActual.modelo, selId: eqActual.id,
+          cargaTotal: res.cargaTotal,
+          sumaFinal: res.cargaTotal,
+          resultadoHidraulico: res,
+        };
+      }
+    } catch { /* si falla, retornar null */ }
+    return null;
+  }
 
   // Catálogo activo ordenado de menor a mayor capacidad
   const catalActivos = generadoresUV
@@ -416,8 +490,14 @@ export function calcularEquilibrio({
       return ref;
   }
 
-  function calcularCDTSistema(flujoNuevo, cargasRef) {
+function calcularCDTSistema(flujoNuevo, cargasRef) {
   const equiposRecalc = {};
+
+  // Excluir clorador en línea si ya fue marcado desde el diseño
+  // O si el flujo de esta iteración supera 90 GPM (la bomba arrastra el sistema más allá del límite)
+  const excluirCADinamico = excluirCloradorAutomatico ||
+    (estados?.cloradorAutomatico?.instalacion === "enLinea" &&
+     flujoNuevo > FLUJO_MAX_CLORADOR_EN_LINEA);
 
   for (const key of empKeys) {
     const est = estados[key];
@@ -444,7 +524,6 @@ export function calcularEquilibrio({
     ...["filtroArena", "prefiltro", "filtroCartucho", "lamparaUV"].filter(k => equiposRecalc[k] != null),
   ];
 
-  // Determinar cuál equipo de succión gobierna
   const succKeys = tieneDesbordeCanal
     ? ["drenCanal", "drenFondo"]
     : ["desnatador", "drenFondo"];
@@ -456,40 +535,43 @@ export function calcularEquilibrio({
     ? succVals.reduce((a, b) => b.carga > a.carga ? b : a).k
     : null;
 
-  // Restar de cargaInicial las refs de los equipos recalculados que SÍ suman
   let cargaBaseAjustada = cargaInicial;
   for (const key of keysRecalc) {
-    if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
+    if (key === "cloradorAutomatico" && excluirCADinamico) continue;
     if (key === "barredora") continue;
     if (succKeys.includes(key) && key !== succGobierna) continue;
     cargaBaseAjustada -= parseFloat(cargasRef[key] ?? 0);
   }
-  // Restar también el clorador automático que no se recalcula pero está en cargaInicial
-  // Restar clorador automático solo si NO está ya en keysRecalc
   if (!keysRecalc.includes("cloradorAutomatico")) {
     cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
-  }  
-  // Ajustar clorador salino con carga manual si existe
-    const cargaCSRef    = parseFloat(cargasRef["cloradorSalino"] ?? 0);
-    const cargaCSActual = parseFloat(estados?.cloradorSalino?.cargaTotal ?? cargasRef["cloradorSalino"] ?? 0);
-    cargaBaseAjustada -= cargaCSRef;
-    cargaBaseAjustada += cargaCSActual;
+  }
+  const cargaCSRef    = parseFloat(cargasRef["cloradorSalino"] ?? 0);
+  const cargaCSActual = parseFloat(estados?.cloradorSalino?.cargaTotal ?? cargasRef["cloradorSalino"] ?? 0);
+  cargaBaseAjustada -= cargaCSRef;
+  cargaBaseAjustada += cargaCSActual;
 
-  // Sumar las cargas nuevas de los equipos que sí suman
   let cargaRecalc = 0;
   for (const key of keysRecalc) {
-    if (key === "cloradorAutomatico" && excluirCloradorAutomatico) continue;
+    if (key === "cloradorAutomatico" && excluirCADinamico) continue;
     if (key === "barredora") continue;
     if (succKeys.includes(key) && key !== succGobierna) continue;
     const eq = equiposRecalc[key];
     cargaRecalc += parseFloat(eq.sumaFinal ?? eq.cargaTotal ?? 0);
   }
 
-  if (!excluirCloradorAutomatico && !keysRecalc.includes("cloradorAutomatico")) {
+  if (!excluirCADinamico && !keysRecalc.includes("cloradorAutomatico")) {
     cargaRecalc += parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
   }
 
   const cdt = Math.max(0.1, cargaBaseAjustada + cargaRecalc);
+
+  if (excluirCADinamico) {
+    equiposRecalc.cloradorAutomatico = {
+      ...(equiposRecalc.cloradorAutomatico ?? {}),
+      excluido: true,
+      noSuma: true,
+    };
+  }
   return { equiposRecalc, cdt };
 }
 
@@ -612,6 +694,15 @@ const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.1;
       esEquilibrio:    p.esEquilibrio === true,
     };
   });
+
+  // Propagar excluido al resultado final si aplica
+  if (excluirCloradorAutomatico) {
+    equiposEq2.cloradorAutomatico = {
+      ...(equiposEq2.cloradorAutomatico ?? {}),
+      excluido: true,
+      noSuma: true,
+    };
+  }
 
   return {
     iteraciones,

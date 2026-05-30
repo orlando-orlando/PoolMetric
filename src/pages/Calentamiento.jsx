@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect, useRef, memo } from "react";
 import "../estilos.css";
 import { getClimaMensual } from "../data/clima";
-import { Pie } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+
 import { qEvaporacion }    from "../utils/qEvaporacion";
 import { qConveccion }     from "../utils/qConveccion";
 import { qRadiacion }      from "../utils/qRadiacion";
@@ -25,7 +24,6 @@ import { calderasGas }           from "../data/calderasDeGas";
 import { calentadorElectrico as calcularCE, calcularCEManual } from "../utils/calentadorElectrico";
 import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 /* ── InputLimitado (rangos de entrada) ── */
 function clampVal(val, min, max) {
@@ -111,9 +109,205 @@ function InputLimitado({ value, onChange, min, max, placeholder, className, onMo
 }
 
 /* ── GraficaPie memoizada — no se re-renderiza si pieData y pieOptions no cambian ── */
-const GraficaPie = memo(({ data, options }) => (
-  <Pie data={data} options={options} />
-));
+function GraficaPerdidasPremium({ perdidasBTU, perdidaTotalBTU }) {
+  const [vistaActiva, setVistaActiva] = useState("donut");
+  const [sliceActiva, setSliceActiva] = useState(null);
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, label: "", valor: 0, pct: 0 });
+  const containerRef = useRef(null);
+
+  const ENTRADAS = [
+    { label: "Evaporación",      valor: perdidasBTU.evaporacion  || 0, color: "#378ADD" },
+    { label: "Convección",       valor: perdidasBTU.conveccion   || 0, color: "#1D9E75" },
+    { label: "Radiación",        valor: perdidasBTU.radiacion    || 0, color: "#D85A30" },
+    { label: "Transmisión",      valor: perdidasBTU.transmision  || 0, color: "#888780" },
+    { label: "Infinity",         valor: perdidasBTU.infinity     || 0, color: "#7F77DD" },
+    { label: "Canal perimetral", valor: perdidasBTU.canal        || 0, color: "#D4537E" },
+    { label: "Tubería",          valor: perdidasBTU.tuberia      || 0, color: "#BA7517" },
+  ].filter(e => e.valor > 0);
+
+  const total = perdidaTotalBTU || 0;
+  const fmt = v => Math.round(v).toLocaleString("es-MX");
+  const pct = v => total > 0 ? ((v / total) * 100).toFixed(1) : "0.0";
+  const mayor = ENTRADAS.length > 0 ? ENTRADAS.reduce((a, b) => a.valor > b.valor ? a : b) : null;
+
+  const W = 560, H = 300;
+  const cx = 280, cy = 150, R = 95, r = 55;
+
+  function polarToXY(angle, radius) {
+    return {
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle),
+    };
+  }
+
+  function makeArcPath(startAngle, endAngle, outerR, innerR) {
+    const start = polarToXY(startAngle, outerR);
+    const end   = polarToXY(endAngle,   outerR);
+    const iStart = polarToXY(startAngle, innerR);
+    const iEnd   = polarToXY(endAngle,   innerR);
+    const large = endAngle - startAngle > Math.PI ? 1 : 0;
+    return [
+      `M ${start.x} ${start.y}`,
+      `A ${outerR} ${outerR} 0 ${large} 1 ${end.x} ${end.y}`,
+      `L ${iEnd.x} ${iEnd.y}`,
+      `A ${innerR} ${innerR} 0 ${large} 0 ${iStart.x} ${iStart.y}`,
+      "Z"
+    ].join(" ");
+  }
+
+  const GAP_ANGLE = 0.018;
+  let acumulado = -Math.PI / 2;
+  const slices = ENTRADAS.map((d, i) => {
+    const frac = total > 0 ? d.valor / total : 0;
+    const angle = frac * 2 * Math.PI;
+    const startAngle = acumulado + GAP_ANGLE / 2;
+    const endAngle   = acumulado + angle - GAP_ANGLE / 2;
+    const midAngle   = acumulado + angle / 2;
+    acumulado += angle;
+    const path = makeArcPath(startAngle, endAngle, R, r);
+    return { ...d, frac, startAngle, endAngle, midAngle, path, index: i };
+  });
+
+  function handleMouseEnter(e, sl) {
+    setSliceActiva(sl.index);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip({ visible: true, x: e.clientX - rect.left + 12, y: e.clientY - rect.top - 20, label: sl.label, valor: sl.valor, pct: pct(sl.valor) });
+  }
+  function handleMouseMove(e) {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip(prev => ({ ...prev, x: e.clientX - rect.left + 12, y: e.clientY - rect.top - 20 }));
+  }
+  function handleMouseLeave() {
+    setSliceActiva(null);
+    setTooltip(prev => ({ ...prev, visible: false }));
+  }
+
+  const sortedBarras = [...ENTRADAS].sort((a, b) => b.valor - a.valor);
+  const maxVal = sortedBarras.length > 0 ? sortedBarras[0].valor : 1;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", height: "100%", overflow: "hidden" }}>
+
+      <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Total pérdidas</div>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>{fmt(total)}</div>
+          <div style={{ fontSize: "9px", color: "#475569" }}>BTU/h</div>
+        </div>
+        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Mayor pérdida</div>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: mayor?.color || "#e2e8f0" }}>{mayor?.label || "—"}</div>
+          <div style={{ fontSize: "9px", color: "#475569" }}>{mayor ? pct(mayor.valor) + "% del total" : "—"}</div>
+        </div>
+        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Fuentes</div>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "#e2e8f0" }}>{ENTRADAS.length}</div>
+          <div style={{ fontSize: "9px", color: "#475569" }}>componentes</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+        {["donut", "barras"].map(v => (
+          <button key={v} type="button" onClick={() => setVistaActiva(v)}
+            style={{ fontSize: "11px", padding: "4px 12px", borderRadius: "20px", border: "1px solid", cursor: "pointer", transition: "all 0.15s", background: vistaActiva === v ? "rgba(29,111,168,0.25)" : "transparent", borderColor: vistaActiva === v ? "rgba(29,111,168,0.6)" : "rgba(255,255,255,0.12)", color: vistaActiva === v ? "#90cdf4" : "#64748b", fontWeight: vistaActiva === v ? 600 : 400 }}>
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      <div ref={containerRef} style={{ position: "relative", width: "100%", flex: 1, minHeight: 0 }}>
+
+        {vistaActiva === "donut" && (
+          <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfica de pérdidas caloríficas">
+
+            {slices.map((sl, i) => (
+              <path key={i}
+                d={sl.path}
+                fill={sl.color}
+                opacity={sliceActiva !== null && sliceActiva !== i ? 0.25 : 0.88}
+                style={{ cursor: "pointer", transition: "opacity 0.2s ease, transform 0.2s ease", transformOrigin: `${cx}px ${cy}px`, transform: sliceActiva === i ? "scale(1.04)" : "scale(1)" }}
+                onMouseEnter={e => handleMouseEnter(e, sl)}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              />
+            ))}
+
+            {slices.map((sl, i) => {
+              if (sl.frac < 0.01) return null;
+              const puntaR  = R + 2;
+              const midR    = R + 20;
+              const finalR  = R + 46;
+              const px = cx + puntaR * Math.cos(sl.midAngle);
+              const py = cy + puntaR * Math.sin(sl.midAngle);
+              const mx = cx + midR   * Math.cos(sl.midAngle);
+              const my = cy + midR   * Math.sin(sl.midAngle);
+              const fx = cx + finalR * Math.cos(sl.midAngle);
+              const fy = cy + finalR * Math.sin(sl.midAngle);
+              const ancla = fx > cx ? "start" : "end";
+              const tx = ancla === "start" ? fx + 4 : fx - 4;
+              return (
+                <g key={`lbl-${i}`} style={{ opacity: sliceActiva !== null && sliceActiva !== i ? 0.15 : 1, transition: "opacity 0.2s ease" }}>
+                  <circle cx={px} cy={py} r="2" fill={sl.color} />
+                  <polyline points={`${px},${py} ${mx},${my} ${fx},${fy}`} fill="none" stroke={sl.color} strokeWidth="0.8" opacity="0.65" />
+                  <text x={tx} y={fy - 3} textAnchor={ancla} fontSize="9" fill={sl.color} fontWeight="700">{pct(sl.valor)}%</text>
+                  <text x={tx} y={fy + 8} textAnchor={ancla} fontSize="7.5" fill={sl.color} opacity="0.7">{fmt(sl.valor)}</text>
+                </g>
+              );
+            })}
+
+            <text x={cx} y={cy - 10} textAnchor="middle" fontSize="9" fill="#475569" letterSpacing="0.04em">TOTAL</text>
+            <text x={cx} y={cy + 10} textAnchor="middle" fontSize="17" fontWeight="600" fill="#e2e8f0">{fmt(total)}</text>
+            <text x={cx} y={cy + 24} textAnchor="middle" fontSize="8.5" fill="#475569">BTU/h</text>
+          </svg>
+        )}
+
+        {vistaActiva === "barras" && (
+          <svg width="100%" viewBox={`0 0 ${W} ${sortedBarras.length * 30 + 24}`} role="img" aria-label="Barras de pérdidas caloríficas">
+            {sortedBarras.map((d, i) => {
+              const y = 12 + i * 30;
+              const barW = maxVal > 0 ? (d.valor / maxVal) * 260 : 0;
+              return (
+                <g key={i}>
+                  <text x="90" y={y + 14} textAnchor="end" fontSize="10" fill="#64748b">{d.label}</text>
+                  <rect x="96" y={y} width="260" height="20" rx="4" fill="rgba(255,255,255,0.04)" />
+                  <rect x="96" y={y} width={barW} height="20" rx="4" fill={d.color} opacity="0.82" />
+                  <text x={96 + barW + 6} y={y + 14} fontSize="9.5" fill={d.color} fontWeight="600">{pct(d.valor)}%</text>
+                  <text x={W - 4} y={y + 14} textAnchor="end" fontSize="8.5" fill={d.color} opacity="0.7">{fmt(d.valor)}</text>
+                </g>
+              );
+            })}
+          </svg>
+        )}
+
+        {tooltip.visible && (
+          <div style={{ position: "absolute", left: tooltip.x, top: tooltip.y, background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", pointerEvents: "none", zIndex: 10, minWidth: "140px", backdropFilter: "blur(8px)" }}>
+            <div style={{ color: "#94a3b8", marginBottom: "2px" }}>{tooltip.label}</div>
+            <div style={{ fontWeight: 600, color: "#e2e8f0", fontSize: "14px" }}>{fmt(tooltip.valor)} BTU/h</div>
+            <div style={{ color: "#64748b", fontSize: "11px" }}>{tooltip.pct}% del total</div>
+          </div>
+        )}
+      </div>
+
+      {vistaActiva === "donut" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px", flexShrink: 0 }}>
+          {ENTRADAS.map((d, i) => (
+            <div key={i}
+              onMouseEnter={() => setSliceActiva(i)}
+              onMouseLeave={() => setSliceActiva(null)}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 6px", borderRadius: "6px", cursor: "pointer", border: "1px solid transparent", transition: "all 0.15s", background: sliceActiva === i ? "rgba(255,255,255,0.05)" : "transparent", borderColor: sliceActiva === i ? "rgba(255,255,255,0.08)" : "transparent", opacity: sliceActiva !== null && sliceActiva !== i ? 0.35 : 1 }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: d.color, flexShrink: 0 }} />
+              <span style={{ fontSize: "10px", color: "#94a3b8", flex: 1 }}>{d.label}</span>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>{fmt(d.valor)}</span>
+              <span style={{ fontSize: "9px", color: "#64748b" }}>{pct(d.valor)}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── SVG Icons ─── */
 const IconoBombaCalor = () => (
@@ -240,16 +434,6 @@ function calcularFlujoMaximo(sistemaActivo) {
   const flujoInf = flujoInfinity(sistemaActivo);
   return flujoMaximo(flujoVol, flujoInf);
 }
-
-const PIE_OPTIONS = {
-  responsive: true, maintainAspectRatio: false,
-  layout: { padding: { top: 18, bottom: 18, left: 18, right: 18 } },
-  plugins: {
-    legend: { position: "right", labels: { color: "#e5e7eb", font: { size: 13, weight: "500" }, padding: 14, boxWidth: 14 } },
-    tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(0)} BTU/h` } }
-  }
-};
-
 
 /* ─── Helpers nombre comercial para calentamiento ─── */
 const CAL_NOMBRES = {
@@ -1081,26 +1265,6 @@ export default function Calentamiento({
     default: "Configuración térmica del sistema"
   };
 
-  const pieData = useMemo(() => {
-    const entradas = [
-      { label: "Evaporación",     valor: perdidasBTU.evaporacion,  color: "rgba(30,64,175,0.85)"   },
-      { label: "Convección",      valor: perdidasBTU.conveccion,   color: "rgba(56,189,248,0.85)"  },
-      { label: "Radiación",       valor: perdidasBTU.radiacion,    color: "rgba(251,113,133,0.85)" },
-      { label: "Transmisión",     valor: perdidasBTU.transmision,  color: "rgba(163,163,163,0.85)" },
-      { label: "Infinity",        valor: perdidasBTU.infinity,     color: "rgba(34,197,94,0.85)"   },
-      { label: "Canal Perimetral",valor: perdidasBTU.canal,        color: "rgba(96,165,250,0.85)"  },
-      { label: "Tubería",         valor: perdidasBTU.tuberia,      color: "rgba(251,191,36,0.85)"  },
-    ].filter(e => e.valor > 0);
-    return {
-      labels: entradas.map(e => e.label),
-      datasets: [{
-        data: entradas.map(e => e.valor),
-        backgroundColor: entradas.map(e => e.color),
-        borderColor: "rgba(15,23,42,0.8)", borderWidth: 2,
-      }]
-    };
-  }, [perdidasBTU]);
-
   /* pieOptions es constante — definida fuera del componente (ver debajo de ChartJS.register) */
 
   const fmtBTU = (v) => Math.round(v).toLocaleString("es-MX");
@@ -1357,12 +1521,12 @@ export default function Calentamiento({
             </div>
 
             <div className="layout-clima-bdc-fila1" style={{ alignItems: "stretch" }}>
-              <div className="layout-clima-bdc-celda celda-grafica"
+              <div className="celda-grafica"
                 style={{ display:"flex", alignItems:"center", justifyContent:"center" }}
                 onMouseEnter={() => !formularioBloqueado && setHoveredField("grafica")}
                 onMouseLeave={() => setHoveredField(null)}>
-                <div className="grafica-mini" style={{ width:"100%", height:"100%", minHeight:"420px" }}>
-                  <GraficaPie data={pieData} options={PIE_OPTIONS} />
+                <div className="grafica-mini" style={{ width:"100%", height:"100%", padding:"0.75rem", display:"flex", flexDirection:"column" }}>
+                  <GraficaPerdidasPremium perdidasBTU={perdidasBTU} perdidaTotalBTU={perdidaTotalBTU} />
                 </div>
               </div>
 

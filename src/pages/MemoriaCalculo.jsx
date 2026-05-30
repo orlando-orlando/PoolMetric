@@ -440,18 +440,16 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
     return d.seleccion?.flujoTotal ?? null;
   };
 
-  const equiposPresentes = equiposOrden.filter(k => {
-    // Calentamiento viene del array separado, no de reportes
-    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(k)) {
-      return Array.isArray(calentamiento) && calentamiento.some(c => c?.key === k);
-    }
-    return reportes.some(r => {
-      const d = getEquipoData(r, k);
-      if (!d) return false;
-      if (k === "cloradorAutomatico" && d.excluido === true) return false;
-      return true;
-    });
+const equiposPresentes = equiposOrden.filter(k => {
+  if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(k)) {
+    return Array.isArray(calentamiento) && calentamiento.some(c => c?.key === k);
+  }
+  return reportes.some(r => {
+    const d = getEquipoData(r, k);
+    if (!d) return false;
+    return true;
   });
+});
   // Para flujos solo mostramos el reporte de diseño (reportes[0])
   const rDis = reportes[0];
 
@@ -499,43 +497,43 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
       {resumen.flujosRequeridos?.length > 0 && (
       <div>
         <p style={{ ...tituloStyle, marginTop:0 }}>Requerimientos de flujo por proceso (GPM)</p>
-        <table style={{ borderCollapse:"collapse", fontSize:"0.78rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
-          <thead><tr style={{ background:"#0f172a" }}>
-            <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"7px 14px" }}>Sistema / Proceso</th>
-            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 14px", width:"120px" }}>Flujo (GPM)</th>
-            <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"7px 14px", width:"90px" }}></th>
-          </tr></thead>
-          <tbody>
-            {resumen.flujosRequeridos.map((item, ri) => {
-              const esNull    = item.valor == null;
-              const esExcluido = item.excluido === true;
-              const esMáx     = !esExcluido && item.valor != null
-                && Math.abs(parseFloat(item.valor) - parseFloat(resumen.flujoMax)) < 0.01;
-              return (
-                <tr key={ri} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)", opacity: esExcluido ? 0.5 : 1 }}>
-                  <td style={{ ...td, fontWeight: esMáx?700:400, color: esExcluido?"#475569": esMáx?"#60a5fa":"#e2e8f0" }}>
-                    {item.label}
-                  </td>
-                  <td style={{ ...td, color: esExcluido?"#475569": esNull?"#475569": esMáx?"#60a5fa":"#38bdf8", fontWeight: esMáx?700:400 }}>
-                    {esNull
-                      ? <span style={{fontSize:"0.7rem",color:"#475569"}}>usa flujo máx</span>
-                      : f2(item.valor)+" GPM"
-                    }
-                  </td>
-                  <td style={{ ...td, fontSize:"0.72rem" }}>
-                    {esMáx    && <span style={{color:"#60a5fa",fontWeight:700}}>↑ máximo</span>}
-                    {esExcluido && <span style={{color:"#f97316",fontWeight:600}}>excluido — {">"}{FLUJO_MAX_CLORADOR_EN_LINEA} GPM</span>}
-                  </td>
-                </tr>
-              );
-            })}
-            <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
-              <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"8px 14px" }}>Flujo máximo global</td>
-              <td style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"8px 14px" }}>{resumen.flujoMax} GPM</td>
-              <td style={{ ...td, padding:"8px 14px" }}></td>
-            </tr>
-          </tbody>
-        </table>
+<table style={{ borderCollapse:"collapse", fontSize:"0.73rem", background:"#1e293b", border:"1px solid #334155", width:"100%" }}>
+  <thead><tr style={{ background:"#0f172a" }}>
+    <th style={{ ...td, textAlign:"left", color:"#94a3b8", fontWeight:600, padding:"5px 10px" }}>Sistema / Proceso</th>
+    <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"5px 10px", width:"100px" }}>Flujo (GPM)</th>
+    <th style={{ ...td, color:"#94a3b8", fontWeight:600, padding:"5px 10px", width:"80px" }}>Nota</th>
+  </tr></thead>
+  <tbody>
+    {resumen.flujosRequeridos.map((item, ri) => {
+      const esNull     = item.valor == null;
+      const esExcluido = item.excluido === true;
+      const esMáx      = !esExcluido && item.valor != null
+        && Math.abs(parseFloat(item.valor) - parseFloat(resumen.flujoMax)) < 0.01;
+      return (
+        <tr key={ri} style={{ background: ri%2===0?"rgba(15,23,42,0.4)":"rgba(30,41,59,0.4)", opacity: esExcluido ? 0.5 : 1 }}>
+          <td style={{ ...td, textAlign:"left", fontWeight: esMáx?600:400, color: esExcluido?"#475569": esMáx?"#60a5fa":"#e2e8f0", padding:"4px 10px" }}>
+            {item.label}
+          </td>
+          <td style={{ ...td, color: esExcluido?"#475569": esNull?"#475569": esMáx?"#60a5fa":"#38bdf8", fontWeight: esMáx?600:400, padding:"4px 10px" }}>
+            {esNull
+              ? <span style={{fontSize:"0.68rem",color:"#475569"}}>— flujo máx</span>
+              : f2(item.valor)+" GPM"
+            }
+          </td>
+          <td style={{ ...td, fontSize:"0.68rem", padding:"4px 10px" }}>
+            {esMáx     && <span style={{color:"#60a5fa",fontWeight:700}}>↑ máximo</span>}
+            {esExcluido && <span style={{color:"#f97316",fontWeight:600}}>excluido — {">"}{FLUJO_MAX_CLORADOR_EN_LINEA} GPM</span>}
+          </td>
+        </tr>
+      );
+    })}
+    <tr style={{ background:"#0c2340", borderTop:"2px solid #1e4a7a" }}>
+      <td style={{ ...td, textAlign:"left", color:"#60a5fa", fontWeight:700, padding:"5px 10px" }}>Flujo máximo global</td>
+      <td style={{ ...td, color:"#60a5fa", fontWeight:700, padding:"5px 10px" }}>{resumen.flujoMax} GPM</td>
+      <td style={{ ...td, padding:"5px 10px" }}></td>
+    </tr>
+  </tbody>
+</table>
       </div>
       )}
 
@@ -583,7 +581,8 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                     }
                     const noSuma = esBarredora || (esSuccion && !gobierna);
                     const esExcluidoCA = key === "cloradorAutomatico"
-                      && r?.sanitizacion?.cloradorAutomatico?.excluido === true;
+                      && (r?.sanitizacion?.cloradorAutomatico?.excluido === true
+                        || r?.equilibrio?.equipos?.cloradorAutomatico?.excluido === true);
                     return <td key={i} style={{
                       ...td,
                       color: v==null ? "#334155" : esExcluidoCA ? "#475569" : noSuma ? "#475569" : "#60a5fa",
@@ -592,9 +591,9 @@ function TabResumen({ reportes, calentamiento, resumen = {} }) {
                     }}>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", justifyContent:"center" }}>
                         <span style={{ color: esExcluidoCA ? "#475569" : undefined }}>
-                          {v!=null ? f2(v)+" fthd" : "—"}
+                          {esExcluidoCA ? "—" : (v!=null ? f2(v)+" fthd" : "—")}
                         </span>
-                        {esExcluidoCA && v!=null && (
+                        {esExcluidoCA && i > 0 && (
                           <span style={{ fontSize:"0.58rem", color:"#f97316", fontWeight:600 }}>excluido</span>
                         )}
                         {!esExcluidoCA && v!=null && noSuma && (

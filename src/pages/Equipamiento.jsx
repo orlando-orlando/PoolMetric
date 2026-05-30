@@ -2266,13 +2266,13 @@ function BloqueVerificacion({
 
     if (flujoFin > flujoMaxCurva * 1.02) {
       lineas.push({ tipo: "sep", texto: "" });
-      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona extralimitada — el flujo de equilibrio (${flujoFin.toFixed(1)} GPM) supera el rango de curva publicado (${flujoMaxCurva.toFixed(1)} GPM)` });
-      lineas.push({ tipo: "error", texto: `  Considera aumentar la CDT del sistema o seleccionar una bomba de menor capacidad` });
+      lineas.push({ tipo: "error", texto: `  ⚠ Motobomba sobredimensionada — flujo de equilibrio (${flujoFin.toFixed(1)} GPM) supera el rango de curva publicado (${flujoMaxCurva.toFixed(1)} GPM)` });
+      lineas.push({ tipo: "error", texto: `  Operación posible pero la bomba trabajará fuera de su curva característica — rendimiento reducido, mayor consumo y desgaste acelerado. Considera aumentar la CDT o seleccionar una bomba de menor capacidad.` });
     }
 
     if (cdtFin >= shutOffCarga * 0.97) {
       lineas.push({ tipo: "sep", texto: "" });
-      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Bomba operando en zona de shut-off — CDT de equilibrio (${cdtFin.toFixed(2)} fthd) alcanza el límite de carga de la bomba (${shutOffCarga.toFixed(2)} fthd)` });
+      lineas.push({ tipo: "error", texto: `  ⚠ AVISO: Motobomba operando en zona de shut-off — CDT de equilibrio (${cdtFin.toFixed(2)} fthd) alcanza el límite de carga de la bomba (${shutOffCarga.toFixed(2)} fthd)` });
       lineas.push({ tipo: "error", texto: `  El flujo real será mínimo o nulo. Selecciona una bomba con mayor shut-off o reduce la CDT del sistema` });
     }
 
@@ -2710,10 +2710,12 @@ function ResumenEquiposConfirmacion({
   );
 
   const hayCambios = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
-  const flujoEquilibrio = resultado?.equilibrio?.flujo ?? flujoMaxGlobal;
+  const flujoRealCloradorLocal = parseFloat(estados?.cloradorAutomatico?.flujoTotal ?? 0);
+  const flujoEquilibrioFinal = resultado?.equilibrio?.flujo ?? 0;
   const cloradorExcluidoLocal = sistemasSeleccionadosSanit?.cloradorAutomatico
     && estados?.cloradorAutomatico?.instalacion === "enLinea"
-    && flujoEquilibrio > FLUJO_MAX_CLORADOR_EN_LINEA;
+    && (flujoRealCloradorLocal > FLUJO_MAX_CLORADOR_EN_LINEA
+        || flujoEquilibrioFinal > FLUJO_MAX_CLORADOR_EN_LINEA);
 
   return (
     <div style={{ marginTop: "0.5rem" }}>
@@ -3079,6 +3081,7 @@ export default function Equipamiento({
   velInfinity,
   tubCanal,
   velCanal,
+  cloradorEnLineaExcede: cloradorEnLineaExcedeFromApp,
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
 
@@ -3252,10 +3255,10 @@ export default function Equipamiento({
 
   // Detectar si el clorador en línea excede el límite — solo para mostrar aviso, no modificar estado
   const cloradorAutomaticoEsEnLinea = estados?.cloradorAutomatico?.instalacion === "enLinea";
-  const flujoParaVerificarClorador = flujoUVEfectivo ?? flujoMaxGlobal;
+  const flujoRealClorador = parseFloat(estados?.cloradorAutomatico?.flujoTotal ?? 0);
   const cloradorEnLineaExcede = sistemasSeleccionadosSanit?.cloradorAutomatico
-    && cloradorAutomaticoEsEnLinea
-    && flujoParaVerificarClorador > FLUJO_MAX_CLORADOR_EN_LINEA;
+      && cloradorAutomaticoEsEnLinea
+      && flujoRealClorador > FLUJO_MAX_CLORADOR_EN_LINEA;
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
@@ -3772,7 +3775,7 @@ export default function Equipamiento({
                       modoCloradorSalino={modoCloradorSalino}
                       selCloradorSalinoId={selCloradorSalinoId}
                       selCloradorSalinoCant={selCloradorSalinoCant}
-                      cloradorEnLineaQuitado={cloradorEnLineaExcede}
+                      cloradorEnLineaQuitado={cloradorEnLineaExcede ?? false}
                       flujoOperacion={flujoUVEfectivo}
                       onLimpiarOperacion={() => {
                         setDatosPorSistema(ps => ({
