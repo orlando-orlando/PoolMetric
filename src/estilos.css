@@ -1850,3 +1850,52 @@ body.tema-claro .resumen-equipos-header { color: #334155 !important; }
 
 body.tema-claro .grafica-container .legend-item-text { color: #334155; }
 body.tema-claro .grafica-mini { background: radial-gradient(60% 60% at center, rgba(29,111,168,0.06) 0%, rgba(236,237,240,0.5) 55%, rgba(220,222,226,0.7) 100%); }
+
+/* ==========================================================
+   🎨 Gráfica stat cards — tema claro/oscuro
+   ========================================================== */
+.grafica-stat-card {
+  background: rgba(15,23,42,0.6);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.grafica-stat-label {
+  font-size: 9px;
+  color: #64748b;
+  margin-bottom: 1px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.grafica-stat-valor {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+.grafica-stat-sub {
+  font-size: 9px;
+  color: #475569;
+}
+body.tema-claro .grafica-stat-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(29,111,168,0.15) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+}
+body.tema-claro .grafica-stat-label { color: #475569 !important; }
+body.tema-claro .grafica-stat-valor { color: #1e293b !important; }
+body.tema-claro .grafica-stat-sub   { color: #64748b !important; }
+
+/* ==========================================================
+   🎨 Toggles panel izquierdo — más contraste
+   ========================================================== */
+.resultado-total-btn-titulo {
+  font-size: 0.72rem;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: #f1f5f9 !important;
+}
+.resultado-total-btn-valor--flujo { color: #34d399 !important; font-weight: 700 !important; }
+.resultado-total-btn-valor--cdt   { color: #7dd3fc !important; font-weight: 700 !important; }
+body.tema-claro .resultado-total-btn-titulo { color: #1e293b !important; font-weight: 700 !important; }
+body.tema-claro .resultado-total-btn-valor--flujo { color: #059669 !important; }
+body.tema-claro .resultado-total-btn-valor--cdt   { color: #1d6fa8 !important; }

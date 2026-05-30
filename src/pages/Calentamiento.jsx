@@ -190,23 +190,23 @@ function GraficaPerdidasPremium({ perdidasBTU, perdidaTotalBTU }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", height: "100%", overflow: "hidden" }}>
 
-      <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Total pérdidas</div>
-          <div style={{ fontSize: "14px", fontWeight: 600, color: "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>{fmt(total)}</div>
-          <div style={{ fontSize: "9px", color: "#475569" }}>BTU/h</div>
-        </div>
-        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Mayor pérdida</div>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: mayor?.color || "#e2e8f0" }}>{mayor?.label || "—"}</div>
-          <div style={{ fontSize: "9px", color: "#475569" }}>{mayor ? pct(mayor.valor) + "% del total" : "—"}</div>
-        </div>
-        <div style={{ flex: 1, background: "rgba(15,23,42,0.6)", borderRadius: "8px", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: "9px", color: "#64748b", marginBottom: "1px", letterSpacing: "0.04em", textTransform: "uppercase" }}>Fuentes</div>
-          <div style={{ fontSize: "14px", fontWeight: 600, color: "#e2e8f0" }}>{ENTRADAS.length}</div>
-          <div style={{ fontSize: "9px", color: "#475569" }}>componentes</div>
-        </div>
-      </div>
+<div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+  <div className="grafica-stat-card" style={{ flex: 1, borderRadius: "8px", padding: "8px 10px" }}>
+    <div className="grafica-stat-label">Total pérdidas</div>
+    <div className="grafica-stat-valor">{fmt(total)}</div>
+    <div className="grafica-stat-sub">BTU/h</div>
+  </div>
+  <div className="grafica-stat-card" style={{ flex: 1, borderRadius: "8px", padding: "8px 10px" }}>
+    <div className="grafica-stat-label">Mayor pérdida</div>
+    <div className="grafica-stat-valor" style={{ color: mayor?.color || undefined }}>{mayor?.label || "—"}</div>
+    <div className="grafica-stat-sub">{mayor ? pct(mayor.valor) + "% del total" : "—"}</div>
+  </div>
+  <div className="grafica-stat-card" style={{ flex: 1, borderRadius: "8px", padding: "8px 10px" }}>
+    <div className="grafica-stat-label">Fuentes</div>
+    <div className="grafica-stat-valor">{ENTRADAS.length}</div>
+    <div className="grafica-stat-sub">componentes</div>
+  </div>
+</div>
 
       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
         {["donut", "barras"].map(v => (
