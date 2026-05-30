@@ -243,8 +243,20 @@ function InputLimitado({ value, onChange, min, max, placeholder, className, onMo
   };
 
   const handleBlur = (e) => {
-    const { valor, aviso: a } = clampVal(e.target.value, min, max);
-    if (valor !== e.target.value) onChange(valor);
+    const raw = e.target.value;
+    // Caso especial: el usuario escribió 0 (o "0.", "0.0", etc.)
+    const numRaw = parseFloat(raw);
+    if (!isNaN(numRaw) && numRaw === 0) {
+      onChange(String(min));
+      setAviso(
+        `Profundidad 0 no válida. Si deseas profundidad uniforme, ` +
+        `escribe el mismo valor en mínima y máxima. Ajustado a ${min} m.`
+      );
+      setTimeout(() => setAviso(null), 6000);
+      return;
+    }
+    const { valor, aviso: a } = clampVal(raw, min, max);
+    if (valor !== raw) onChange(valor);
     setAviso(a);
     if (a) setTimeout(() => setAviso(null), 2500);
   };
@@ -269,7 +281,8 @@ function InputLimitado({ value, onChange, min, max, placeholder, className, onMo
           position: "absolute", top: "calc(100% + 2px)", left: 0,
           fontSize: "0.65rem", color: "#f97316", fontWeight: 600,
           background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.3)",
-          borderRadius: "4px", padding: "2px 6px", whiteSpace: "nowrap", zIndex: 10,
+          borderRadius: "4px", padding: "2px 6px", zIndex: 10,
+          whiteSpace: "normal", maxWidth: "260px", lineHeight: "1.4",
         }}>
           {aviso}
         </div>

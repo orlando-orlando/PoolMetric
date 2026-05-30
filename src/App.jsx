@@ -313,6 +313,16 @@ export default function App() {
   const handleHome = () => {
     setSeccion("dimensiones");
     setSistemaActivo(null);
+    setDatosPorSistema({});
+    setSanitizacionSeleccionada({});
+    setToggleDimensiones(false);
+    setToggleFiltrado(false);
+    setToggleCalentamiento(false);
+    setToggleSanitizacion(false);
+    setToggleEmpotrables(false);
+    setToggleFiltracion(false);
+    setToggleFlujoMax(false);
+    setToggleCDTTotal(false);
     dimensionesRef.current?.resetDimensiones();
   };
 
