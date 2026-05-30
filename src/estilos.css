@@ -1899,3 +1899,41 @@ body.tema-claro .grafica-stat-sub   { color: #64748b !important; }
 body.tema-claro .resultado-total-btn-titulo { color: #1e293b !important; font-weight: 700 !important; }
 body.tema-claro .resultado-total-btn-valor--flujo { color: #059669 !important; }
 body.tema-claro .resultado-total-btn-valor--cdt   { color: #1d6fa8 !important; }
+
+.grafica-svg-label { fill: #475569; }
+.grafica-svg-total { fill: #e2e8f0; }
+body.tema-claro .grafica-svg-label { fill: #64748b !important; }
+body.tema-claro .grafica-svg-total { fill: #0f172a !important; }
+
+.grafica-leyenda-label { font-size: 10px; color: #94a3b8; flex: 1; }
+.grafica-leyenda-valor { font-size: 10px; font-weight: 600; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.grafica-leyenda-pct   { font-size: 9px; color: #64748b; }
+
+body.tema-claro .grafica-leyenda-label { color: #475569 !important; }
+body.tema-claro .grafica-leyenda-valor { color: #0f172a !important; }
+body.tema-claro .grafica-leyenda-pct   { color: #64748b !important; }
+
+body.tema-claro .resultado-total-btn--flujo .resultado-total-btn-titulo,
+body.tema-claro .resultado-total-btn--cdt .resultado-total-btn-titulo {
+  color: #1e293b !important;
+  font-weight: 700 !important;
+}
+body.tema-claro .resultado-total-btn--flujo .resultado-total-btn-valor--flujo {
+  color: #059669 !important;
+  font-weight: 700 !important;
+}
+body.tema-claro .resultado-total-btn--cdt .resultado-total-btn-valor--cdt {
+  color: #1d6fa8 !important;
+  font-weight: 700 !important;
+}
+body.tema-claro .resultado-total-btn--flujo svg,
+body.tema-claro .resultado-total-btn--cdt svg {
+  color: #475569 !important;
+}
+
+body.tema-claro .resultado-toggle-btn-label {
+  color: inherit !important;
+}
+body.tema-claro .resultado-toggle-btn--filtrado .resultado-toggle-btn-label { color: #1d6fa8 !important; }
+body.tema-claro .resultado-toggle-btn--calentamiento .resultado-toggle-btn-label { color: #c2410c !important; }
+body.tema-claro .resultado-toggle-btn--sanitizacion .resultado-toggle-btn-label { color: #7c3aed !important; }

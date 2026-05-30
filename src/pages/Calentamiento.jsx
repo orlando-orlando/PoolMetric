@@ -257,9 +257,9 @@ function GraficaPerdidasPremium({ perdidasBTU, perdidaTotalBTU }) {
               );
             })}
 
-            <text x={cx} y={cy - 10} textAnchor="middle" fontSize="9" fill="#475569" letterSpacing="0.04em">TOTAL</text>
-            <text x={cx} y={cy + 10} textAnchor="middle" fontSize="17" fontWeight="600" fill="#e2e8f0">{fmt(total)}</text>
-            <text x={cx} y={cy + 24} textAnchor="middle" fontSize="8.5" fill="#475569">BTU/h</text>
+            <text x={cx} y={cy - 10} textAnchor="middle" fontSize="9" className="grafica-svg-label" letterSpacing="0.04em">TOTAL</text>
+            <text x={cx} y={cy + 10} textAnchor="middle" fontSize="17" fontWeight="600" className="grafica-svg-total">{fmt(total)}</text>
+            <text x={cx} y={cy + 24} textAnchor="middle" fontSize="8.5" className="grafica-svg-label">BTU/h</text>
           </svg>
         )}
 
@@ -298,9 +298,9 @@ function GraficaPerdidasPremium({ perdidasBTU, perdidaTotalBTU }) {
               onMouseLeave={() => setSliceActiva(null)}
               style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 6px", borderRadius: "6px", cursor: "pointer", border: "1px solid transparent", transition: "all 0.15s", background: sliceActiva === i ? "rgba(255,255,255,0.05)" : "transparent", borderColor: sliceActiva === i ? "rgba(255,255,255,0.08)" : "transparent", opacity: sliceActiva !== null && sliceActiva !== i ? 0.35 : 1 }}>
               <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: d.color, flexShrink: 0 }} />
-              <span style={{ fontSize: "10px", color: "#94a3b8", flex: 1 }}>{d.label}</span>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "#e2e8f0", fontVariantNumeric: "tabular-nums" }}>{fmt(d.valor)}</span>
-              <span style={{ fontSize: "9px", color: "#64748b" }}>{pct(d.valor)}%</span>
+              <span className="grafica-leyenda-label">{d.label}</span>
+              <span className="grafica-leyenda-valor">{fmt(d.valor)}</span>
+              <span className="grafica-leyenda-pct">{pct(d.valor)}%</span>
             </div>
           ))}
         </div>
