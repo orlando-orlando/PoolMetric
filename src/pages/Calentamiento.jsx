@@ -1617,7 +1617,13 @@ export default function Calentamiento({
                 </div>
               </div>
             </div>
-
+          <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.85rem", borderRadius: "8px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+            <span style={{ fontSize: "0.8rem", flexShrink: 0, marginTop: "1px" }}>⚠</span>
+            <span style={{ fontSize: "0.68rem", color: "#94a3b8", lineHeight: 1.5 }}>
+              <strong style={{ color: "#fbbf24", fontWeight: 600 }}>Pérdida de tubería interdependiente — </strong>
+              cada equipo de calentamiento que selecciones modifica el diámetro y flujo de su tubería, lo que cambia la pérdida calorífica total del sistema. Al cambiar la selección de cualquier equipo, los requerimientos térmicos de los demás se recalculan automáticamente.
+            </span>
+          </div>
 </div>{/* fin selector-grupo análisis climático */}
 
           {/* ── BOMBA DE CALOR ── */}
@@ -2447,6 +2453,13 @@ export default function Calentamiento({
                                   <span className="bdc-hid-valor">{src.cargaTotal} fthd · {src.cargaTotalPSI} PSI</span>
                                 </div>
                               )}
+                              <div style={{ marginTop: "0.5rem", padding: "0.45rem 0.6rem", borderRadius: "6px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)", display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
+                                <span style={{ fontSize: "0.7rem", flexShrink: 0 }}>⚠</span>
+                                <span style={{ fontSize: "0.62rem", color: "#94a3b8", lineHeight: 1.45 }}>
+                                  <strong style={{ color: "#fbbf24", fontWeight: 600 }}>Condiciones atmosféricas — </strong>
+                                  BTU de output calculados en condiciones atmosféricas normales promedio. La capacidad real varía según altitud, temperatura ambiente y tipo de gas en la instalación.
+                                </span>
+                              </div>
                             </div>
                           );
                         })()}
@@ -2478,10 +2491,10 @@ export default function Calentamiento({
                                 <span className="bdc-auto-label">Cantidad</span>
                                 <span className="bdc-auto-val">{calderaSeleccionada.seleccion.cantidad} equipo{calderaSeleccionada.seleccion.cantidad > 1 ? "s" : ""}</span>
                               </div>
-                              <div className="bdc-auto-fila">
-                                <span className="bdc-auto-label">Consumo unitario</span>
-                                <span className="bdc-auto-val">{fmtBTU(calderaSeleccionada.seleccion.consumoUnitario)} BTU/h</span>
-                              </div>
+                                <div className="bdc-auto-fila">
+                                  <span className="bdc-auto-label">Consumo unitario</span>
+                                  <span className="bdc-auto-val">{fmtBTU(calderaSeleccionada.seleccion.consumoUnitario)} BTU/h</span>
+                                </div>
                               <div className="bdc-auto-fila">
                                 <span className="bdc-auto-label">Eficiencia</span>
                                 <span className="bdc-auto-val">{calderaSeleccionada.seleccion.eficiencia}%</span>
@@ -2587,6 +2600,7 @@ export default function Calentamiento({
                                   )}
                                 </div>
                                 {selManualCalderaId && (
+                                  
                                   <div className="bdc-manual-resultado">
                                     <div className="bdc-manual-cant-row">
                                       <span className="bdc-manual-cant-label">Cantidad de equipos</span>
