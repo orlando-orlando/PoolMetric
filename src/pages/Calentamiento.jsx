@@ -211,7 +211,7 @@ function GraficaPerdidasPremium({ perdidasBTU, perdidaTotalBTU }) {
       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
         {["donut", "barras"].map(v => (
           <button key={v} type="button" onClick={() => setVistaActiva(v)}
-            style={{ fontSize: "11px", padding: "4px 12px", borderRadius: "20px", border: "1px solid", cursor: "pointer", transition: "all 0.15s", background: vistaActiva === v ? "rgba(29,111,168,0.25)" : "transparent", borderColor: vistaActiva === v ? "rgba(29,111,168,0.6)" : "rgba(255,255,255,0.12)", color: vistaActiva === v ? "#90cdf4" : "#64748b", fontWeight: vistaActiva === v ? 600 : 400 }}>
+            style={{ fontSize: "11px", padding: "4px 12px", borderRadius: "20px", border: "1px solid", cursor: "pointer", transition: "all 0.15s", background: vistaActiva === v ? "rgba(29,111,168,0.35)" : "rgba(255,255,255,0.06)", borderColor: vistaActiva === v ? "#38bdf8" : "rgba(255,255,255,0.18)", color: vistaActiva === v ? "#e2e8f0" : "#94a3b8", fontWeight: vistaActiva === v ? 700 : 400 }}>
             {v.charAt(0).toUpperCase() + v.slice(1)}
           </button>
         ))}

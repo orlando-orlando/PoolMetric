@@ -796,7 +796,7 @@ const flujosCandidatos = useMemo(() => {
         </div>
 
         <div className="nav-vertical">
-          <button className={`nav-item ${seccion === "dimensiones" ? "activo" : ""}`} onClick={handleHome}>
+          <button className={`nav-item ${seccion === "dimensiones" ? "activo" : ""}`} onClick={() => setSeccion("dimensiones")}>
             <span className="nav-icon"><Ruler size={16} strokeWidth={1.5} /></span>
             {!panelColapsado && <span className="nav-text">Dimensiones</span>}
           </button>
