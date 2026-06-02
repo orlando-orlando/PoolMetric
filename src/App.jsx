@@ -215,7 +215,6 @@ function extraerFlujoCarga(calentamiento, {
   return { flujo: null, carga: null, tuberia: null, velocidad: null };
 }
 
-/* ── AnimatedToggle ── */
 function AnimatedToggleCuerpo({ abierto, variante, children }) {
   const [mounted, setMounted] = useState(abierto);
   useEffect(() => {
@@ -296,6 +295,9 @@ export default function App() {
   const [sistemaActivo, setSistemaActivo]           = useState(null);
   const dimensionesRef                              = useRef(null);
 
+  // ── NUEVO: estado drawer de resultados en móvil ──
+  const [drawerResultadosAbierto, setDrawerResultadosAbierto] = useState(false);
+
   const [sanitizacionSeleccionada, setSanitizacionSeleccionada] = useState({});
   const handleSanitizacionChange = useCallback((sistemas) => {
     setSanitizacionSeleccionada(sistemas);
@@ -323,6 +325,7 @@ export default function App() {
     setToggleFiltracion(false);
     setToggleFlujoMax(false);
     setToggleCDTTotal(false);
+    setDrawerResultadosAbierto(false);
     dimensionesRef.current?.resetDimensiones();
   };
 
@@ -330,6 +333,11 @@ export default function App() {
   useEffect(() => {
     const titulos = { dimensiones: "PoolMetric · Dimensiones", calentamiento: "PoolMetric · Calentamiento", equipamiento: "PoolMetric · Equipamiento" };
     document.title = titulos[seccion] ?? "PoolMetric";
+  }, [seccion]);
+
+  // ── NUEVO: cerrar drawer al cambiar de sección ──
+  useEffect(() => {
+    setDrawerResultadosAbierto(false);
   }, [seccion]);
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
@@ -562,28 +570,15 @@ export default function App() {
     return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
   }, [cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico]);
 
-  // ══════════════════════════════════════════════════════════
-  // VISIBILIDAD CONTEXTUAL POR PASO ACTIVO
-  // ══════════════════════════════════════════════════════════
-  // Orden de tabs en Equipamiento
   const ORDEN_TAB = { sanitizacion: 0, calentamiento: 1, filtracion: 2, empotrables: 3, motobomba: 4 };
   const tabIdxActual = ORDEN_TAB[tabActivaEq] ?? 0;
 
-  // Calentamiento "configura algo": decision==="configurar" Y al menos un sistema seleccionado
   const calentamientoConfigura = useMemo(() => {
     const cal = datosPorSistema?.calentamiento;
     return cal?.decision === "configurar"
       && Object.keys(cal?.sistemasSeleccionados ?? {}).length > 0;
   }, [datosPorSistema?.calentamiento]);
 
-  // vis: objeto con booleanos que controlan qué bloque de resultados es visible
-  // Reglas:
-  //   Dimensiones      → dimensiones + filtrado + flujoMax
-  //   Calentamiento    → + calentamiento + cdtTotal  (solo si configura algo)
-  //   Eq › sanit+      → + sanitizacion
-  //   Eq › filtracion+ → + filtracion
-  //   Eq › empotr+     → + empotrables
-  //   Eq › motobomba+  → + puntoOperacion
   const vis = useMemo(() => {
     const enEq  = seccion === "equipamiento";
     const enCal = seccion === "calentamiento" || enEq;
@@ -598,26 +593,20 @@ export default function App() {
       empotrables:    enEq && tabIdxActual >= ORDEN_TAB["empotrables"],
       puntoOperacion: enEq && enEqEstable && tabActivaEq === "motobomba",
     };
-    }, [seccion, tabIdxActual, tabActivaEq, enEqEstable, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
+  }, [seccion, tabIdxActual, tabActivaEq, enEqEstable, hayDatos, flujoFiltrado, calentamientoConfigura, hayAlgunCalentamiento]);
 
-  // flujosCandidatos: solo incluye equipos del paso activo o anteriores
-  const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
+  const FLUJO_MAX_CLORADOR_EN_LINEA = 90;
 
-const flujosCandidatos = useMemo(() => {
+  const flujosCandidatos = useMemo(() => {
     const lista = [];
-    // Filtrado + Infinity: siempre disponibles desde Dimensiones
     if (flujoFiltrado > 0)        lista.push({ label: "Filtrado",  valor: flujoFiltrado });
     if (flujoInfinitySistema > 0) lista.push({ label: "Infinity",  valor: flujoInfinitySistema });
-
-    // Calentamiento: solo si estamos en Calentamiento o Equipamiento Y configura algo
     if (vis.calentamiento) {
       if (flujoBDC     != null) lista.push({ label: "Bomba de calor",       valor: flujoBDC });
       if (flujoPS      != null) lista.push({ label: "Panel solar",          valor: flujoPS });
       if (flujoCaldera != null) lista.push({ label: "Caldera de gas",       valor: flujoCaldera });
       if (flujoCE      != null) lista.push({ label: "Calentador eléctrico", valor: flujoCE });
     }
-
-    // Sanitización: solo si estamos en Equipamiento › Sanitización o más avanzado
     if (vis.sanitizacion) {
       if (cloradorSeleccionado) {
         const flujoCS = estados?.cloradorSalino?.flujoTotal != null
@@ -630,19 +619,13 @@ const flujosCandidatos = useMemo(() => {
         if (estCA?.flujoTotal != null) {
           const flujoCA     = parseFloat(estCA.flujoTotal);
           const instalacion = estCA?.instalacion ?? "enLinea";
-          const esEnLineaExcedido = instalacion === "enLinea"
-            && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+          const esEnLineaExcedido = instalacion === "enLinea" && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
           if (flujoCA > 0) {
-            lista.push({
-              label:    "Clorador automático",
-              valor:    flujoCA,
-              excluido: esEnLineaExcedido,
-            });
+            lista.push({ label: "Clorador automático", valor: flujoCA, excluido: esEnLineaExcedido });
           }
         }
       }
     }
-
     return lista.filter(f => f.valor > 0);
   }, [
     flujoFiltrado, flujoInfinitySistema,
@@ -694,50 +677,37 @@ const flujosCandidatos = useMemo(() => {
     return { tuberiaSuccion: match[1], velocidadSuccion: parseFloat(match[2]) };
   }, [flujoMaxGlobal, flujoFiltrado]);
 
-  // componentesCDT: solo incluye componentes del paso activo o anteriores
   const componentesCDT = useMemo(() => {
     const lista = [];
-
-    // Calentamiento
     if (vis.calentamiento) {
       if (cargaBDCft      != null) lista.push({ label: "Bomba de calor",       valor: parseFloat(cargaBDCft),      grupo: "calentamiento" });
       if (cargaPSft       != null) lista.push({ label: "Panel solar",           valor: parseFloat(cargaPSft),       grupo: "calentamiento" });
       if (cargaCalderaCft != null) lista.push({ label: "Caldera de gas",        valor: parseFloat(cargaCalderaCft), grupo: "calentamiento" });
       if (cargaCEft       != null) lista.push({ label: "Calentador eléctrico",  valor: parseFloat(cargaCEft),       grupo: "calentamiento" });
     }
-
-    // Sanitización
     if (vis.sanitizacion) {
       if (cloradorSeleccionado && cargaClorador != null)
         lista.push({ label: "Generador de cloro salino", valor: parseFloat(cargaClorador), grupo: "sanitizacion" });
-        if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
-          const estCA = estados?.cloradorAutomatico;
-          // Usar el flujo real del clorador, no el flujo máximo global
-          const flujoCA = estCA?.flujoTotal != null
-            ? parseFloat(estCA.flujoTotal)
-            : (flujoMaxGlobal ?? 0);
-          const cloradorEnLineaExcedido = estCA?.instalacion === "enLinea"
-            && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
-          lista.push({
-            label: "Clorador automático",
-            valor: parseFloat(cargaCloradorAutomatico),
-            grupo: "sanitizacion",
-            noSuma: cloradorEnLineaExcedido,
-            desc: cloradorEnLineaExcedido ? "excluido" : undefined,
-          });
-        }
+      if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
+        const estCA = estados?.cloradorAutomatico;
+        const flujoCA = estCA?.flujoTotal != null ? parseFloat(estCA.flujoTotal) : (flujoMaxGlobal ?? 0);
+        const cloradorEnLineaExcedido = estCA?.instalacion === "enLinea" && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+        lista.push({
+          label: "Clorador automático",
+          valor: parseFloat(cargaCloradorAutomatico),
+          grupo: "sanitizacion",
+          noSuma: cloradorEnLineaExcedido,
+          desc: cloradorEnLineaExcedido ? "excluido" : undefined,
+        });
+      }
       if (uvSeleccionado && cargaLamparaUV != null)
         lista.push({ label: "Lámpara UV", valor: parseFloat(cargaLamparaUV), grupo: "sanitizacion" });
     }
-
-    // Filtración
     if (vis.filtracion) {
       if (cargaPrefiltro      != null) lista.push({ label: "Prefiltro",          valor: cargaPrefiltro,      grupo: "filtracion" });
       if (cargaFiltroArena    != null) lista.push({ label: "Filtro de arena",    valor: cargaFiltroArena,    grupo: "filtracion" });
       if (cargaFiltroCartucho != null) lista.push({ label: "Filtro de cartucho", valor: cargaFiltroCartucho, grupo: "filtracion" });
     }
-
-    // Empotrables
     if (vis.empotrables) {
       if (cargaRetorno != null) lista.push({ label: "Retorno", valor: cargaRetorno, grupo: "empotrables", desc: "descarga" });
       if (succionActiva != null) {
@@ -756,13 +726,10 @@ const flujosCandidatos = useMemo(() => {
       }
       if (cargaBarredora != null) lista.push({ label: "Barredora", valor: cargaBarredora, grupo: "empotrables", desc: "informativo", noSuma: true });
     }
-
     return lista;
   }, [
-    vis,
-    cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft,
-    cloradorSeleccionado, cargaClorador,
-    uvSeleccionado, cargaLamparaUV,
+    vis, cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft,
+    cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV,
     cloradorAutomaticoSeleccionado, cargaCloradorAutomatico,
     cargaRetorno, succionActiva, tieneDesbordeCanal,
     cargaDesnatador, cargaDrenCanal, cargaDrenFondo, cargaBarredora,
@@ -777,6 +744,18 @@ const flujosCandidatos = useMemo(() => {
   }, [componentesCDT]);
 
   const ORDEN = { dimensiones: 0, calentamiento: 1, equipamiento: 2 };
+
+  // ── NUEVO: contar resultados disponibles para el badge del drawer ──
+  const totalResultadosDisponibles = useMemo(() => {
+    let count = 0;
+    if (vis.dimensiones) count++;
+    if (vis.filtrado) count++;
+    if (vis.calentamiento) count++;
+    if (vis.sanitizacion && (cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado)) count++;
+    if (vis.filtracion && cargaSumaFiltracion != null) count++;
+    if (vis.empotrables && (cargaRetorno != null || succionActiva != null)) count++;
+    return count;
+  }, [vis, cloradorSeleccionado, uvSeleccionado, cloradorAutomaticoSeleccionado, cargaSumaFiltracion, cargaRetorno, succionActiva]);
 
   return (
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
@@ -821,70 +800,102 @@ const flujosCandidatos = useMemo(() => {
         </div>
 
         {/* ══════════ RESULTADOS ══════════ */}
-      <div className="toggle-seccion unida">
-<div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.55rem 0.85rem 0.45rem",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          flexShrink: 0,
-        }}>
-          <span style={{
-            fontSize: "0.6rem",
-            fontWeight: 700,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "#64748b",
+        {/*
+          En escritorio: se muestra inline en el panel izquierdo.
+          En móvil: se convierte en drawer inferior mediante CSS
+          y el onClick del div maneja el toggle.
+        */}
+        <div
+          className={`toggle-seccion unida${drawerResultadosAbierto ? " drawer-abierto" : ""}`}
+          onClick={(e) => {
+            // Solo toggle si el click NO es dentro del contenido scrolleable
+            if (e.target.closest(".seccion-resultados")) return;
+            setDrawerResultadosAbierto(v => !v);
+          }}
+        >
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.55rem 0.85rem 0.45rem",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            cursor: "pointer",
           }}>
-            Resultados
-          </span>
-          {(() => {
-            const pasos = [
-              { key: "dim",    ok: vis.dimensiones },
-              { key: "filt",   ok: vis.filtrado },
-              { key: "cal",    ok: vis.calentamiento },
-              { key: "sanit",  ok: vis.sanitizacion && (cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) },
-              { key: "filtr",  ok: vis.filtracion && cargaSumaFiltracion != null },
-              { key: "empotr", ok: vis.empotrables && (cargaRetorno != null || succionActiva != null) },
-              { key: "moto",   ok: vis.puntoOperacion && puntoOperacion != null },
-            ];
-            const completados = pasos.filter(p => p.ok).length;
-            const color = completados === 0 ? "#475569"
-              : completados <= 2 ? "#f97316"
-              : completados <= 4 ? "#fbbf24"
-              : "#34d399";
-            return (
-              <div style={{ display: "flex", gap: "6px", alignItems: "flex-end" }}>
-                {pasos.map((p, i) => (
-                  <div key={p.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
-                    <span style={{
-                      fontSize: "0.48rem",
-                      fontWeight: 700,
-                      color: p.ok ? color : "rgba(71,85,105,0.5)",
-                      lineHeight: 1,
-                      transition: "color 0.3s ease",
-                    }}>
-                      {i + 1}
-                    </span>
-                    <div style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: p.ok ? color : "rgba(71,85,105,0.3)",
-                      transition: "background 0.3s ease, box-shadow 0.3s ease",
-                      boxShadow: p.ok ? `0 0 5px ${color}90` : "none",
-                    }} />
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
+            <span style={{
+              fontSize: "0.6rem",
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "#64748b",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}>
+              Resultados
+              {/* Badge móvil: muestra cuántos resultados hay disponibles */}
+              {totalResultadosDisponibles > 0 && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "16px",
+                  height: "16px",
+                  borderRadius: "50%",
+                  background: "rgba(29,111,168,0.5)",
+                  color: "#90cdf4",
+                  fontSize: "0.55rem",
+                  fontWeight: 700,
+                }}>
+                  {totalResultadosDisponibles}
+                </span>
+              )}
+            </span>
+            {(() => {
+              const pasos = [
+                { key: "dim",    ok: vis.dimensiones },
+                { key: "filt",   ok: vis.filtrado },
+                { key: "cal",    ok: vis.calentamiento },
+                { key: "sanit",  ok: vis.sanitizacion && (cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado) },
+                { key: "filtr",  ok: vis.filtracion && cargaSumaFiltracion != null },
+                { key: "empotr", ok: vis.empotrables && (cargaRetorno != null || succionActiva != null) },
+                { key: "moto",   ok: vis.puntoOperacion && puntoOperacion != null },
+              ];
+              const completados = pasos.filter(p => p.ok).length;
+              const color = completados === 0 ? "#475569"
+                : completados <= 2 ? "#f97316"
+                : completados <= 4 ? "#fbbf24"
+                : "#34d399";
+              return (
+                <div style={{ display: "flex", gap: "6px", alignItems: "flex-end" }}>
+                  {pasos.map((p, i) => (
+                    <div key={p.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                      <span style={{
+                        fontSize: "0.48rem",
+                        fontWeight: 700,
+                        color: p.ok ? color : "rgba(71,85,105,0.5)",
+                        lineHeight: 1,
+                        transition: "color 0.3s ease",
+                      }}>
+                        {i + 1}
+                      </span>
+                      <div style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: p.ok ? color : "rgba(71,85,105,0.3)",
+                        transition: "background 0.3s ease, box-shadow 0.3s ease",
+                        boxShadow: p.ok ? `0 0 5px ${color}90` : "none",
+                      }} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
 
           <div className="seccion-resultados">
 
-            {/* ── Toggle Dimensiones ── */}
             <ResultadoToggle variante="filtrado" emoji="📐" label="Dimensiones"
               abierto={toggleDimensiones} onToggle={() => setToggleDimensiones(v => !v)}
               deshabilitado={!vis.dimensiones}
@@ -896,7 +907,6 @@ const flujosCandidatos = useMemo(() => {
               </tbody></table>
             </ResultadoToggle>
 
-            {/* ── Toggle Filtrado ── */}
             <ResultadoToggle variante="filtrado" emoji="💧" label="Circuito Hidráulico"
               abierto={toggleFiltrado} onToggle={() => setToggleFiltrado(v => !v)}
               deshabilitado={!vis.filtrado}
@@ -931,7 +941,6 @@ const flujosCandidatos = useMemo(() => {
               </>)}
             </ResultadoToggle>
 
-            {/* ── Toggle Calentamiento ── */}
             <ResultadoToggle variante="calentamiento" emoji="🔥" label="Calentamiento"
               abierto={toggleCalentamiento} onToggle={() => setToggleCalentamiento(v => !v)}
               deshabilitado={!vis.calentamiento}
@@ -955,7 +964,6 @@ const flujosCandidatos = useMemo(() => {
               {cargaSumaCalentamiento != null && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFtConPSI(cargaSumaCalentamiento)}</td></tr></tbody></table>)}
             </ResultadoToggle>
 
-            {/* ── Toggle Sanitización ── */}
             <ResultadoToggle variante="sanitizacion" emoji="🧪" label="Sanitización"
               abierto={toggleSanitizacion} onToggle={() => setToggleSanitizacion(v => !v)}
               deshabilitado={!vis.sanitizacion || !(cloradorSeleccionado || uvSeleccionado || cloradorAutomaticoSeleccionado)}
@@ -980,7 +988,6 @@ const flujosCandidatos = useMemo(() => {
               {cargaSumaSanitizacion != null && (cloradorSeleccionado ? 1 : 0) + (uvSeleccionado ? 1 : 0) + (cloradorAutomaticoSeleccionado ? 1 : 0) > 1 && (<table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFtConPSI(cargaSumaSanitizacion)}</td></tr></tbody></table>)}
             </ResultadoToggle>
 
-            {/* ── Toggle Filtración ── */}
             <ResultadoToggle variante="filtrado" emoji="🧹" label="Filtración"
               abierto={toggleFiltracion} onToggle={() => setToggleFiltracion(v => !v)}
               deshabilitado={!vis.filtracion || cargaSumaFiltracion == null}
@@ -991,7 +998,6 @@ const flujosCandidatos = useMemo(() => {
               <table className="tabla-resultados" style={{ marginTop: "0.25rem" }}><tbody><tr><th className="th-indent th-total th-seccion">Subtotal CDT:</th><td className="td-cdt" style={{ fontWeight: 700 }}>{fmtFtConPSI(cargaSumaFiltracion)}</td></tr></tbody></table>
             </ResultadoToggle>
 
-            {/* ── Toggle Empotrables ── */}
             <ResultadoToggle variante="filtrado" emoji="🔩" label="Empotrables"
               abierto={toggleEmpotrables} onToggle={() => setToggleEmpotrables(v => !v)}
               deshabilitado={!vis.empotrables || (cargaRetorno == null && succionActiva == null && cargaBarredora == null)}
@@ -1012,7 +1018,6 @@ const flujosCandidatos = useMemo(() => {
               {vis.flujoMax && flujoMaxGlobal != null && (
                 <div className="resultado-totales-bloque">
 
-                  {/* ── Flujo máximo global ── */}
                   <button className={`resultado-total-btn resultado-total-btn--flujo ${toggleFlujoMax ? "abierto" : ""}`} onClick={() => setToggleFlujoMax(v => !v)}>
                     <span className="resultado-total-btn-label">
                       <span className="resultado-total-btn-titulo">Flujo máx. global</span>
@@ -1042,7 +1047,6 @@ const flujosCandidatos = useMemo(() => {
                     </div>
                   </AnimatedToggleCuerpo>
 
-                  {/* ── CDT total sistema (solo desde Calentamiento) ── */}
                   {vis.cdtTotal && cargaTotalGlobal != null && (<>
                     <button className={`resultado-total-btn resultado-total-btn--cdt ${toggleCDTTotal ? "abierto" : ""}`} onClick={() => setToggleCDTTotal(v => !v)}>
                       <span className="resultado-total-btn-label">
@@ -1068,7 +1072,7 @@ const flujosCandidatos = useMemo(() => {
                             <span className="desglose-valor">{fmtFt(c.valor)}</span>
                           </div>
                         ))}
-                          <div className="resultado-totales-desglose-total">
+                        <div className="resultado-totales-desglose-total">
                           <span>Total CDT</span>
                           <span>{fmtFtConPSI(cargaTotalGlobal)}</span>
                         </div>
@@ -1076,26 +1080,22 @@ const flujosCandidatos = useMemo(() => {
                     </AnimatedToggleCuerpo>
                   </>)}
 
-                  {/* ── Punto de operación (solo desde Motobomba, valores CONGELADOS) ── */}
                   {vis.puntoOperacion && puntoOperacion?.flujo != null && (() => {
-                    // Los deltas se calculan contra el snapshot de diseño guardado en el
-                    // momento de ejecutar la verificación — NO contra los valores actuales.
-                    // Esto evita que el % cambie al modificar el sistema después de verificar.
                     const flujoBase = puntoOperacion.flujoDiseno ?? flujoMaxGlobal;
                     const cdtBase   = puntoOperacion.cdtDiseno   ?? cargaTotalGlobal;
                     const deltaFlujo = flujoBase ? (puntoOperacion.flujo - flujoBase) / flujoBase * 100 : null;
                     const deltaCDT   = cdtBase   ? (puntoOperacion.cdt  - cdtBase)   / cdtBase   * 100 : null;
                     const colorDelta = deltaFlujo != null && Math.abs(deltaFlujo) < 5 ? "#34d399" : "#f97316";
                     return (
-                          <div style={{
-                            marginTop: "0.35rem",
-                            padding: "0.55rem 0.75rem",
-                            background: "rgba(52,211,153,0.08)",
-                            border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
-                            borderRadius: "8px",
-                            display: "flex", flexDirection: "column", gap: "0.35rem",
-                            animation: "fadeInPunto 0.4s ease-out",
-                          }}>
+                      <div style={{
+                        marginTop: "0.35rem",
+                        padding: "0.55rem 0.75rem",
+                        background: "rgba(52,211,153,0.08)",
+                        border: `1px solid rgba(52,211,153,${temaOscuro ? "0.25" : "0.4"})`,
+                        borderRadius: "8px",
+                        display: "flex", flexDirection: "column", gap: "0.35rem",
+                        animation: "fadeInPunto 0.4s ease-out",
+                      }}>
                         <div style={{ fontSize: "0.62rem", color: temaOscuro ? "#34d399" : "#059669", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>
                           ⚡ Punto de operación
                         </div>
@@ -1192,6 +1192,5 @@ const flujosCandidatos = useMemo(() => {
       </div>
 
     </div>
-);
+  );
 }
-

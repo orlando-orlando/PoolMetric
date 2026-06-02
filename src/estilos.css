@@ -228,7 +228,7 @@ body.no-scroll { overflow: hidden !important; }
   .panel-izquierdo.colapsado { width: 100% !important; height: auto; padding: 0.5rem 0.75rem; }
   .panel-izquierdo.colapsado .nav-item { justify-content: center; flex-direction: column; padding: 0.4rem 0.6rem; }
   .panel-izquierdo.colapsado .toggle-navegacion-fija, .panel-izquierdo.colapsado .toggle-seccion { display: none; }
-  .panel-bottom { display: none; }
+  
   .bdc-modo-toggle-wrapper { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   .layout-clima-bdc-fila2 { grid-template-columns: 1fr; }
   .celda-bdc-manual { border-top: 1px solid rgba(255,255,255,0.07); }
@@ -1937,3 +1937,411 @@ body.tema-claro .resultado-toggle-btn-label {
 body.tema-claro .resultado-toggle-btn--filtrado .resultado-toggle-btn-label { color: #1d6fa8 !important; }
 body.tema-claro .resultado-toggle-btn--calentamiento .resultado-toggle-btn-label { color: #c2410c !important; }
 body.tema-claro .resultado-toggle-btn--sanitizacion .resultado-toggle-btn-label { color: #7c3aed !important; }
+
+/* ==========================================================
+   📱 MÓVIL — fixes Dimensiones
+   ========================================================== */
+@media (max-width: 480px) {
+
+  /* 1. selector-tecnico: altura flexible con scroll */
+  .selector-tecnico {
+    height: auto !important;
+    max-height: calc(100dvh - 64px - 1.5rem) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 2. Tarjetas de sistema: 2 columnas */
+  .sistemas-calentamiento-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+
+  /* 3. Inputs en columna única */
+  .selector-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+    /* 5. Scroll panel derecho */
+  .panel-derecho-contenido {
+    overflow-y: auto !important;
+    padding: 0.75rem !important;
+  }
+  .selector-contenido {
+    overflow-y: visible !important;
+  }
+
+  /* 6. Grupos pill sin overflow */
+  .lista-sistemas-grupo-pill {
+    max-width: 200px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* 7. Tarjetas sistema cal — reducir padding */
+  .sistema-cal-card {
+    padding: 0.65rem 0.4rem !important;
+    gap: 0.25rem !important;
+  }
+  .sistema-cal-label {
+    font-size: 0.72rem !important;
+  }
+  .sistema-cal-icon svg {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  /* 8. selector-grupo padding reducido */
+  .selector-grupo {
+    padding: 0.65rem !important;
+  }
+
+  /* 9. Campos con inputs más cómodos en táctil */
+  .campo input,
+  .campo select {
+    font-size: 16px !important; /* evita zoom automático en iOS */
+    padding: 8px 4px !important;
+  }
+
+  /* 10. Footer fijo más compacto */
+  .selector-footer.fijo {
+    padding: 0.4rem 0.6rem !important;
+  }
+  .footer-highlight {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .app-contenedor {
+    flex-direction: column !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  /* Panel derecho ocupa todo el espacio restante ARRIBA */
+  .panel-derecho {
+    flex: 1 1 0 !important;
+    order: 1 !important;
+    height: 0 !important;        /* fuerza al flex a calcular bien */
+    min-height: 0 !important;
+    overflow: hidden !important;
+    width: 100% !important;
+  }
+
+  .panel-derecho-contenido {
+    height: 100% !important;
+    padding: 0.75rem !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Panel izquierdo fijo como barra inferior */
+  .panel-izquierdo {
+    order: 2 !important;
+    width: 100% !important;
+    min-width: unset !important;
+    height: 56px !important;
+    max-height: 56px !important;
+    min-height: 56px !important;
+    flex-shrink: 0 !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 0 0.75rem !important;
+    border-right: none !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    overflow: visible !important;
+    gap: 0.5rem !important;
+    /* Quitar el pseudo-elemento lateral */
+    background: linear-gradient(180deg, #0f172a, #020617) !important;
+  }
+  .panel-izquierdo::after {
+    display: none !important;
+  }
+
+  /* Ocultar elementos que no caben en la barra */
+  .panel-izquierdo .toggle-seccion.unida,
+  .panel-izquierdo .icon-btn[title="Contraer panel"],
+  .panel-izquierdo .icon-btn[title="Expandir panel"] {
+    display: none !important;
+  }
+
+  /* Panel bottom: mostrar solo el botón de configuración */
+  .panel-izquierdo .panel-bottom {
+    display: flex !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+    flex-shrink: 0 !important;
+    align-items: center !important;
+  }
+  .panel-izquierdo .panel-bottom-logo-row {
+    padding: 0 !important;
+  }
+  .panel-izquierdo .panel-bottom .logo-completo-wrapper,
+  .panel-izquierdo .panel-bottom .logo-completo-texto,
+  .panel-izquierdo .panel-bottom .panel-bottom-sep {
+    display: none !important;
+  }
+
+  /* Nav horizontal centrada */
+  .nav-vertical {
+    flex-direction: row !important;
+    flex: 1 !important;
+    justify-content: center !important;
+    gap: 0.25rem !important;
+    margin-bottom: 0 !important;
+  }
+  .nav-item {
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.65rem !important;
+  }
+  .nav-icon { font-size: 1rem !important; width: auto !important; }
+  .nav-text  { font-size: 0.6rem !important; white-space: nowrap !important; }
+
+  /* Home button */
+  .panel-header {
+    margin-bottom: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* selector-tecnico: scroll interno */
+  .selector-tecnico {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border-radius: 8px !important;
+  }
+}
+
+/* ==========================================================
+   📱 MÓVIL — fixes tipografía, resultados y botones fijos
+   ========================================================== */
+@media (max-width: 768px) {
+
+  /* ── Tipografía uniforme ── */
+  .selector-subtitulo {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+  }
+  .campo label {
+    font-size: 0.72rem !important;
+  }
+  .campo input,
+  .campo select {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+  }
+  .selector-radios label {
+    font-size: 0.78rem !important;
+    padding: 8px 10px !important;
+    min-height: 44px !important;
+    align-items: center !important;
+  }
+  .selector-titulo-sistema {
+    font-size: 0.88rem !important;
+  }
+  .selector-subtitulo-tecnico {
+    font-size: 0.72rem !important;
+  }
+  /* Subtítulo de grupo (Instalación, Tipo de desborde, etc.) */
+  .selector-grupo .selector-subtitulo {
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+  }
+  .input-hint {
+    font-size: 0.62rem !important;
+    opacity: 1 !important;
+  }
+  .btn-calculador-area {
+    font-size: 0.68rem !important;
+  }
+
+  /* ── Panel de resultados: mostrar en móvil como drawer ── */
+  .panel-izquierdo .toggle-seccion.unida {
+    display: flex !important;
+    flex-direction: column !important;
+    position: fixed !important;
+    bottom: 56px !important;    /* encima del nav bar */
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 45vh !important;
+    z-index: 100 !important;
+    border-radius: 12px 12px 0 0 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-bottom: none !important;
+    background: #0f172a !important;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.5) !important;
+    overflow: hidden !important;
+    /* Por defecto colapsado — solo muestra el header */
+    transform: translateY(calc(100% - 36px)) !important;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1) !important;
+  }
+  /* Cuando tiene clase "abierto" se expande */
+  .panel-izquierdo .toggle-seccion.unida.drawer-abierto {
+    transform: translateY(0) !important;
+  }
+  /* Handle visible para arrastrar / tocar */
+  .panel-izquierdo .toggle-seccion.unida::before {
+    content: "" !important;
+    display: block !important;
+    width: 36px !important;
+    height: 4px !important;
+    background: rgba(255,255,255,0.2) !important;
+    border-radius: 2px !important;
+    margin: 8px auto 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* ── Botones acción: fijos en la parte inferior del panel derecho ── */
+  .selector-acciones {
+    position: fixed !important;
+    bottom: 56px !important;   /* encima del nav bar */
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 90 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 0.75rem !important;
+    background: rgba(6, 15, 28, 0.95) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+  }
+  .selector-acciones .btn-secundario {
+    flex: 1 !important;
+  }
+  .selector-acciones .aviso-wrapper {
+    flex: 1 !important;
+    align-items: stretch !important;
+  }
+  .selector-acciones .btn-primario {
+    width: 100% !important;
+  }
+
+  /* Espacio inferior para que el contenido no quede tapado por los botones fijos */
+  .selector-contenido {
+    padding-bottom: 130px !important;
+  }
+  .lista-sistemas.con-grupos {
+    padding-bottom: 130px !important;
+  }
+  /* La lista de un solo sistema (cuando ya seleccionaste) también necesita aire */
+  .lista-sistemas {
+    padding-bottom: 130px !important;
+  }
+
+  /* ── Ajuste panel derecho con resultados y botones fijos ── */
+  /* Cuando hay botones fijos el contenido necesita espacio abajo */
+  .selector-tecnico {
+    padding-bottom: 0 !important;
+  }
+
+}
+
+/* ==========================================================
+   📱 MÓVIL — fix tarjetas Calentamiento (BDC recomendada/manual)
+   ========================================================== */
+@media (max-width: 768px) {
+
+  /* Layouts de clima a una sola columna */
+  .layout-clima-bdc-fila1,
+  .layout-clima-bdc-fila2,
+  .layout-clima-grafica {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Celdas: quitar bordes laterales, poner inferior */
+  .celda-grafica,
+  .celda-bdc-rec {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  }
+  .layout-clima-bdc-celda {
+    padding: 0.75rem !important;
+  }
+
+  /* Stats de la BDC: que no se salgan, permitir que envuelvan */
+  .bdc-rec-stats {
+    flex-wrap: wrap !important;
+    gap: 0.5rem 0 !important;
+    padding: 0.6rem 0.5rem !important;
+  }
+  .bdc-stat {
+    flex: 1 0 33% !important;   /* 3 por fila como mínimo */
+    min-width: 0 !important;
+  }
+  .bdc-stat-valor {
+    font-size: 0.9rem !important;
+  }
+  .bdc-stat-label {
+    font-size: 0.55rem !important;
+    text-align: center !important;
+  }
+  /* Ocultar separadores verticales que estorban al envolver */
+  .bdc-stat-sep {
+    display: none !important;
+  }
+
+  /* Carga hidráulica: que el texto no se corte */
+  .bdc-rec-hidraulica {
+    flex-wrap: wrap !important;
+    gap: 0.25rem !important;
+  }
+  .bdc-hid-valor {
+    font-size: 0.78rem !important;
+    white-space: normal !important;
+  }
+
+  /* Modelo recomendado: permitir que el texto baje de línea */
+  .bdc-rec-modelo {
+    font-size: 0.88rem !important;
+    line-height: 1.25 !important;
+  }
+  .bdc-rec-header {
+    flex-wrap: wrap !important;
+  }
+
+  /* Demanda: filas completas */
+  .bdc-demanda-fila {
+    flex-wrap: wrap !important;
+  }
+
+  /* Selector manual: filtros en una columna, lista cómoda */
+  .bdc-manual-filtros {
+    grid-template-columns: 1fr !important;
+  }
+  .bdc-manual-fila {
+    flex-wrap: wrap !important;
+  }
+
+  /* Toggle Recomendado / Selección manual: que quepan ambos */
+  .bdc-modo-toggle {
+    width: 100% !important;
+  }
+  .bdc-modo-btn {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 0.4rem 0.5rem !important;
+    font-size: 0.72rem !important;
+  }
+  .bdc-modo-badge {
+    display: none !important;   /* el badge "AUTO/MANUAL" estorba en angosto */
+  }
+
+  /* Panel info automático: valores que no se corten */
+  .bdc-auto-val {
+    white-space: normal !important;
+    text-align: right !important;
+  }
+}
+
