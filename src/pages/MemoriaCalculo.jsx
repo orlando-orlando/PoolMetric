@@ -722,7 +722,12 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
     // specsEquipos tiene los specs capturados al momento de generar la memoria
     const sp = specsEquipos?.[key]?.spec ?? estadosDiseno?.[key]?.spec;
     const isEmp = ["retorno","desnatador","barredora","drenFondo","drenCanal"].includes(key);
-    if (isEmp) return sp != null ? `${sp}"` : null;
+    if (isEmp) {
+      // Prioridad: spec del equipo ajustado en el equilibrio > spec del diseño
+      const specAjustado = equiposConfirmados?.[key]?.spec;
+      if (specAjustado != null) return `${specAjustado}"`;
+      return sp != null ? `${sp}"` : null;
+    }
     if (key === "filtroArena" || key === "prefiltro") {
       // Prioridad: diameter del recálculo (equiposConfirmados) > spec del estado > reporte
       const conf = equiposConfirmados?.[key];
@@ -741,6 +746,11 @@ function TabEquiposConsiderar({ reportes, calentamiento, resumen = {}, equiposCo
       return sp2 != null ? `${sp2} ft²` : null;
     }
     if (["cloradorSalino","cloradorAutomatico","lamparaUV"].includes(key)) {
+      // Lámpara UV: si el equilibrio cambió el equipo, usar el flujo del equipo ajustado
+      if (key === "lamparaUV") {
+        const flujoAj = equiposConfirmados?.lamparaUV?.flujoEquipo;
+        if (flujoAj != null) return `${flujoAj} GPM`;
+      }
       // Usar specsSanitizacion que viene directamente de memoriaCalculo
       const capStr = specsSanitizacion?.[key];
       if (capStr) return capStr;

@@ -96,6 +96,7 @@ function recalcularEmpotrable(key, estadoOrig, flujoNuevo, datosEmpotrable, fnCa
           cambio: false,
           sumaFinal: sumaConAccesorio,
           modelo: eq.modelo, marca: eq.marca,
+          spec: eq.specs?.tamano ?? eq.specs?.dimensionPuerto ?? null,
           resultadoHidraulico: res,
         };
       }
@@ -199,6 +200,7 @@ function recalcularEmpotrable(key, estadoOrig, flujoNuevo, datosEmpotrable, fnCa
       cambio: cantFinal !== estado.cantidad,
       sumaFinal: sumaConAccesorio,
       modelo: eq.modelo, marca: eq.marca,
+      spec: eq.specs?.tamano ?? eq.specs?.dimensionPuerto ?? null,
       resultadoHidraulico: res,
     };
   } catch { return null; }
@@ -367,6 +369,7 @@ function recalcularUV(estado, flujoNuevo) {
           cantidad: cantOriginal, cantOriginal,
           cambio: false,
           marca: eqActual.marca, modelo: eqActual.modelo, selId: eqActual.id,
+          flujoEquipo: eqActual.specs?.flujo ?? null,
           cargaTotal: res.cargaTotal,
           sumaFinal: res.cargaTotal,
           resultadoHidraulico: res,
@@ -422,6 +425,7 @@ function recalcularUV(estado, flujoNuevo) {
       marca:       eqFinal.marca,
       modelo:      eqFinal.modelo,
       selId:       eqFinal.id,
+      flujoEquipo: eqFinal.specs?.flujo ?? null,
       cargaTotal:  res.cargaTotal,
       sumaFinal:   res.cargaTotal,
       resultadoHidraulico: res,
@@ -528,21 +532,29 @@ function calcularCDTSistema(flujoNuevo, cargasRef) {
     ? ["drenCanal", "drenFondo"]
     : ["desnatador", "drenFondo"];
 
+  // Gobierna en el RECÁLCULO (iteración): usa las cargas recalculadas
   const succVals = succKeys
     .filter(k => equiposRecalc[k] != null)
     .map(k => ({ k, carga: parseFloat(equiposRecalc[k].sumaFinal ?? equiposRecalc[k].cargaTotal ?? 0) }));
   const succGobierna = succVals.length > 0
     ? succVals.reduce((a, b) => b.carga > a.carga ? b : a).k
     : null;
+  // Gobierna en la BASE (diseño): usa las cargas de referencia originales
+  const succValsRef = succKeys
+    .filter(k => cargasRef[k] != null)
+    .map(k => ({ k, carga: parseFloat(cargasRef[k] ?? 0) }));
+  const succGobiernaRef = succValsRef.length > 0
+    ? succValsRef.reduce((a, b) => b.carga > a.carga ? b : a).k
+    : null;
 
   let cargaBaseAjustada = cargaInicial;
   for (const key of keysRecalc) {
     if (key === "cloradorAutomatico" && excluirCADinamico) continue;
     if (key === "barredora") continue;
-    if (succKeys.includes(key) && key !== succGobierna) continue;
+    if (succKeys.includes(key) && key !== succGobiernaRef) continue;
     cargaBaseAjustada -= parseFloat(cargasRef[key] ?? 0);
   }
-  if (!keysRecalc.includes("cloradorAutomatico")) {
+  if (!keysRecalc.includes("cloradorAutomatico") && !excluirCADinamico) {
     cargaBaseAjustada -= parseFloat(cargasRef["cloradorAutomatico"] ?? 0);
   }
   const cargaCSRef    = parseFloat(cargasRef["cloradorSalino"] ?? 0);

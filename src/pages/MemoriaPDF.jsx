@@ -405,7 +405,8 @@ function PaginaMetodologia({ memoria, logoEmpresa, fecha }) {
         ?? r?.filtros?.[eq.key]
         ?? r?.sanitizacion?.[eq.key];
       if (!d) return false;
-      if (d.excluido) return false;
+      // El clorador automático excluido SÍ debe mostrarse (con etiqueta "Excluido")
+      if (d.excluido && eq.key !== "cloradorAutomatico") return false;
       return true;
     });
   });
@@ -1393,11 +1394,16 @@ function PaginaCalentamiento({ memoria, logoEmpresa, fecha }) {
 /* ═══ PÁGINA 5: SANITIZACIÓN ═══ */
 function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
   const { reportes = [], resumen } = memoria;
-  const r = reportes[0];
+  // Punto de equilibrio (iteración 2) — equipos finales a instalar
+  const r = reportes[2] ?? reportes[reportes.length - 1];
   if (!r) return null;
 
   const clorSalino   = r.sanitizacion?.cloradorSalino;
   const clorAuto     = r.sanitizacion?.cloradorAutomatico;
+  // Exclusión por punto de operación: si el flujo final supera 90 GPM en instalación en línea
+  const caInstSan   = memoria.estadosDiseno?.cloradorAutomatico?.instalacion ?? null;
+  const flujoOperSan = parseFloat(resumen?.flujoFinal ?? resumen?.flujoMax ?? 0);
+  const caExcluidoSan = (caInstSan === "enLinea" && flujoOperSan > 90) || clorAuto?.excluido === true;
   const uv           = r.sanitizacion?.lamparaUV;
   const hayAlgo      = clorSalino || clorAuto || uv;
   if (!hayAlgo) return null;
@@ -1430,14 +1436,19 @@ function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
               "Generador de cloro salino",
               clorSalino.seleccion?.marca ?? "—",
               clorSalino.seleccion?.modelo ?? "—",
-              clorSalino.seleccion?.flujoTotal ? `${f2(clorSalino.seleccion.flujoTotal)} GPM` : "—",
+              (() => {
+                const cant = parseFloat(clorSalino.seleccion?.cantidad) || 1;
+                const total = parseFloat(clorSalino.seleccion?.flujoTotal) || 0;
+                const unit = cant > 0 ? total / cant : total;
+                return unit > 0 ? `${f2(unit)} GPM` : "—";
+              })(),
               clorSalino.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
         </>
       )}
 
-      {clorAuto && !clorAuto.excluido && (
+      {clorAuto && !caExcluidoSan && (
         <>
           <CajaFundamento titulo="Clorador automático — dosificación" color={VERDE} bg={VERDE_CLR}>
             El clorador automático dosifica cloro (en pastillas de tricloroisocianúrico o hipoclorito de calcio) de forma controlada en el circuito hidráulico. Puede ser instalado <em>en línea</em> (el flujo pasa a través del clorador) o <em>fuera de línea</em> (derivación del circuito principal). La instalación en línea requiere que el flujo no exceda la capacidad del equipo; para flujos superiores a 90 GPM se prefiere la instalación fuera de línea.
@@ -1447,11 +1458,21 @@ function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
               `Clorador automático (${clorAuto.seleccion?.instalacion === "enLinea" ? "en línea" : "fuera de línea"})`,
               clorAuto.seleccion?.marca ?? "—",
               clorAuto.seleccion?.modelo ?? "—",
-              clorAuto.seleccion?.flujoTotal ? `${f2(clorAuto.seleccion.flujoTotal)} GPM` : "—",
+              (() => {
+                const cant = parseFloat(clorAuto.seleccion?.cantidad) || 1;
+                const total = parseFloat(clorAuto.seleccion?.flujoTotal) || 0;
+                const unit = cant > 0 ? total / cant : total;
+                return unit > 0 ? `${f2(unit)} GPM` : "—";
+              })(),
               clorAuto.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
         </>
+      )}
+{clorAuto && caExcluidoSan && (
+        <CajaFundamento titulo="Clorador automático — excluido" color={NARANJA} bg={NARANJA_CLR}>
+          El clorador automático en instalación <strong>en línea</strong> queda excluido del sistema porque el flujo de operación ({f2(flujoOperSan)} GPM) supera el límite de {90} GPM permitido para este tipo de instalación. Para flujos superiores se requiere instalación fuera de línea o un método de sanitización alternativo. No se incluye en el CDT del sistema.
+        </CajaFundamento>
       )}
 
       {uv && (
@@ -1468,7 +1489,12 @@ function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
               "Lámpara UV",
               uv.seleccion?.marca ?? "—",
               uv.seleccion?.modelo ?? "—",
-              uv.seleccion?.flujoTotal ? `${f2(uv.seleccion.flujoTotal)} GPM` : "—",
+              (() => {
+                const cant = parseFloat(uv.seleccion?.cantidad) || 1;
+                const total = parseFloat(uv.seleccion?.flujoTotal) || 0;
+                const unit = cant > 0 ? total / cant : total;
+                return unit > 0 ? `${f2(unit)} GPM` : "—";
+              })(),
               uv.seleccion?.cantidad ?? "—",
             ]]} />
           </div>
@@ -1484,8 +1510,8 @@ function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
           <tbody>
             {[
               clorSalino && ["Generador de cloro salino", f2(clorSalino.seleccion?.flujoTotal), f2(clorSalino.cargaTotal), f2(clorSalino.cargaTotalPSI)],
-              clorAuto && !clorAuto.excluido && ["Clorador automático", f2(clorAuto.seleccion?.flujoTotal), f2(clorAuto.cargaTotal), f2(clorAuto.cargaTotalPSI)],
-              uv && ["Lámpara UV", f2(uv.seleccion?.flujoTotal), f2(uv.cargaTotal), f2(uv.cargaTotalPSI)],
+              clorAuto && !caExcluidoSan && ["Clorador automático", f2(clorAuto.seleccion?.flujoTotal), f2(clorAuto.cargaTotal), f2(clorAuto.cargaTotalPSI)],
+              uv && ["Lámpara UV", f2(resumen.flujoFinal), f2(uv.cargaTotal), f2(uv.cargaTotalPSI)],
             ].filter(Boolean).map((fila,i)=>(
               <tr key={i} style={{background:i%2===0?"#fff":GRIS_CLR}}>
                 {fila.map((c,j)=><td key={j} style={{...tdStyle,fontWeight:j===0?600:400,color:j===2?VERDE:"#1e293b"}}>{c}</td>)}
@@ -1502,8 +1528,9 @@ function PaginaSanitizacion({ memoria, logoEmpresa, fecha }) {
 
 /* ═══ PÁGINA 6: FILTRACIÓN ═══ */
 function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
-  const { reportes = [] } = memoria;
-  const r = reportes[0];
+  const { reportes = [], resumen = {} } = memoria;
+  // Punto de equilibrio (iteración 2) — equipos finales a instalar
+  const r = reportes[2] ?? reportes[reportes.length - 1];
   if (!r) return null;
 
   const prefiltro      = r.filtros?.prefiltro;
@@ -1537,8 +1564,9 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               prefiltro.seleccion?.modelo ?? "—",
               (() => {
                 const sel = prefiltro.seleccion ?? {};
-                const gpm = sel.flujoPorPrefiltro ?? sel.flujoTotal ?? sel.maxFlow ?? null;
-                const diam = sel.diameter ?? null;
+                const eqCat = prefiltros.find(p => p.marca === sel.marca && p.modelo === sel.modelo);
+                const gpm = eqCat?.specs?.maxFlow ?? sel.flujoPorPrefiltro ?? null;
+                const diam = eqCat?.specs?.diameter ?? sel.diameter ?? null;
                 if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
                 if (gpm) return `${f2(gpm)} GPM`;
                 if (diam) return `${diam}"`;
@@ -1566,8 +1594,9 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               filtroArena.seleccion?.modelo ?? "—",
               (() => {
                 const sel = filtroArena.seleccion ?? {};
-                const gpm = sel.flujoPorFiltro ?? sel.flujoTotal ?? sel.maxFlow ?? null;
-                const diam = sel.diameter ?? null;
+                const eqCat = filtrosArena.find(f => f.marca === sel.marca && f.modelo === sel.modelo);
+                const gpm = eqCat?.specs?.maxFlow ?? sel.flujoPorFiltro ?? null;
+                const diam = eqCat?.specs?.diameter ?? sel.diameter ?? null;
                 if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
                 if (gpm) return `${f2(gpm)} GPM`;
                 if (diam) return `${diam}"`;
@@ -1595,8 +1624,9 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
               filtroCartucho.seleccion?.modelo ?? "—",
               (() => {
                 const sel = filtroCartucho.seleccion ?? {};
-                const gpm = sel.flujoEfectivo ?? sel.flujoTotal ?? sel.maxFlow ?? null;
-                const area = sel.filtrationArea ?? null;
+                const eqCat = filtrosCartucho.find(f => f.marca === sel.marca && f.modelo === sel.modelo);
+                const gpm = sel.flujoEfectivo ?? eqCat?.specs?.flujoComercial ?? eqCat?.specs?.flujoResidencial ?? null;
+                const area = eqCat?.specs?.filtrationArea ?? sel.filtrationArea ?? null;
                 if (gpm && area) return `${f2(gpm)} GPM · ${area} ft²`;
                 if (gpm) return `${f2(gpm)} GPM`;
                 if (area) return `${area} ft²`;
@@ -1616,9 +1646,9 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
           </thead>
           <tbody>
             {[
-              prefiltro      && ["Prefiltro",        f2(prefiltro.seleccion?.flujoTotal),      f2(prefiltro.cargaTotal),      f2(prefiltro.cargaTotalPSI)],
-              filtroArena    && ["Filtro de arena",   f2(filtroArena.seleccion?.flujoTotal),    f2(filtroArena.cargaTotal),    f2(filtroArena.cargaTotalPSI)],
-              filtroCartucho && ["Filtro de cartucho",f2(filtroCartucho.seleccion?.flujoTotal), f2(filtroCartucho.cargaTotal), f2(filtroCartucho.cargaTotalPSI)],
+              prefiltro      && ["Prefiltro",        f2(resumen.flujoFinal), f2(prefiltro.cargaTotal),      f2(prefiltro.cargaTotalPSI)],
+              filtroArena    && ["Filtro de arena",   f2(resumen.flujoFinal), f2(filtroArena.cargaTotal),    f2(filtroArena.cargaTotalPSI)],
+              filtroCartucho && ["Filtro de cartucho",f2(resumen.flujoFinal), f2(filtroCartucho.cargaTotal), f2(filtroCartucho.cargaTotalPSI)],
             ].filter(Boolean).map((fila,i)=>(
               <tr key={i} style={{background:i%2===0?"#fff":GRIS_CLR}}>
                 {fila.map((c,j)=><td key={j} style={{...tdStyle,fontWeight:j===0?600:400,color:j===2?MORADO:"#1e293b"}}>{c}</td>)}
@@ -1636,7 +1666,8 @@ function PaginaFiltracion({ memoria, logoEmpresa, fecha }) {
 /* ═══ PÁGINA 7: EMPOTRABLES ═══ */
 function PaginaEmpotrables({ memoria, logoEmpresa, fecha }) {
   const { reportes = [] } = memoria;
-  const r = reportes[0];
+  // Punto de equilibrio (iteración 2) — equipos finales a instalar
+  const r = reportes[2] ?? reportes[reportes.length - 1];
   if (!r) return null;
   const emp = r.empotrables ?? {};
   const hayAlgo = Object.keys(emp).length > 0;
@@ -1696,13 +1727,12 @@ function PaginaEmpotrables({ memoria, logoEmpresa, fecha }) {
           <tbody>
             {Object.entries(emp).map(([key, data], i) => {
               const sel = data?.seleccion ?? {};
-              const spec = sel.tamano
-                ? `${sel.tamano}"`
-                : sel.dimensionPuerto
-                ? `${sel.dimensionPuerto}"`
-                : sel.spec != null
-                ? `${sel.spec}"`
-                : "—";
+              // Reconstruir el diámetro buscando el modelo (del equilibrio) en catálogo
+              const CAT_EMP = { retorno: retornos, desnatador: desnatadores, barredora: barredoras, drenFondo: drenesFondo, drenCanal: drenesCanal };
+              const eqCat = (CAT_EMP[key] ?? []).find(e => e.marca === sel.marca && e.modelo === sel.modelo);
+              const specVal = eqCat?.specs?.tamano ?? eqCat?.specs?.dimensionPuerto
+                ?? sel.tamano ?? sel.dimensionPuerto ?? sel.spec ?? null;
+              const spec = specVal != null ? `${specVal}"` : "—";
               const rol = key === "barredora" ? "Informativo" : key === "retorno" ? "Suma CDT" : "Mayor gobierna";
               return (
                 <tr key={key} style={{ background: i%2===0?"#fff":GRIS_CLR }}>
@@ -1969,23 +1999,136 @@ function PaginaResumen({ memoria, logoEmpresa, fecha }) {
   };
 
   const r = reportes[0];
-  const getInfo = (key) => {
+  const equiposConfirmados = memoria.equiposConfirmados ?? {};
+  const estadosDiseno      = memoria.estadosDiseno ?? {};
+
+  // ── Reglas de exclusión del clorador automático en línea ──
+  const FLUJO_MAX_CA = 90; // GPM
+  const caInstalacion = estadosDiseno?.cloradorAutomatico?.instalacion ?? null;
+  const caEsEnLinea   = caInstalacion === "enLinea";
+  const flujoDis_  = parseFloat(resumen.flujoMax ?? 0);
+  const flujoOper_ = parseFloat(resumen.flujoFinal ?? resumen.flujoMax ?? 0);
+  // Excluido desde el diseño: el flujo de diseño ya supera 90
+  const caExcluidoDiseno     = caEsEnLinea && flujoDis_  > FLUJO_MAX_CA;
+  // Excluido en el equilibrio: el flujo de operación supera 90 (incluye el caso de diseño)
+  const caExcluidoEquilibrio = caEsEnLinea && flujoOper_ > FLUJO_MAX_CA;
+
+  // Catálogos para reconstruir capacidad/diámetro a partir de marca+modelo
+  const CATALOGOS_EMP = { retorno: retornos, desnatador: desnatadores, barredora: barredoras, drenFondo: drenesFondo, drenCanal: drenesCanal };
+  const CATALOGOS_FILT = { filtroArena: filtrosArena, prefiltro: prefiltros, filtroCartucho: filtrosCartucho };
+
+  // Capacidad formateada de un empotrable dado marca+modelo
+  const capEmpotrable = (key, marca, modelo) => {
+    const cat = CATALOGOS_EMP[key] ?? [];
+    const eq = cat.find(e => e.marca === marca && e.modelo === modelo);
+    if (!eq) return "—";
+    const flujo = eq.specs?.flujo ?? eq.specs?.maxFlow ?? null;
+    const spec = eq.specs?.tamano ?? eq.specs?.dimensionPuerto ?? null;
+    if (flujo && spec) return `${f2(flujo)} GPM · ${spec}"`;
+    if (flujo) return `${f2(flujo)} GPM`;
+    if (spec) return `${spec}"`;
+    return "—";
+  };
+
+  // Capacidad formateada de un filtro dado marca+modelo
+  const capFiltro = (key, marca, modelo) => {
+    const cat = CATALOGOS_FILT[key] ?? [];
+    const eq = cat.find(e => e.marca === marca && e.modelo === modelo);
+    if (!eq) return "—";
+    if (key === "filtroCartucho") {
+      const gpm = eq.specs?.flujoComercial ?? eq.specs?.flujoResidencial ?? null;
+      const area = eq.specs?.filtrationArea ?? null;
+      if (gpm && area) return `${f2(gpm)} GPM · ${area} ft²`;
+      if (area) return `${area} ft²`;
+      return "—";
+    }
+    const gpm = eq.specs?.maxFlow ?? null;
+    const diam = eq.specs?.diameter ?? null;
+    if (gpm && diam) return `${f2(gpm)} GPM · ${diam}"`;
+    if (gpm) return `${f2(gpm)} GPM`;
+    if (diam) return `${diam}"`;
+    return "—";
+  };
+
+  // Capacidad de calentamiento (BTU/h) — igual para diseño y equilibrio (no cambia)
+  const capCalentamiento = (key) => {
+    const item = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
+    if (!item) return "—";
+    const cap = item.seleccion?.capUnitaria ?? item.seleccion?.capOutputUnitario ?? item.seleccion?.capUnitariaKcal ?? null;
+    return cap ? `${Math.round(cap).toLocaleString("es-MX")} BTU/h` : "—";
+  };
+
+  // ── INFO DE DISEÑO ──
+const getInfoDiseno = (key) => {
+    if (key === "cloradorAutomatico" && caExcluidoDiseno) {
+      const est = estadosDiseno?.cloradorAutomatico ?? {};
+      return { marca: est.marca ?? "—", modelo: est.modelo ?? "—", cantidad: est.cantidad ?? "—", cap: "Excluido", excluido: true };
+    }
     if (key === "motobomba") {
       if (!resumen?.bombaMarca) return null;
-      return { marca: resumen.bombaMarca, modelo: resumen.bombaModelo, cantidad: resumen.nBombas ?? 1 };
+      return { marca: resumen.bombaMarca, modelo: resumen.bombaModelo, cantidad: resumen.nBombas ?? 1, cap: resumen.bombaPotencia ? `${resumen.bombaPotencia} HP` : "—" };
     }
-    const cal = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
-    if (cal) {
-      const sel = cal.seleccion ?? {};
-      return { marca: sel.marca ?? "—", modelo: sel.modelo ?? "—", cantidad: sel.cantidad ?? "—" };
+    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(key)) {
+      const item = Array.isArray(calentamiento) ? calentamiento.find(c => c?.key === key) : null;
+      if (!item) return null;
+      const sel = item.seleccion ?? {};
+      return { marca: sel.marca ?? "—", modelo: sel.modelo ?? "—", cantidad: sel.cantidad ?? "—", cap: capCalentamiento(key) };
     }
     const data = r ? (r.empotrables?.[key] ?? r.filtros?.[key] ?? r.sanitizacion?.[key]) : null;
     if (!data) return null;
+    const est = estadosDiseno[key] ?? {};
+    const conf = equiposConfirmados[key];
     const sel = data.seleccion ?? {};
-    return { marca: sel.marca ?? "—", modelo: sel.modelo ?? "—", cantidad: sel.cantidad ?? "—" };
+    const marca  = est.marca  ?? sel.marca  ?? "—";
+    const modelo = est.modelo ?? sel.modelo ?? "—";
+    // cantidad de diseño: la original antes del ajuste
+    const cantidad = conf?.cantOriginal ?? est.cantidad ?? sel.cantidad ?? "—";
+    let cap = "—";
+    if (CATALOGOS_EMP[key]) cap = capEmpotrable(key, marca, modelo);
+    else if (CATALOGOS_FILT[key]) cap = capFiltro(key, marca, modelo);
+    else cap = getCapacidadEquipo(key, resumen, reportes, calentamiento); // sanitización: usa el helper existente
+    return { marca, modelo, cantidad, cap };
   };
 
-  const filas = equiposOrden.map(e => ({ ...e, info: getInfo(e.key) })).filter(e => e.info);
+  // ── INFO DE EQUILIBRIO ──
+  const getInfoEquilibrio = (key) => {
+    if (key === "cloradorAutomatico" && caExcluidoEquilibrio) {
+      const est = estadosDiseno?.cloradorAutomatico ?? {};
+      const conf = equiposConfirmados?.cloradorAutomatico;
+      return { marca: conf?.marca ?? est.marca ?? "—", modelo: conf?.modelo ?? est.modelo ?? "—", cantidad: conf?.cantidad ?? est.cantidad ?? "—", cap: "Excluido", excluido: true };
+    }
+    if (key === "motobomba") {
+      // La motobomba no cambia en el equilibrio
+      return getInfoDiseno(key);
+    }
+    if (["bombaCalor","panelSolar","caldera","calentadorElectrico"].includes(key)) {
+      // Calentamiento no cambia en el equilibrio
+      return getInfoDiseno(key);
+    }
+    const conf = equiposConfirmados[key];
+    // Si no hubo ajuste registrado, el equilibrio = diseño
+    if (!conf) return getInfoDiseno(key);
+    const dis = getInfoDiseno(key);
+    if (!dis) return null;
+    const marca  = conf.marca  ?? dis.marca;
+    const modelo = conf.modelo ?? dis.modelo;
+    const cantidad = conf.cantidad ?? dis.cantidad;
+    let cap = "—";
+    if (CATALOGOS_EMP[key]) {
+      // Empotrable: capacidad reconstruida del modelo ajustado
+      cap = capEmpotrable(key, marca, modelo);
+    } else if (CATALOGOS_FILT[key]) {
+      cap = capFiltro(key, marca, modelo);
+    } else if (key === "lamparaUV" && conf.flujoEquipo != null) {
+      cap = `${conf.flujoEquipo} GPM`;
+    } else {
+      cap = dis.cap;
+    }
+    return { marca, modelo, cantidad, cap };
+  };
+
+  const filasDiseno     = equiposOrden.map(e => ({ ...e, info: getInfoDiseno(e.key) })).filter(e => e.info);
+  const filasEquilibrio = equiposOrden.map(e => ({ ...e, info: getInfoEquilibrio(e.key) })).filter(e => e.info);
 
   /* Materiales */
   const rMat = reportes[2] ?? reportes[reportes.length-1];
@@ -2009,39 +2152,82 @@ function PaginaResumen({ memoria, logoEmpresa, fecha }) {
 
   return (
     <>
-      {/* Página 9a: Lista de equipos */}
+{/* Página 9a: Lista de equipos — Diseño y Equilibrio */}
       <div className="pagina" style={{ ...A4 }}>
         <HeaderPagina logoEmpresa={logoEmpresa} />
         <SeccionTitulo color={AZUL} bg={AZUL_CLR}>Resumen ejecutivo — Equipos del sistema</SeccionTitulo>
 
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"7pt", marginBottom:"14px" }}>
+        {/* ── TABLA 1: Equipos considerados en el diseño ── */}
+        <div style={{ fontSize:"7.5pt", fontWeight:700, color:GRIS, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:"5px" }}>
+          Equipos considerados en el diseño
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"7pt", marginBottom:"16px" }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width:"24px", textAlign:"center" }}>#</th>
-              <th style={thStyle}>Sección</th>
-              <th style={thStyle}>Equipo</th>
-              <th style={thStyle}>Marca</th>
-              <th style={thStyle}>Modelo</th>
-              <th style={thStyle}>Capacidad</th>
-              <th style={{ ...thStyle, textAlign:"center", width:"40px" }}>Cant.</th>
+              <th style={{ ...thStyle, width:"24px", textAlign:"center", background:"#475569" }}>#</th>
+              <th style={{ ...thStyle, background:"#475569" }}>Sección</th>
+              <th style={{ ...thStyle, background:"#475569" }}>Equipo</th>
+              <th style={{ ...thStyle, background:"#475569" }}>Marca</th>
+              <th style={{ ...thStyle, background:"#475569" }}>Modelo</th>
+              <th style={{ ...thStyle, background:"#475569" }}>Capacidad</th>
+              <th style={{ ...thStyle, textAlign:"center", width:"40px", background:"#475569" }}>Cant.</th>
             </tr>
           </thead>
           <tbody>
-            {filas.map(({ key, label, seccion, info }, i) => (
+            {filasDiseno.map(({ key, label, seccion, info }, i) => (
               <tr key={key} style={{ background: i%2===0 ? "#fff" : GRIS_CLR }}>
                 <td style={{ ...tdStyle, textAlign:"center", color:GRIS, fontWeight:600, fontSize:"7pt" }}>{i+1}</td>
                 <td style={{ ...tdStyle }}>
                   <span style={{ background: coloresSec[seccion]??AZUL, color:"#fff", borderRadius:"3px", padding:"1px 5px", fontSize:"6.5pt", fontWeight:700 }}>{seccion}</span>
                 </td>
-                <td style={{ ...tdStyle, fontWeight:600, color:AZUL, fontSize:"7pt" }}>{label}</td>
+                <td style={{ ...tdStyle, fontWeight:600, color:"#334155", fontSize:"7pt" }}>{label}</td>
                 <td style={{ ...tdStyle, color:GRIS, fontSize:"7pt" }}>{info.marca}</td>
                 <td style={{ ...tdStyle, fontFamily:"monospace", fontSize:"7pt" }}>{info.modelo}</td>
-                <td style={{ ...tdStyle, color:AZUL_MED, fontWeight:600, fontSize:"7pt" }}>
-                  {getCapacidadEquipo(key, resumen, reportes, calentamiento)}
-                </td>
-                <td style={{ ...tdStyle, textAlign:"center", fontWeight:700, fontSize:"7pt" }}>{info.cantidad}</td>
+                <td style={{ ...tdStyle, color: info.excluido ? "#b45309" : GRIS, fontWeight: info.excluido ? 700 : 600, fontSize:"7pt" }}>{info.excluido ? "Excluido >90 GPM" : info.cap}</td>
+                <td style={{ ...tdStyle, textAlign:"center", fontWeight:700, fontSize:"7pt", color: info.excluido ? "#b45309" : "#1e293b" }}>{info.excluido ? "—" : info.cantidad}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+
+        {/* ── TABLA 2: Equipos finales en el punto de equilibrio ── */}
+        <div style={{ fontSize:"7.5pt", fontWeight:700, color:VERDE, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:"5px" }}>
+          Equipos finales a instalar — Punto de equilibrio
+        </div>
+        <div style={{ fontSize:"6.8pt", color:GRIS, marginBottom:"6px", fontStyle:"italic" }}>
+          Equipos y cantidades ajustados al flujo de operación real. Esta es la configuración que debe instalarse.
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"7pt", marginBottom:"14px" }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, width:"24px", textAlign:"center", background:VERDE }}>#</th>
+              <th style={{ ...thStyle, background:VERDE }}>Sección</th>
+              <th style={{ ...thStyle, background:VERDE }}>Equipo</th>
+              <th style={{ ...thStyle, background:VERDE }}>Marca</th>
+              <th style={{ ...thStyle, background:VERDE }}>Modelo</th>
+              <th style={{ ...thStyle, background:VERDE }}>Capacidad</th>
+              <th style={{ ...thStyle, textAlign:"center", width:"40px", background:VERDE }}>Cant.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filasEquilibrio.map(({ key, label, seccion, info }, i) => {
+              const dis = filasDiseno.find(f => f.key === key)?.info;
+              const cambioModelo = dis && dis.modelo !== info.modelo;
+              const cambioCant   = dis && String(dis.cantidad) !== String(info.cantidad);
+              return (
+                <tr key={key} style={{ background: i%2===0 ? "#fff" : GRIS_CLR }}>
+                  <td style={{ ...tdStyle, textAlign:"center", color:GRIS, fontWeight:600, fontSize:"7pt" }}>{i+1}</td>
+                  <td style={{ ...tdStyle }}>
+                    <span style={{ background: coloresSec[seccion]??AZUL, color:"#fff", borderRadius:"3px", padding:"1px 5px", fontSize:"6.5pt", fontWeight:700 }}>{seccion}</span>
+                  </td>
+                  <td style={{ ...tdStyle, fontWeight:600, color:AZUL, fontSize:"7pt" }}>{label}</td>
+                  <td style={{ ...tdStyle, color:GRIS, fontSize:"7pt" }}>{info.marca}</td>
+                  <td style={{ ...tdStyle, fontFamily:"monospace", fontSize:"7pt", color: cambioModelo ? "#b45309" : "#1e293b", fontWeight: cambioModelo ? 700 : 400 }}>{info.modelo}</td>
+                  <td style={{ ...tdStyle, color: info.excluido ? "#b45309" : AZUL_MED, fontWeight: info.excluido ? 700 : 600, fontSize:"7pt" }}>{info.excluido ? "Excluido >90 GPM" : info.cap}</td>
+                  <td style={{ ...tdStyle, textAlign:"center", fontWeight:700, fontSize:"7pt", color: (info.excluido || cambioCant) ? "#b45309" : "#1e293b" }}>{info.excluido ? "—" : info.cantidad}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
