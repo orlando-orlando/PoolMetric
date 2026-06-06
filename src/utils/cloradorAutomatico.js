@@ -1,3 +1,4 @@
+import { limDescarga } from "./limiteVelocidad";
 import { cloradoresAutomaticos } from "../data/cloradoresAutomaticos";
 
 /* ================================================================
@@ -96,7 +97,7 @@ function seleccionarDiametro(flujoGPM) {
     const d   = DIAMETROS[tub];
     const vel = flujoGPM * 0.408498 / (d * d);
     if (vel < fallbackVel) { fallbackVel = vel; fallbackTub = tub; }
-    if (vel <= 6.5 && vel > mejorVel) { mejorVel = vel; mejorTub = tub; }
+    if (vel <= limDescarga() && vel > mejorVel) { mejorVel = vel; mejorTub = tub; }
   }
 
   const tuberia   = mejorTub ?? fallbackTub;

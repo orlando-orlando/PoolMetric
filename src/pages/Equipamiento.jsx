@@ -27,6 +27,7 @@ import { drenCanal }  from "../utils/drenCanal";
 import { volumen }    from "../utils/volumen";
 import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
 import { calcularEquilibrio } from "../utils/equilibrioHidraulico";
+import { setVelocidadMaxima, getVelocidadMaxima } from "../utils/limiteVelocidad";
 import { motobombas1v } from "../data/motobombas1v";
 import { bombasCalor }          from "../data/bombasDeCalor";
 import { panelesSolares }       from "../data/panelesSolares";
@@ -2170,6 +2171,18 @@ function BloqueVerificacion({
     (faseExterna === "listo" && resultadoExterno) ? [{ tipo: "ok", texto: "  ★ Análisis completado — ver resultados abajo" }] : []
   );
   const [resultado,      setResultado]      = useState(resultadoExterno ?? null);
+  const [velMax,         setVelMax]         = useState(getVelocidadMaxima());
+  const velMaxRef = useRef(velMax);
+  velMaxRef.current = velMax;
+  // Detecta si el resultado actual quedó sobredimensionado (flujo de equilibrio supera la curva)
+  const haySobredimension = (() => {
+    if (!resultado || resultado.error || !resultado.equilibrio) return false;
+    const curva = resultado?.bomba?.curva ?? [];
+    if (!curva.length) return false;
+    const flujoFin     = parseFloat(resultado.equilibrio.flujo ?? 0);
+    const flujoMaxCurva = parseFloat(curva[curva.length - 1]?.flujo_gpm ?? 0) * nBombas;
+    return flujoFin > flujoMaxCurva * 1.02;
+  })();
   const contenedorRef             = useRef(null);
   const terminalRef               = useRef(null);
   const autoScrollRef             = useRef(true);
@@ -2317,6 +2330,7 @@ function BloqueVerificacion({
     }, 80);
 
     autoScrollRef.current = true;
+    setVelocidadMaxima(velMaxRef.current);
     let res = null;
     try {
       const cargasBase = Object.fromEntries(
@@ -2341,6 +2355,7 @@ function BloqueVerificacion({
         res._snapshotCDTGlobal = cargaTotalGlobal;
       }
     } catch (e) { res = { error: e.message }; }
+    finally { setVelocidadMaxima(false); }
 
     const lineas = res?.error
       ? [{ tipo: "error", texto: `⚠ ${res.error}` }]
@@ -2477,6 +2492,36 @@ function BloqueVerificacion({
               {fase === "verificando" && (
                 <span style={{ display:"inline-block", width:"8px", height:"13px", background:"#60a5fa", marginLeft:"2px", animation:"blink 1s step-end infinite", verticalAlign:"middle" }} />
               )}
+            </div>
+          </div>
+        )}
+
+        {fase === "listo" && haySobredimension && (
+          <div style={{ marginBottom: "1rem", padding: "0.75rem 0.9rem", background: velMax ? "rgba(52,211,153,0.08)" : "rgba(249,115,22,0.08)", border: `1px solid ${velMax ? "rgba(52,211,153,0.3)" : "rgba(249,115,22,0.3)"}`, borderRadius: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: "200px" }}>
+                <div style={{ fontSize: "0.74rem", fontWeight: 600, color: velMax ? "#34d399" : "#f97316" }}>
+                  {velMax ? "Velocidad máxima activada (6 / 8 ft/s)" : "Motobomba sobredimensionada"}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+                  {velMax
+                    ? "Tubería reducida a velocidad máxima de norma — mayor CDT, menor flujo de equilibrio. Si aún se desboca, considera otra bomba."
+                    : "El flujo de equilibrio supera la curva. Reduce la tubería a velocidad máxima (6 ft/s succión, 8 ft/s descarga) para subir la CDT y meter la bomba en su curva."}
+                </div>
+              </div>
+              <button
+                className="btn-primario"
+                style={{ whiteSpace: "nowrap", fontSize: "0.73rem", padding: "0.45rem 0.9rem", background: velMax ? "linear-gradient(135deg, #475569, #334155)" : "linear-gradient(135deg, #9a3412, #7c2d12)", borderColor: velMax ? "rgba(148,163,184,0.4)" : "rgba(249,115,22,0.4)" }}
+                onClick={() => {
+                  const nuevo = !velMax;
+                  velMaxRef.current = nuevo;
+                  setVelMax(nuevo);
+                  setVelocidadMaxima(nuevo);
+                  setTimeout(() => iniciarVerificacion(), 30);
+                }}
+              >
+                {velMax ? "↺ Volver a velocidad recomendada" : "⚡ Usar velocidad máxima (6/8)"}
+              </button>
             </div>
           </div>
         )}

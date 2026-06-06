@@ -1,3 +1,5 @@
+import { limSuccion } from "./limiteVelocidad";
+
 export function fix2(v) {
   return (parseFloat(v) || 0).toFixed(2);
 }
@@ -146,7 +148,7 @@ export function drenFondo(flujoMaximo, tipoDrenFondoRaw, datos, numForzado = nul
         10.536 * 100 * Math.pow(flujoCMDF, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (vel <= 4.5 && vel > velocidadCMDF) {
+      if (vel <= limSuccion() && vel > velocidadCMDF) {
         diametroCMDF = tub;
         velocidadCMDF = vel;
         cargaCMDF = mejorCargaCMDF;
@@ -204,7 +206,7 @@ export function drenFondo(flujoMaximo, tipoDrenFondoRaw, datos, numForzado = nul
         10.536 * 100 * Math.pow(flujoActual, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (velocidad <= 4.5 && velocidad > velocidadSeleccionada) {
+      if (velocidad <= limSuccion() && velocidad > velocidadSeleccionada) {
         velocidadSeleccionada = velocidad;
         diametroSeleccionado = tub;
         cargaSeleccionada = mejorCarga;

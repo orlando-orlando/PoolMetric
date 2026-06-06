@@ -1,3 +1,5 @@
+import { limDescarga } from "./limiteVelocidad";
+
 export function fix2(v) {
   return (parseFloat(v) || 0).toFixed(2);
 }
@@ -133,7 +135,7 @@ export function retorno(flujoMaximo, tipoRetorno, datos, numForzado = null) {
         10.536 * 100 * Math.pow(flujoCM, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (vel <= 6.5 && vel > velocidadCM) {
+      if (vel <= limDescarga() && vel > velocidadCM) {
         diametroCM = tub;
         velocidadCM = vel;
         cargaCM = mejorCargaCM;
@@ -191,7 +193,7 @@ export function retorno(flujoMaximo, tipoRetorno, datos, numForzado = null) {
         10.536 * 100 * Math.pow(flujoActual, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (velocidad <= 6.5 && velocidad > velocidadSeleccionada) {
+      if (velocidad <= limDescarga() && velocidad > velocidadSeleccionada) {
         velocidadSeleccionada = velocidad;
         diametroSeleccionado = tub;
         cargaSeleccionada = mejorCarga;

@@ -25,6 +25,7 @@ const printStyles = `
     .pagina:first-child { page-break-before: avoid; }
     .tabla-section { page-break-inside: avoid; }
     .sec-bloque { page-break-inside: avoid; }
+    
     .pagina > * { font-size: 7.5pt !important; }
     .pagina table { font-size: 6.5pt !important; }
     .pagina th, .pagina td { padding: 3px 6px !important; }
@@ -506,13 +507,31 @@ const ITER_LABELS = ["Diseño original", "Iteración 1", "Iteración 2"];
           concéntrica).
         </CajaFundamento>
 
+        <FooterPagina fecha={fecha} />
+      </div>
+
+      {/* ── Página 2a-bis: velocidades + CDT (continuación de teoría) ── */}
+      <div className="pagina" style={{ ...A4 }}>
+        <HeaderPagina
+          logoEmpresa={logoEmpresa}
+          seccionLabel="Metodología — Velocidades y CDT"
+          seccionColor={AZUL}
+        />
+        <SeccionTitulo color={AZUL} bg={AZUL_CLR}>
+          Metodología hidráulica — Velocidades de diseño y carga dinámica total
+        </SeccionTitulo>
+
         <CajaFundamento titulo="Velocidades de diseño" color={AZUL} bg={AZUL_CLR}>
           Para garantizar un diseño eficiente y evitar erosión o ruido excesivo, se aplican los
-          siguientes límites de velocidad:
+          siguientes límites de velocidad. La velocidad recomendada (óptima) prioriza la durabilidad
+          y el bajo ruido; la velocidad máxima es el límite permitido por norma, útil para reducir
+          el diámetro de tubería cuando se requiere:
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "6px" }}>
             {[
-              ["Tubería de succión",  "≤ 1.2 m/s  (≤ 4.5 ft/s)", "Evita cavitación en la bomba"],
-              ["Tubería de descarga", "≤ 2.0 m/s  (≤ 6.5 ft/s)", "Minimiza pérdidas y ruido"],
+              ["Succión — recomendada (óptima)", "≤ 1.2 m/s  (≤ 4.5 ft/s)", "Evita cavitación en la bomba"],
+              ["Succión — máxima (norma)",        "≤ 1.8 m/s  (≤ 6.0 ft/s)", "Límite permitido por ANSI/APSP"],
+              ["Descarga — recomendada (óptima)", "≤ 2.0 m/s  (≤ 6.5 ft/s)", "Minimiza pérdidas y ruido"],
+              ["Descarga — máxima (norma)",       "≤ 2.4 m/s  (≤ 8.0 ft/s)", "Límite permitido por ANSI/APSP"],
             ].map(([tipo, vel, desc]) => (
               <div key={tipo} style={{ background: AZUL_CLR, borderRadius: "4px", padding: "6px 10px" }}>
                 <div style={{ fontWeight: 700, color: AZUL, fontSize: "7.5pt" }}>{tipo}</div>
@@ -984,7 +1003,7 @@ function PaginaFiltrado({ memoria, logoEmpresa, fecha }) {
           [
             "Tubería de descarga",
             tubDescarga,
-            "Diámetro seleccionado por velocidad máx. 6.5 ft/s",
+            "Diámetro por velocidad recomendada 6.5 ft/s (máx. norma 8 ft/s)",
           ],
           [
             "Velocidad en descarga",
@@ -1024,7 +1043,7 @@ function PaginaFiltrado({ memoria, logoEmpresa, fecha }) {
             [
               "Tubería del circuito",
               tubInfinityVal,
-              "Diámetro seleccionado por velocidad máx. 6.5 ft/s",
+              "Diámetro por velocidad recomendada 6.5 ft/s (máx. norma 8 ft/s)",
             ],
             [
               "Velocidad",
@@ -1840,7 +1859,7 @@ function PaginaMotobomba({ memoria, logoEmpresa, fecha }) {
           {[
             ["Variación de flujo",   "±10% del flujo de diseño",      "Garantiza que todos los equipos operan dentro de su rango nominal"],
             ["CDT disponible",       "≥ CDT requerida del sistema",   "La bomba debe superar todas las pérdidas del sistema"],
-            ["Velocidades",          "Succión ≤4.5 ft/s · Descarga ≤6.5 ft/s", "Evitar cavitación y desgaste prematuro"],
+            ["Velocidades",          "Recom. 4.5/6.5 ft/s · Máx. 6/8 ft/s", "Recomendada óptima; máxima permitida por norma"],
           ].map(([t,v,d]) => (
             <div key={t} style={{ background:BG_MB, border:"1px solid #fed7aa", borderRadius:"3px", padding:"5px 8px" }}>
               <div style={{ fontWeight:700, color:COLOR_MB, fontSize:"7pt", marginBottom:"2px" }}>{t}</div>

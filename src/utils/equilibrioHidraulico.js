@@ -17,6 +17,7 @@ import { calcularCargaFiltroArenaManual }    from "./filtroArena";
 import { calcularCargaPrefiltroManual }      from "./prefiltro";
 import { calcularCargaFiltroCartuchoManual } from "./filtroCartucho";
 import { calcularCargaUVManual }             from "./generadorUV";
+import { getVelocidadMaxima, setVelocidadMaxima } from "./limiteVelocidad";
 
 const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 
@@ -468,7 +469,12 @@ export function calcularEquilibrio({
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
   // Cargas de referencia al flujo de diseño
+  // SIEMPRE a velocidad recomendada (igual que cargaInicial), para que la resta
+  // de la base sea coherente. El toggle de velocidad máxima solo afecta cargaRecalc.
   function calcularCargasRef(flujoRef) {
+    const velMaxPrevio = getVelocidadMaxima();
+    setVelocidadMaxima(false);
+    try {
     const ref = { ...cargasIniciales };
     // Excluir clorador en línea de la referencia base
     if (excluirCloradorAutomatico) ref.cloradorAutomatico = 0;
@@ -492,6 +498,9 @@ export function calcularEquilibrio({
         ref["cloradorSalino"] = parseFloat(estados.cloradorSalino.cargaTotal);
       }
       return ref;
+    } finally {
+      setVelocidadMaxima(velMaxPrevio);
+    }
   }
 
 function calcularCDTSistema(flujoNuevo, cargasRef) {
@@ -587,57 +596,114 @@ function calcularCDTSistema(flujoNuevo, cargasRef) {
   return { equiposRecalc, cdt };
 }
 
-  const cargasRef0 = calcularCargasRef(flujoInicial);
+const cargasRef0 = calcularCargasRef(flujoInicial);
 
   const PASO = 0.5;
-const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.1;
+  const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.1;
+  const qMinBusqueda = Math.max(PASO, flujoInicial * 0.5);
 
   let flujoEq   = null;
-  let cdtEq     = null;
+  let cdtEq     = null;   // SIEMPRE la carga del SISTEMA en el punto de equilibrio
   let equiposEq = {};
   const pasos   = [];
+
+  // Carga de bomba y de sistema en el flujo de diseño
+  const cdtBombaInicio = cargaEnCurva(curva, flujoInicial / nBombas);
+  const { cdt: cdtSistInicio } = calcularCDTSistema(flujoInicial, cargasRef0);
+
+  // ¿El sistema ya excede a la bomba en el flujo de diseño?
+  // (típico a velocidad máxima): el equilibrio está a MENOR flujo (hacia atrás),
+  // porque al bajar el caudal la bomba sube su carga y el sistema baja la suya.
+  const sistemaExcedeEnArranque =
+    cdtSistInicio != null && cdtBombaInicio != null && cdtSistInicio > cdtBombaInicio;
+
+  // Helper: registra el punto de equilibrio de forma coherente.
+  // cdtEq = carga del SISTEMA (lo que se pide). La carga de la bomba va aparte.
+  function fijarEquilibrio(qEq, cdtSistEq) {
+    flujoEq = parseFloat(qEq.toFixed(2));
+    cdtEq   = parseFloat(cdtSistEq.toFixed(2));
+    const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
+    equiposEq = eqFinal;
+    const cdtBombaEq = cargaEnCurva(curva, flujoEq / nBombas) ?? 0;
+    pasos.push({
+      flujo: flujoEq,
+      cdtBomba: parseFloat(cdtBombaEq.toFixed(2)),
+      cdtSistema: cdtEq,
+      equipos: eqFinal,
+      esEquilibrio: true,
+    });
+  }
 
   let cdtBombaAnterior = null;
   let cdtSistAnterior  = null;
   let flujoAnterior    = null;
 
-  // Fase 1
-  for (let q = flujoInicial; q <= qMaxBusqueda; q += PASO) {
-    const qRound     = parseFloat(q.toFixed(2));
-    const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
-    if (cdtBomba_q == null) break;
+  if (sistemaExcedeEnArranque) {
+    // ── Búsqueda hacia ATRÁS (menor flujo): la bomba sube, el sistema baja.
+    // Cruce cuando la bomba pasa de estar por DEBAJO a estar por ENCIMA del sistema.
+    for (let q = flujoInicial; q >= qMinBusqueda; q -= PASO) {
+      const qRound     = parseFloat(q.toFixed(2));
+      const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
+      if (cdtBomba_q == null) break;
+      const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
+      pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
 
-    const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
-    pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
-
-    if (cdtBombaAnterior !== null && cdtSistAnterior !== null) {
-      if (cdtBombaAnterior >= cdtSistAnterior && cdtBomba_q <= cdtSist_q) {
-        const diffAnterior = cdtBombaAnterior - cdtSistAnterior;
-        const diffActual   = cdtBomba_q - cdtSist_q;
-        const t = diffAnterior / (diffAnterior - diffActual);
-        flujoEq = parseFloat((flujoAnterior + t * (qRound - flujoAnterior)).toFixed(2));
-        cdtEq   = parseFloat((cdtSistAnterior + t * (cdtSist_q - cdtSistAnterior)).toFixed(2));
-        const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
-        equiposEq = eqFinal;
-        pasos.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: eqFinal, esEquilibrio: true });
-        break;
+      if (cdtBombaAnterior !== null && cdtSistAnterior !== null) {
+        if (cdtBombaAnterior <= cdtSistAnterior && cdtBomba_q >= cdtSist_q) {
+          const diffAnterior = cdtSistAnterior - cdtBombaAnterior;
+          const diffActual   = cdtSist_q - cdtBomba_q;
+          const denom = diffAnterior - diffActual;
+          const t = denom !== 0 ? diffAnterior / denom : 0;
+          const qInterp   = flujoAnterior + t * (qRound - flujoAnterior);
+          const cdtSistInterp = cdtSistAnterior + t * (cdtSist_q - cdtSistAnterior);
+          fijarEquilibrio(qInterp, cdtSistInterp);
+          break;
+        }
       }
+      cdtBombaAnterior = cdtBomba_q;
+      cdtSistAnterior  = cdtSist_q;
+      flujoAnterior    = qRound;
     }
-    cdtBombaAnterior = cdtBomba_q;
-    cdtSistAnterior  = cdtSist_q;
-    flujoAnterior    = qRound;
+    // Sin cruce hacia atrás → equilibrio en el flujo de diseño (carga del sistema)
+    if (flujoEq === null) fijarEquilibrio(flujoInicial, cdtSistInicio);
+  } else {
+    // ── Búsqueda hacia ADELANTE (mayor flujo): la bomba baja, el sistema sube.
+    // Cruce cuando la bomba pasa de estar por ENCIMA a estar por DEBAJO del sistema.
+    for (let q = flujoInicial; q <= qMaxBusqueda; q += PASO) {
+      const qRound     = parseFloat(q.toFixed(2));
+      const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
+      if (cdtBomba_q == null) break;
+      const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
+      pasos.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
+
+      if (cdtBombaAnterior !== null && cdtSistAnterior !== null) {
+        if (cdtBombaAnterior >= cdtSistAnterior && cdtBomba_q <= cdtSist_q) {
+          const diffAnterior = cdtBombaAnterior - cdtSistAnterior;
+          const diffActual   = cdtBomba_q - cdtSist_q;
+          const denom = diffAnterior - diffActual;
+          const t = denom !== 0 ? diffAnterior / denom : 0;
+          const qInterp   = flujoAnterior + t * (qRound - flujoAnterior);
+          const cdtSistInterp = cdtSistAnterior + t * (cdtSist_q - cdtSistAnterior);
+          fijarEquilibrio(qInterp, cdtSistInterp);
+          break;
+        }
+      }
+      cdtBombaAnterior = cdtBomba_q;
+      cdtSistAnterior  = cdtSist_q;
+      flujoAnterior    = qRound;
+    }
+    // Sin cruce hacia adelante → último punto iterado (carga del sistema)
+    if (flujoEq === null) {
+      const ultimo = pasos[pasos.length - 1];
+      const qUlt   = ultimo?.flujo ?? flujoInicial;
+      const cdtUlt = ultimo?.cdtSistema ?? cargaInicial;
+      fijarEquilibrio(qUlt, cdtUlt);
+    }
   }
 
-  if (flujoEq === null) {
-    const ultimo = pasos[pasos.length - 1];
-    flujoEq = ultimo?.flujo ?? flujoInicial;
-    cdtEq   = ultimo?.cdtSistema ?? cargaInicial;
-    const { equiposRecalc: eqFinal } = calcularCDTSistema(flujoEq, cargasRef0);
-    equiposEq = eqFinal;
-    pasos.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: eqFinal, esEquilibrio: true });
-  }
-
-  // Fase 2
+  // ── Fase 2 — verificación con equipos reajustados.
+  // Solo aplica en la búsqueda hacia adelante (caso normal). En la búsqueda
+  // hacia atrás el equilibrio ya es directo y no necesita segunda iteración.
   let flujoEq2   = flujoEq;
   let cdtEq2     = cdtEq;
   let equiposEq2 = equiposEq;
@@ -647,48 +713,51 @@ const qMaxBusqueda = curva[curva.length - 1].flujo_gpm * nBombas * 1.1;
   const MAX_PASOS_ITER2 = 20;
   let contPasosIter2 = 0;
 
-  for (let q = flujoEq; q <= qMaxBusqueda; q += PASO) {
-    const qRound     = parseFloat(q.toFixed(2));
-    const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
-    if (cdtBomba_q == null) break;
+  if (!sistemaExcedeEnArranque) {
+    for (let q = flujoEq; q <= qMaxBusqueda; q += PASO) {
+      const qRound     = parseFloat(q.toFixed(2));
+      const cdtBomba_q = cargaEnCurva(curva, qRound / nBombas);
+      if (cdtBomba_q == null) break;
 
-    const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
-    pasosIter2.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
-    contPasosIter2++;
+      const { equiposRecalc, cdt: cdtSist_q } = calcularCDTSistema(qRound, cargasRef0);
+      pasosIter2.push({ flujo: qRound, cdtBomba: cdtBomba_q, cdtSistema: cdtSist_q, equipos: equiposRecalc, esEquilibrio: false });
+      contPasosIter2++;
 
-    if (cdtBombaAnt2 !== null && cdtSistAnt2 !== null) {
-      if (cdtBombaAnt2 >= cdtSistAnt2 && cdtBomba_q <= cdtSist_q) {
-        const diffAnt = cdtBombaAnt2 - cdtSistAnt2;
-        const diffAct = cdtBomba_q - cdtSist_q;
-        const t = diffAnt / (diffAnt - diffAct);
-        flujoEq2 = parseFloat((flujoAnt2 + t * (qRound - flujoAnt2)).toFixed(2));
-        cdtEq2   = parseFloat((cdtSistAnt2 + t * (cdtSist_q - cdtSistAnt2)).toFixed(2));
-        const { equiposRecalc: eqFinal2 } = calcularCDTSistema(flujoEq2, cargasRef0);
-        equiposEq2 = eqFinal2;
-        pasosIter2.push({ flujo: flujoEq2, cdtBomba: cdtEq2, cdtSistema: cdtEq2, equipos: eqFinal2, esEquilibrio: true });
+      if (cdtBombaAnt2 !== null && cdtSistAnt2 !== null) {
+        if (cdtBombaAnt2 >= cdtSistAnt2 && cdtBomba_q <= cdtSist_q) {
+          const diffAnt = cdtBombaAnt2 - cdtSistAnt2;
+          const diffAct = cdtBomba_q - cdtSist_q;
+          const denom = diffAnt - diffAct;
+          const t = denom !== 0 ? diffAnt / denom : 0;
+          flujoEq2 = parseFloat((flujoAnt2 + t * (qRound - flujoAnt2)).toFixed(2));
+          cdtEq2   = parseFloat((cdtSistAnt2 + t * (cdtSist_q - cdtSistAnt2)).toFixed(2));
+          const { equiposRecalc: eqFinal2 } = calcularCDTSistema(flujoEq2, cargasRef0);
+          equiposEq2 = eqFinal2;
+          pasosIter2.push({ flujo: flujoEq2, cdtBomba: parseFloat((cargaEnCurva(curva, flujoEq2 / nBombas) ?? 0).toFixed(2)), cdtSistema: cdtEq2, equipos: eqFinal2, esEquilibrio: true });
+          encontradoIter2 = true;
+          break;
+        }
+      }
+
+      if (contPasosIter2 === 1 && cdtBomba_q < cdtSist_q) {
+        pasosIter2.push({ flujo: flujoEq, cdtBomba: parseFloat((cargaEnCurva(curva, flujoEq / nBombas) ?? 0).toFixed(2)), cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
         encontradoIter2 = true;
         break;
       }
+
+      if (contPasosIter2 >= MAX_PASOS_ITER2) break;
+      cdtBombaAnt2 = cdtBomba_q;
+      cdtSistAnt2  = cdtSist_q;
+      flujoAnt2    = qRound;
     }
 
-    if (contPasosIter2 === 1 && cdtBomba_q < cdtSist_q) {
-      pasosIter2.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
-      encontradoIter2 = true;
-      break;
+    if (!encontradoIter2) {
+      pasosIter2.push({ flujo: flujoEq, cdtBomba: parseFloat((cargaEnCurva(curva, flujoEq / nBombas) ?? 0).toFixed(2)), cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
     }
 
-    if (contPasosIter2 >= MAX_PASOS_ITER2) break;
-    cdtBombaAnt2 = cdtBomba_q;
-    cdtSistAnt2  = cdtSist_q;
-    flujoAnt2    = qRound;
+    pasos.push({ separador: true, label: "── Iteración 2 ──" });
+    pasos.push(...pasosIter2);
   }
-
-  if (!encontradoIter2) {
-    pasosIter2.push({ flujo: flujoEq, cdtBomba: cdtEq, cdtSistema: cdtEq, equipos: equiposEq, esEquilibrio: true });
-  }
-
-  pasos.push({ separador: true, label: "── Iteración 2 ──" });
-  pasos.push(...pasosIter2);
 
   const cargaDispFinal = parseFloat((cargaEnCurva(curva, flujoEq2 / nBombas) ?? 0).toFixed(2));
 

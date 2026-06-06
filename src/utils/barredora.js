@@ -66,19 +66,10 @@ export function barredora(flujoMaximo, tipoBarredora, datos, numForzado = null) 
   };
 
   // Cálculo de número de barredoras
-  const mangueraBarredora = parseFloat(datos.mangueraBarredora) || 7.5;
+  const mangueraBarredora = parseFloat(datos.mangueraBarredora) || 10;
   const largoMangueraFinal = mangueraBarredora - (mangueraBarredora * 0.05);
   const areaSemiCirculo = (Math.PI * Math.pow(largoMangueraFinal, 2)) / 2;
-  let numBarredoraA = area / areaSemiCirculo;
-  let numBarredoraB = Math.sqrt(area) / (largoMangueraFinal * 2);
-
-  let numBarredorasCalc;
-  if (largoMangueraFinal > Math.sqrt(area)) {
-    numBarredorasCalc = numBarredoraB;
-  } else {
-    numBarredorasCalc = numBarredoraA;
-  }
-  numBarredorasCalc = Math.ceil(numBarredorasCalc);
+  let numBarredorasCalc = Math.ceil((Math.sqrt(area) * 4) / (largoMangueraFinal * 2));
 
   // Usa numForzado si se proporciona, si no usa el calculado
   const numBarredoras = (numForzado != null && numForzado > 0) ? numForzado : numBarredorasCalc;

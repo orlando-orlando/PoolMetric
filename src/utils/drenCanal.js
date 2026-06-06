@@ -1,3 +1,5 @@
+import { limSuccion } from "./limiteVelocidad";
+
 export function fix2(v) {
   return (parseFloat(v) || 0).toFixed(2);
 }
@@ -134,7 +136,7 @@ export function drenCanal(flujoMaximo, tipoDrenCanalRaw, datos, numForzado = nul
         10.536 * 100 * Math.pow(flujoCMDC, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (vel <= 4.5 && vel > velocidadCMDC) {
+      if (vel <= limSuccion() && vel > velocidadCMDC) {
         diametroCMDC = tub;
         velocidadCMDC = vel;
         cargaCMDC = mejorCargaCMDC;
@@ -192,7 +194,7 @@ export function drenCanal(flujoMaximo, tipoDrenCanalRaw, datos, numForzado = nul
         10.536 * 100 * Math.pow(flujoActual, 1.852) /
         (Math.pow(d, 4.8655) * Math.pow(150, 1.852));
 
-      if (velocidad <= 4.5 && velocidad > velocidadSeleccionada) {
+      if (velocidad <= limSuccion() && velocidad > velocidadSeleccionada) {
         velocidadSeleccionada = velocidad;
         diametroSeleccionado = tub;
         cargaSeleccionada = mejorCarga;

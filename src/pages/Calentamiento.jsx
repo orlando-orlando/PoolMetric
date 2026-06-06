@@ -2423,8 +2423,12 @@ export default function Calentamiento({
                               </div>
                               <div className="bdc-rec-demanda">
                                 <div className="bdc-demanda-fila">
-                                  <span className="bdc-demanda-label">BTU elevación temp.</span>
-                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev)} BTU/h</span>
+                                  <span className="bdc-demanda-label">BTU por 1°C del volumen</span>
+                                  <span className="bdc-demanda-valor" style={{ color: "#94a3b8" }}>{fmtBTU(btuElev)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">BTU elevación ({sistemasSeleccionados.caldera?.tasaElevacion ?? "—"}°C/h)</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev * (sistemasSeleccionados.caldera?.tasaElevacion ?? 1))} BTU/h</span>
                                 </div>
                                 <div className="bdc-demanda-fila">
                                   <span className="bdc-demanda-label">Pérdidas sistema</span>
@@ -2824,8 +2828,12 @@ export default function Calentamiento({
                               </div>
                               <div className="bdc-rec-demanda">
                                 <div className="bdc-demanda-fila">
-                                  <span className="bdc-demanda-label">BTU elevación temp.</span>
-                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev)} BTU/h</span>
+                                  <span className="bdc-demanda-label">BTU por 1°C del volumen</span>
+                                  <span className="bdc-demanda-valor" style={{ color: "#94a3b8" }}>{fmtBTU(btuElev)} BTU/h</span>
+                                </div>
+                                <div className="bdc-demanda-fila">
+                                  <span className="bdc-demanda-label">BTU elevación ({sistemasSeleccionados.calentadorElectrico?.tasaElevacion ?? "—"}°C/h)</span>
+                                  <span className="bdc-demanda-valor">{fmtBTU(btuElev * (sistemasSeleccionados.calentadorElectrico?.tasaElevacion ?? 1))} BTU/h</span>
                                 </div>
                                 <div className="bdc-demanda-fila">
                                   <span className="bdc-demanda-label">Pérdidas sistema</span>
