@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, memo } from "react";
+import { apiCalentamiento } from "../utils/api";
 import "../estilos.css";
 import { getClimaMensual } from "../data/clima";
 
@@ -489,6 +490,8 @@ export default function Calentamiento({
   const [mostrarAviso, setMostrarAviso]     = useState(false);
   const [decision, setDecision]             = useState(datosPrevios.decision ?? null);
   const [sistemasSeleccionados, setSistemasSeleccionados] = useState(datosPrevios.sistemasSeleccionados || {});
+  const [calcBackend, setCalcBackend] = useState(null);
+  const [calcCargando, setCalcCargando] = useState(false);
 
   const [modoBDC, setModoBDC] = useState(datosPrevios.modoBDC ?? "recomendado");
   const [filtroBDCMarca,     setFiltroBDCMarca]    = useState("todas");
@@ -600,111 +603,24 @@ export default function Calentamiento({
     return Math.max(...sistemaActivo.cuerpos.map(c => Math.max(parseFloat(c.profMin) || 0, parseFloat(c.profMax) || 0)));
   }, [sistemaActivo]);
 
-
-  const mesMasFrio = useMemo(() => {
-      const sel = clima.filter(m => mesesCalentar[m.mes]);
-      if (!sel.length) return null;
-      if (!tempDeseada || areaTotal <= 0) {
-        return sel.reduce((f, a) => a.tProm < f.tProm ? a : f);
-      }
-      const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
-      const conPerdida = sel.map(m => {
-        try {
-          const ev  = qEvaporacion(dt, m)  || 0;
-          const con = qConveccion(dt, m)   || 0;
-          const rad = qRadiacion(dt, m)    || 0;
-          const tra = qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
-          const inf = (() => {
-            if (!sistemaActivo) return 0;
-            if (sistemaActivo.desborde !== "infinity" && sistemaActivo.desborde !== "ambos") return 0;
-            const largo = parseFloat(sistemaActivo.largoInfinity) || 0;
-            if (largo <= 0 || profMaxSistema <= 0) return 0;
-            return qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: largo, tempDeseada }, m) || 0;
-          })();
-          const can = (() => {
-            if (!sistemaActivo) return 0;
-            if (sistemaActivo.desborde !== "canal" && sistemaActivo.desborde !== "ambos") return 0;
-            const largo = parseFloat(sistemaActivo.largoCanal) || 0;
-            if (largo <= 0) return 0;
-            return qCanal({ largoCanal: largo, tempDeseada }, m) || 0;
-          })();
-          return { ...m, perdidaTotal: ev + con + rad + tra + inf + can };
-        } catch { return { ...m, perdidaTotal: 0 }; }
-      });
-      return conPerdida.reduce((max, a) => a.perdidaTotal > max.perdidaTotal ? a : max);
-    }, [clima, mesesCalentar, tempDeseada, areaTotal, volumenTotal, profundidadPromedio,
-        techada, cubierta, profMaxSistema, sistemaActivo]);
+const mesMasFrio = calcBackend?.mesMasFrio ?? null;
 
   // Tabla completa de todos los meses con pérdida calculada — para memoria de cálculo
-  const tablaClimaConPerdida = useMemo(() => {
-    if (!clima.length || !tempDeseada || areaTotal <= 0) return clima.map(m => ({ ...m, perdidaClima: 0 }));
-    const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
-    return clima.map(m => {
-      try {
-        const ev  = qEvaporacion(dt, m)  || 0;
-        const con = qConveccion(dt, m)   || 0;
-        const rad = qRadiacion(dt, m)    || 0;
-        const tra = qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
-        const inf = (sistemaActivo?.desborde === "infinity" || sistemaActivo?.desborde === "ambos")
-          ? (qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: parseFloat(sistemaActivo.largoInfinity)||0, tempDeseada }, m) || 0) : 0;
-        const can = (sistemaActivo?.desborde === "canal" || sistemaActivo?.desborde === "ambos")
-          ? (qCanal({ largoCanal: parseFloat(sistemaActivo.largoCanal)||0, tempDeseada }, m) || 0) : 0;
-        return { ...m, perdidaClima: Math.round(ev + con + rad + tra + inf + can) };
-      } catch { return { ...m, perdidaClima: 0 }; }
-    });
-  }, [clima, tempDeseada, areaTotal, volumenTotal, profundidadPromedio, techada, cubierta, profMaxSistema, sistemaActivo]);
+  const tablaClimaConPerdida = calcBackend?.tablaClima ?? clima.map(m => ({ ...m, perdidaClima: 0 }));
 
-  const perdidaEvaporacion = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qEvaporacion(datosTermicos, mesMasFrio),  [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
-  const perdidaConveccion  = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qConveccion(datosTermicos, mesMasFrio),   [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
-  const perdidaRadiacion   = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qRadiacion(datosTermicos, mesMasFrio),    [datosTermicos, mesMasFrio, tempDeseada, areaTotal]);
-  const perdidaTransmision = useMemo(() => (!mesMasFrio || !tempDeseada || areaTotal <= 0) ? 0 : qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, mesMasFrio), [mesMasFrio, tempDeseada, areaTotal, profMaxSistema]);
+  const perdidaEvaporacion = calcBackend?.perdidasBTU?.evaporacion ?? 0;
+  const perdidaConveccion  = calcBackend?.perdidasBTU?.conveccion  ?? 0;
+  const perdidaRadiacion   = calcBackend?.perdidasBTU?.radiacion   ?? 0;
+  const perdidaTransmision = calcBackend?.perdidasBTU?.transmision ?? 0;
 
-  const perdidaInfinity = useMemo(() => {
-    if (!mesMasFrio || !tempDeseada || !sistemaActivo) return 0;
-    if (sistemaActivo.desborde !== "infinity" && sistemaActivo.desborde !== "ambos") return 0;
-    const largoInfinity = parseFloat(sistemaActivo.largoInfinity) || 0;
-    if (largoInfinity <= 0 || profMaxSistema <= 0) return 0;
-    return qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity, tempDeseada }, mesMasFrio);
-  }, [mesMasFrio, tempDeseada, sistemaActivo, profMaxSistema]);
+const perdidaInfinity = calcBackend?.perdidasBTU?.infinity ?? 0;
+  const perdidaCanal    = calcBackend?.perdidasBTU?.canal    ?? 0;
 
-  const perdidaCanal = useMemo(() => {
-    if (!mesMasFrio || !tempDeseada || !sistemaActivo) return 0;
-    if (sistemaActivo.desborde !== "canal" && sistemaActivo.desborde !== "ambos") return 0;
-    const largoCanal = parseFloat(sistemaActivo.largoCanal) || 0;
-    if (largoCanal <= 0) return 0;
-    return qCanal({ largoCanal, tempDeseada }, mesMasFrio);
-  }, [mesMasFrio, tempDeseada, sistemaActivo]);
+const tipoRetorno = tipoRetornoExterno ?? "1.5";
+  const resultadoRetorno = calcBackend?.resultadoRetorno ?? null;
+  const perdidaTuberiaBase = calcBackend?.perdidaTuberiaBase ?? 0;
 
-  const tipoRetorno = tipoRetornoExterno ?? "1.5";
-
-  const resultadoRetorno = useMemo(() => {
-    if (!sistemaActivo?.cuerpos?.length) return null;
-    if (!tempDeseada || !mesMasFrio) return null;
-    const flujoMax = calcularFlujoMaximo(sistemaActivo);
-    if (flujoMax <= 0) return null;
-    const datosParaRetorno = {
-      area: areaTotal,
-      profMin: Math.min(...sistemaActivo.cuerpos.map(c => parseFloat(c.profMin) || 0)),
-      profMax: profMaxSistema,
-      distCuarto: parseFloat(sistemaActivo.distCuarto) || 0,
-    };
-    try {
-      return retorno(flujoMax, tipoRetorno, datosParaRetorno);
-    } catch (e) { console.error("Error en retorno():", e); return null; }
-  }, [sistemaActivo, areaTotal, profMaxSistema, tipoRetorno, tempDeseada, mesMasFrio]);
-
-  const perdidaTuberiaBase = useMemo(() => {
-    if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
-    const resumenTramosR   = resultadoRetorno.resumenTramosR   ?? {};
-    const resumenDisparosR = resultadoRetorno.resumenDisparosR ?? {};
-    const resultado = qTuberia(resumenTramosR, resumenDisparosR, {}, { tempDeseada }, mesMasFrio);
-    return resultado.total_BTU_h ?? 0;
-  }, [resultadoRetorno, mesMasFrio, tempDeseada]);
-
-  const perdidaTotalPaso1 = useMemo(() =>
-    perdidaEvaporacion + perdidaConveccion + perdidaRadiacion +
-    perdidaTransmision + perdidaInfinity   + perdidaCanal    + perdidaTuberiaBase,
-  [perdidaEvaporacion, perdidaConveccion, perdidaRadiacion, perdidaTransmision, perdidaInfinity, perdidaCanal, perdidaTuberiaBase]);
+const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
 
   const alturaBDCEfectiva = useMemo(() => {
     if (!sistemasSeleccionados.bombaCalor) return 0;
@@ -764,47 +680,6 @@ export default function Calentamiento({
     return (ceEsMax && !bdcEsMax && !calderaEsMax) ? alturaMaxSistema : alturaMaxSistema + 1000;
   }, [alturaBDCEfectiva, alturaCalderaEfectiva, alturaCEEfectiva, alturaMaxSistema]);
 
-  const bdcPaso1 = useMemo(() => {
-    if (!sistemasSeleccionados.bombaCalor) return null;
-    if (perdidaTotalPaso1 <= 0) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
-    try { return bombaDeCalor(perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaBDC); }
-    catch (e) { console.error("Error en bombaDeCalor() paso 1:", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema]);
-
-  const resumenBDCR = useMemo(() => {
-    if (!bdcPaso1?.resumenMaterialesTuberia) return {};
-    return Object.fromEntries(
-      bdcPaso1.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
-        tuberia,
-        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
-      ])
-    );
-  }, [bdcPaso1]);
-
-  const resumenBDCRFinal = useMemo(() => {
-    if (modoBDC === "manual" && selManualBDCId) {
-      const bombaElegida = bombasCalor.find(b => b.id === selManualBDCId);
-      if (bombaElegida) {
-        const distancia      = parseFloat(sistemasSeleccionados.bombaCalor?.distancia)      || 0;
-        const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor?.alturaVertical) || 0;
-        try {
-          const hid = calcularCargaManual(bombaElegida.specs.flujo, selManualCantidad, distancia, alturaVertical, alturaMaxParaBDC);
-          if (!hid?.error && hid.resumenMaterialesTuberia) {
-            return Object.fromEntries(
-              hid.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
-                tuberia,
-                { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
-              ])
-            );
-          }
-        } catch { /* fall through to auto */ }
-      }
-    }
-    return resumenBDCR;
-  }, [modoBDC, selManualBDCId, selManualCantidad, sistemasSeleccionados, resumenBDCR]);
-
   const marcasDisponibles = useMemo(() =>
     ["todas", ...new Set(bombasCalor.filter(b => b.metadata.activo).map(b => b.marca))],
   []);
@@ -818,161 +693,41 @@ export default function Calentamiento({
     }),
   [filtroBDCMarca, filtroBDCVelocidad]);
 
-  const psPaso1 = useMemo(() => {
-    if (!sistemasSeleccionados.panelSolar) return null;
-    if (perdidaTotalPaso1 <= 0) return null;
-    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
-    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
-    try { return panelSolar(perdidaTotalPaso1, distancia, alturaPS, alturaMaxParaPS); }
-    catch (e) { console.error("Error en psPaso1():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema]);
+  const perdidaTuberia = calcBackend?.perdidasBTU?.tuberia ?? 0;
 
-  /* ── Caldera PASO 1: selección preliminar para obtener tubería ── */
-  const calderaPaso1 = useMemo(() => {
-    if (!sistemasSeleccionados.caldera) return null;
-    if (perdidaTotalPaso1 <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.caldera.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.caldera.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.caldera.alturaVertical) || 0;
-    try {
-      return calcularCaldera(volumenTotal, tasaElevacion, perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaCaldera);
-    } catch (e) { console.error("Error en calderaPaso1():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxSistema, volumenTotal]);
+  const perdidasBTU = calcBackend?.perdidasBTU ?? {
+    evaporacion: 0, conveccion: 0, radiacion: 0, transmision: 0,
+    infinity: 0, canal: 0, tuberia: 0,
+  };
+  const perdidaTotalBTU = calcBackend?.perdidaTotalBTU ?? 0;
 
-  /* ── Calentador Eléctrico PASO 1 ── */
-  const cePaso1 = useMemo(() => {
-    if (!sistemasSeleccionados.calentadorElectrico) return null;
-    if (perdidaTotalPaso1 <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico.alturaVertical) || 0;
-    try {
-      return calcularCE(volumenTotal, tasaElevacion, perdidaTotalPaso1, distancia, alturaVertical, alturaMaxParaCE);
-    } catch (e) { console.error("Error en cePaso1():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalPaso1, alturaMaxParaCE, volumenTotal]);
-
-  const resumenPSRFinal = useMemo(() => {
-    if (!psPaso1?.hidraulica?.resumenMaterialesTuberia) return {};
-    return Object.fromEntries(
-      psPaso1.hidraulica.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
-        tuberia,
-        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
-      ])
-    );
-  }, [psPaso1]);
-
-  /* ── Resumen tubería caldera paso 1 ── */
-  const resumenCalderaRFinal = useMemo(() => {
-    if (!calderaPaso1?.resumenMaterialesTuberia) return {};
-    return Object.fromEntries(
-      calderaPaso1.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
-        tuberia,
-        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
-      ])
-    );
-  }, [calderaPaso1]);
-
-  /* ── Resumen tubería CE paso 1 ── */
-  const resumenCERFinal = useMemo(() => {
-    if (!cePaso1?.resumenMaterialesTuberia) return {};
-    return Object.fromEntries(
-      cePaso1.resumenMaterialesTuberia.map(({ tuberia, tuberia_m, tees, codos, reducciones }) => [
-        tuberia,
-        { tuberia_m: parseFloat(tuberia_m) || 0, tees: Number(tees) || 0, codos: Number(codos) || 0, reducciones: Number(reducciones) || 0 }
-      ])
-    );
-  }, [cePaso1]);
-
-  const resumenCalentadoresR = useMemo(() => {
-    const combinado = { ...resumenBDCRFinal };
-    const fuentes = [resumenPSRFinal, resumenCalderaRFinal, resumenCERFinal];
-    for (const fuente of fuentes) {
-      for (const [diam, vals] of Object.entries(fuente)) {
-        if (!combinado[diam]) {
-          combinado[diam] = { ...vals };
-        } else {
-          combinado[diam] = {
-            tuberia_m:   (combinado[diam].tuberia_m   || 0) + (vals.tuberia_m   || 0),
-            tees:        (combinado[diam].tees        || 0) + (vals.tees        || 0),
-            codos:       (combinado[diam].codos       || 0) + (vals.codos       || 0),
-            reducciones: (combinado[diam].reducciones || 0) + (vals.reducciones || 0),
-          };
-        }
-      }
-    }
-    return combinado;
-  }, [resumenBDCRFinal, resumenPSRFinal, resumenCalderaRFinal, resumenCERFinal]);
-
-  const perdidaTuberia = useMemo(() => {
-    if (!resultadoRetorno || !mesMasFrio || !tempDeseada) return 0;
-    const resumenTramosR   = resultadoRetorno.resumenTramosR   ?? {};
-    const resumenDisparosR = resultadoRetorno.resumenDisparosR ?? {};
-    const resultado = qTuberia(resumenTramosR, resumenDisparosR, resumenCalentadoresR, { tempDeseada }, mesMasFrio);
-    return resultado.total_BTU_h ?? 0;
-  }, [resultadoRetorno, resumenCalentadoresR, mesMasFrio, tempDeseada]);
-
-  const perdidasBTU = useMemo(() => ({
-    evaporacion: perdidaEvaporacion, conveccion: perdidaConveccion,
-    radiacion:   perdidaRadiacion,   transmision: perdidaTransmision,
-    infinity:    perdidaInfinity,    canal: perdidaCanal,
-    tuberia:     perdidaTuberia,
-  }), [perdidaEvaporacion, perdidaConveccion, perdidaRadiacion, perdidaTransmision, perdidaInfinity, perdidaCanal, perdidaTuberia]);
-
-  const perdidaTotalBTU = useMemo(() => Object.values(perdidasBTU).reduce((a, b) => a + b, 0), [perdidasBTU]);
-
-  const psSeleccionado = useMemo(() => {
-    if (!sistemasSeleccionados.panelSolar) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
-    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
-    try { return panelSolar(perdidaTotalBTU, distancia, alturaPS, alturaMaxParaPS); }
-    catch (e) { console.error("Error en psSeleccionado():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
+  const psSeleccionado = (modoPS === "recomendado" && calcBackend?.psRecomendado?.seleccion)
+    ? calcBackend.psRecomendado : null;
 
   useEffect(() => {
-    if (modoPS === "manual" && selManualPSCant == null && psSeleccionado && !psSeleccionado.error) {
+    if (modoPS === "manual" && selManualPSCant == null && selManualPSPct == null) {
       setSelManualPSPct(100);
     }
-  }, [modoPS, psSeleccionado]);
+  }, [modoPS]);
 
   const psManual = useMemo(() => {
-    if (!sistemasSeleccionados.panelSolar) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    const distancia = parseFloat(sistemasSeleccionados.panelSolar.distancia)     || 0;
-    const alturaPS  = parseFloat(sistemasSeleccionados.panelSolar.alturaVertical) || 0;
-    if (modoPS === "recomendado") return null;
-    if (selManualPSCant && selManualPSCant > 0) {
-      try {
-        const res = calcularPanelSolarManual(selManualPSCant, distancia, alturaPS, alturaMaxParaPS, perdidaTotalBTU);
-        return res?.error ? null : res;
-      } catch { return null; }
-    }
-    if (psSeleccionado && [30, 60, 100].includes(selManualPSPct)) {
-      const key = `p${selManualPSPct}`;
-      const opcion = psSeleccionado.opciones?.[key];
-      if (!opcion) return null;
-      const capTotal = opcion.capTotal;
-      const exceso   = capTotal - perdidaTotalBTU;
-      const cubre    = capTotal >= perdidaTotalBTU;
-      return {
-        panel:        psSeleccionado.panel,
-        totalPaneles: opcion.cantidad,
-        capUnitaria:  psSeleccionado.panel.specs.capacidadCalentamiento,
-        capTotal,
-        exceso:       exceso.toFixed(2),
-        cubre,
-        porcentaje:   selManualPSPct,
-        flujoTotal:   opcion.flujoTotal,
-        tandems:      opcion.tandems,
-        hidraulica:   opcion.hidraulica,
-      };
-    }
-    return null;
-  }, [modoPS, selManualPSPct, selManualPSCant, psSeleccionado, sistemasSeleccionados, perdidaTotalBTU, alturaBDCEfectiva]);
+    if (modoPS !== "manual") return null;
+    const pf = calcBackend?.psFinal;
+    if (!pf || !pf.hidraulica) return null;
+    const s = pf.seleccion ?? {};
+    return {
+      panel:        pf.panel,
+      totalPaneles: s.cantidad ?? pf.totalPaneles,
+      capUnitaria:  pf.panel?.specs?.capacidadCalentamiento,
+      capTotal:     s.capTotal,
+      exceso:       s.exceso != null ? String(s.exceso) : (s.capTotal != null ? (s.capTotal - perdidaTotalBTU).toFixed(2) : "0"),
+      cubre:        s.capTotal != null ? s.capTotal >= perdidaTotalBTU : false,
+      porcentaje:   s.porcentaje,
+      flujoTotal:   s.flujoTotal,
+      tandems:      s.tandems,
+      hidraulica:   pf.hidraulica,
+    };
+  }, [modoPS, calcBackend, perdidaTotalBTU]);
 
   const psEfectivo = useMemo(() => {
     if (!sistemasSeleccionados.panelSolar) return null;
@@ -981,24 +736,16 @@ export default function Calentamiento({
   }, [modoPS, psManual, psSeleccionado, sistemasSeleccionados]);
 
   /* ── Caldera recomendada: paso 2 con demanda real ── */
-  const calderaSeleccionada = useMemo(() => {
-    if (!sistemasSeleccionados.caldera) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.caldera.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.caldera.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.caldera.alturaVertical) || 0;
-    try { return calcularCaldera(volumenTotal, tasaElevacion, perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaCaldera); }
-    catch (e) { console.error("Error en calderaSeleccionada():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema, volumenTotal]);
+  const calderaSeleccionada = (modoCaldera === "recomendado" && calcBackend?.calFinal?.seleccion)
+    ? calcBackend.calFinal : null;
 
   useEffect(() => {
-    if (modoCaldera === "manual" && !selManualCalderaId && calderaSeleccionada && !calderaSeleccionada.error) {
-      const c = calderasGas.find(c => c.marca === calderaSeleccionada.seleccion.marca && c.modelo === calderaSeleccionada.seleccion.modelo);
-      if (c) { setSelManualCalderaId(c.id); setSelManualCalderaCant(calderaSeleccionada.seleccion.cantidad ?? 1); }
+    const rec = calcBackend?.calRecomendado;
+    if (modoCaldera === "manual" && !selManualCalderaId && rec?.seleccion && !rec.error) {
+      const c = calderasGas.find(c => c.marca === rec.seleccion.marca && c.modelo === rec.seleccion.modelo);
+      if (c) { setSelManualCalderaId(c.id); setSelManualCalderaCant(rec.seleccion.cantidad ?? 1); }
     }
-  }, [modoCaldera, calderaSeleccionada]);
+  }, [modoCaldera, calcBackend?.calRecomendado?.seleccion?.modelo]);
 
   /* ── Catálogo caldera filtrado ── */
   const marcasCalderaDisponibles = useMemo(() =>
@@ -1015,21 +762,8 @@ export default function Calentamiento({
   [filtroCalderaMarca, filtroCalderaTipoGas]);
 
   /* ── Caldera manual ── */
-  const calderaManual = useMemo(() => {
-    if (!selManualCalderaId || perdidaTotalBTU <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.caldera?.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.caldera?.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.caldera?.alturaVertical) || 0;
-    try {
-      return calcularCalderaManual(
-        selManualCalderaId, selManualCalderaCant,
-        volumenTotal, tasaElevacion, perdidaTotalBTU,
-        distancia, alturaVertical, alturaMaxParaCaldera
-      );
-    } catch { return null; }
-  }, [selManualCalderaId, selManualCalderaCant, perdidaTotalBTU, sistemasSeleccionados, volumenTotal, alturaMaxSistema]);
+  const calderaManual = (modoCaldera === "manual" && calcBackend?.calFinal?.caldera)
+    ? calcBackend.calFinal : null;
 
   /* ── Caldera efectiva ── */
   const calderaEfectiva = useMemo(() => {
@@ -1048,11 +782,12 @@ export default function Calentamiento({
   }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
 
   useEffect(() => {
-    if (modoBDC === "manual" && !selManualBDCId && bdcSeleccionada && !bdcSeleccionada.error) {
-      const b = bombasCalor.find(b => b.marca === bdcSeleccionada.seleccion.marca && b.modelo === bdcSeleccionada.seleccion.modelo);
-      if (b) { setSelManualBDCId(b.id); setSelManualCantidad(bdcSeleccionada.seleccion.cantidad ?? 1); }
+    const rec = calcBackend?.bdcRecomendado;
+    if (modoBDC === "manual" && !selManualBDCId && rec?.seleccion && !rec.error) {
+      const b = bombasCalor.find(b => b.marca === rec.seleccion.marca && b.modelo === rec.seleccion.modelo);
+      if (b) { setSelManualBDCId(b.id); setSelManualCantidad(rec.seleccion.cantidad ?? 1); }
     }
-  }, [modoBDC, bdcSeleccionada]);
+  }, [modoBDC, calcBackend?.bdcRecomendado?.seleccion?.modelo]);
 
   const bdcManual = useMemo(() => {
     if (!selManualBDCId || perdidaTotalBTU <= 0) return null;
@@ -1079,24 +814,16 @@ export default function Calentamiento({
   }, [modoBDC, bdcManual, bdcSeleccionada, sistemasSeleccionados]);
 
   /* ── CE paso 2 con demanda real ── */
-  const ceSeleccionado = useMemo(() => {
-    if (!sistemasSeleccionados.calentadorElectrico) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico.alturaVertical) || 0;
-    try { return calcularCE(volumenTotal, tasaElevacion, perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaCE); }
-    catch (e) { console.error("Error en ceSeleccionado():", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxParaCE, volumenTotal]);
+  const ceSeleccionado = (modoCE === "recomendado" && calcBackend?.ceFinal?.seleccion)
+    ? calcBackend.ceFinal : null;
 
   useEffect(() => {
-    if (modoCE === "manual" && !selManualCEId && ceSeleccionado && !ceSeleccionado.error) {
-      const e = calentadoresElectricos.find(e => e.marca === ceSeleccionado.seleccion.marca && e.modelo === ceSeleccionado.seleccion.modelo);
-      if (e) { setSelManualCEId(e.id); setSelManualCECant(ceSeleccionado.seleccion.cantidad ?? 1); }
+    const rec = calcBackend?.ceRecomendado;
+    if (modoCE === "manual" && !selManualCEId && rec?.seleccion && !rec.error) {
+      const e = calentadoresElectricos.find(e => e.marca === rec.seleccion.marca && e.modelo === rec.seleccion.modelo);
+      if (e) { setSelManualCEId(e.id); setSelManualCECant(rec.seleccion.cantidad ?? 1); }
     }
-  }, [modoCE, ceSeleccionado]);
+  }, [modoCE, calcBackend?.ceRecomendado?.seleccion?.modelo]);
 
   const marcasCEDisponibles = useMemo(() =>
     ["todas", ...new Set(calentadoresElectricos.filter(c => c.metadata.activo).map(c => c.marca))],
@@ -1110,21 +837,8 @@ export default function Calentamiento({
     }),
   [filtroCEMarca]);
 
-  const ceManual = useMemo(() => {
-    if (!selManualCEId || perdidaTotalBTU <= 0) return null;
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    const tasaElevacion  = sistemasSeleccionados.calentadorElectrico?.tasaElevacion;
-    if (!tasaElevacion) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.calentadorElectrico?.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.calentadorElectrico?.alturaVertical) || 0;
-    try {
-      return calcularCEManual(
-        selManualCEId, selManualCECant,
-        volumenTotal, tasaElevacion, perdidaTotalBTU,
-        distancia, alturaVertical, alturaMaxParaCE
-      );
-    } catch { return null; }
-  }, [selManualCEId, selManualCECant, perdidaTotalBTU, sistemasSeleccionados, volumenTotal, alturaMaxParaCE]);
+  const ceManual = (modoCE === "manual" && calcBackend?.ceFinal?.equipo)
+    ? calcBackend.ceFinal : null;
 
   const ceEfectivo = useMemo(() => {
     if (!sistemasSeleccionados.calentadorElectrico) return null;
@@ -1149,6 +863,68 @@ export default function Calentamiento({
       setSelManualCEId(null); setSelManualCECant(1);
     }
   }, [catalogoCEFiltrado, selManualCEId]);
+
+
+
+
+  // ===== Capa 1: cálculo en backend con debounce =====
+  useEffect(() => {
+    if (!tempDeseada || areaTotal <= 0) return;
+    if (!clima.length || !Object.values(mesesCalentar).some(Boolean)) return;
+    if (!sistemasSeleccionados || Object.keys(sistemasSeleccionados).length === 0) return;
+
+    const payload = {
+      ciudad, tempDeseada, cubierta, techada,
+      area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio,
+      profMaxSistema,
+      sistemaActivo,
+      tipoRetorno,
+      sistemasSeleccionados,
+      clima,
+      mesesCalentar,
+      modos: { bdc: modoBDC, ps: modoPS, caldera: modoCaldera, ce: modoCE },
+      manual: {
+        bdcId: selManualBDCId, bdcCant: selManualCantidad,
+        psPct: selManualPSPct, psCant: selManualPSCant,
+        calderaId: selManualCalderaId, calderaCant: selManualCalderaCant,
+        ceId: selManualCEId, ceCant: selManualCECant,
+      },
+    };
+
+    let cancelado = false;
+    setCalcCargando(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiCalentamiento(payload);
+        if (!cancelado) {
+          setCalcBackend(res);
+          window.__cb = res;
+          console.log("=== CALC BACKEND ===",
+            "perdidaTotal:", res.perdidaTotalBTU,
+            "| BDC:", res.bdcFinal?.cargaTotal,
+            "| PS:", res.psFinal?.hidraulica?.cargaTotal);
+                  }
+      } catch (e) {
+        if (!cancelado) console.warn("Backend calentamiento no disponible:", e.message);
+      } finally {
+        if (!cancelado) setCalcCargando(false);
+      }
+    }, 450);
+
+    return () => { cancelado = true; clearTimeout(timer); };
+  }, [
+    ciudad, tempDeseada, cubierta, techada, areaTotal, volumenTotal, profundidadPromedio,
+    profMaxSistema, JSON.stringify(sistemaActivo), tipoRetorno, JSON.stringify(sistemasSeleccionados),
+    JSON.stringify(mesesCalentar),
+    modoBDC, modoPS, modoCaldera, modoCE,
+    selManualBDCId, selManualCantidad, selManualPSPct, selManualPSCant,
+    selManualCalderaId, selManualCalderaCant, selManualCEId, selManualCECant,
+  ]);
+  // ====================================================
+
+  /* ── Save a datosPorSistema ──────────────────────────────────────────────
+
 
   /* ── Save a datosPorSistema ──────────────────────────────────────────────
      Usamos un ref para siempre tener los valores frescos, pero el useEffect
@@ -1225,19 +1001,16 @@ export default function Calentamiento({
       }
     }));
   }, [
-    /* Solo valores de cálculo — NO estados UI como hoveredField */
+    /* Solo primitivos estables — los objetos se leen frescos del saveRef.
+       perdidaTotalBTU sirve de "señal" de que el backend recalculó. */
     decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
-    perdidaTotalBTU, sistemasSeleccionados,
+    perdidaTotalBTU,
     areaTotal, volumenTotal, profundidadPromedio, profMaxSistema,
-    tipoSistema, sistemaActivo, mesMasFrio, tablaClimaConPerdida,
+    tipoSistema,
     modoBDC, selManualBDCId, selManualCantidad,
     modoPS, selManualPSPct, selManualPSCant,
     modoCaldera, selManualCalderaId, selManualCalderaCant,
     modoCE, selManualCEId, selManualCECant,
-    bdcSeleccionada, bdcManual, bdcEfectiva,
-    psSeleccionado, psManual, psEfectivo,
-    calderaSeleccionada, calderaManual, calderaEfectiva,
-    ceSeleccionado, ceManual, ceEfectivo,
     setDatosPorSistema,
   ]);
 
@@ -1274,44 +1047,26 @@ export default function Calentamiento({
   const mostrarSelectorCaldera  = sistemasSeleccionados.caldera && perdidaTotalBTU > 0 && volumenTotal > 0 && !!sistemasSeleccionados.caldera.tasaElevacion;
   const mostrarSelectorCE       = sistemasSeleccionados.calentadorElectrico && perdidaTotalBTU > 0 && volumenTotal > 0 && !!sistemasSeleccionados.calentadorElectrico.tasaElevacion;
 
-  const bdcActivaParaMostrar = useMemo(() => {
-    if (modoBDC === "manual" && bdcManual) return bdcManual.hidraulica;
-    return bdcSeleccionada;
-  }, [modoBDC, bdcManual, bdcSeleccionada]);
+  const bdcActivaParaMostrar = calcBackend?.bdcFinal ?? null;
 
   const infoActivaParaMostrar = useMemo(() => {
-    if (modoBDC === "manual" && bdcManual) {
-      return {
-        id:        bdcManual.bomba.id,
-        marca:     bdcManual.bomba.marca,
-        modelo:    bdcManual.bomba.modelo,
-        cantidad:  bdcManual.cantidad,
-        capUnitaria: bdcManual.bomba.specs.capacidadCalentamiento,
-        capTotal:  bdcManual.capTotal,
-        exceso:    bdcManual.exceso,
-        flujoTotal: bdcManual.flujoTotal,
-        cubre:     bdcManual.cubre,
-        cargaTotal:    bdcActivaParaMostrar?.cargaTotal,
-        cargaTotalPSI: bdcActivaParaMostrar?.cargaTotalPSI,
-      };
-    }
-    if (bdcSeleccionada && !bdcSeleccionada.error) {
-      return {
-        id:        bdcSeleccionada.seleccion.id ?? bombasCalor.find(b=>b.marca===bdcSeleccionada.seleccion.marca&&b.modelo===bdcSeleccionada.seleccion.modelo)?.id,
-        marca:     bdcSeleccionada.seleccion.marca,
-        modelo:    bdcSeleccionada.seleccion.modelo,
-        cantidad:  bdcSeleccionada.seleccion.cantidad,
-        capUnitaria: bdcSeleccionada.seleccion.capUnitaria,
-        capTotal:  bdcSeleccionada.seleccion.capTotal,
-        exceso:    parseFloat(bdcSeleccionada.seleccion.exceso),
-        flujoTotal: parseFloat(bdcSeleccionada.seleccion.flujoTotal),
-        cubre:     true,
-        cargaTotal:    bdcSeleccionada.cargaTotal,
-        cargaTotalPSI: bdcSeleccionada.cargaTotalPSI,
-      };
-    }
-    return null;
-  }, [modoBDC, bdcManual, bdcSeleccionada, bdcActivaParaMostrar]);
+    const bf = calcBackend?.bdcFinal;
+    if (!bf || !bf.seleccion) return null;
+    const s = bf.seleccion;
+    return {
+      id:        s.id,
+      marca:     s.marca,
+      modelo:    s.modelo,
+      cantidad:  s.cantidad,
+      capUnitaria: s.capUnitaria,
+      capTotal:  s.capTotal,
+      exceso:    parseFloat(s.exceso),
+      flujoTotal: parseFloat(s.flujoTotal),
+      cubre:     s.cubre ?? true,
+      cargaTotal:    bf.cargaTotal,
+      cargaTotalPSI: bf.cargaTotalPSI,
+    };
+  }, [calcBackend]);
 
   return (
     <div className="form-section hero-wrapper calentamiento">
@@ -1553,27 +1308,9 @@ export default function Calentamiento({
                       </tr>
                     </thead>
                     <tbody>
-                      {clima.map(m => {
-                        const dt = { area: areaTotal, volumen: volumenTotal, profundidad: profundidadPromedio, tempDeseada, techada, cubierta };
+                      {tablaClimaConPerdida.map(m => {
                         const esMasFrio = mesMasFrio?.mes === m.mes;
-                        let btuMes = 0;
-                        if (tempDeseada && areaTotal > 0) {
-                          try {
-                            btuMes += qEvaporacion(dt, m)  || 0;
-                            btuMes += qConveccion(dt, m)   || 0;
-                            btuMes += qRadiacion(dt, m)    || 0;
-                            btuMes += qTransmision({ area: areaTotal, profMax: profMaxSistema, tempDeseada }, m) || 0;
-                            if (sistemaActivo?.desborde === "infinity" || sistemaActivo?.desborde === "ambos") {
-                              const largo = parseFloat(sistemaActivo.largoInfinity) || 0;
-                              if (largo > 0 && profMaxSistema > 0)
-                                btuMes += qInfinity({ profMin: 0, profMax: profMaxSistema, largoInfinity: largo, tempDeseada }, m) || 0;
-                            }
-                            if (sistemaActivo?.desborde === "canal" || sistemaActivo?.desborde === "ambos") {
-                              const largo = parseFloat(sistemaActivo.largoCanal) || 0;
-                              if (largo > 0) btuMes += qCanal({ largoCanal: largo, tempDeseada }, m) || 0;
-                            }
-                          } catch {}
-                        }
+                        const btuMes = m.perdidaClima || 0;
                         return (
                         <tr key={m.mes} style={{ background: esMasFrio ? "rgba(249,115,22,0.08)" : undefined, borderLeft: esMasFrio ? "2px solid #f97316" : "2px solid transparent" }}>
                           <td>{m.mes}{esMasFrio ? " ★" : ""}</td><td>{m.tMin}</td><td>{m.tProm}</td>

@@ -19,6 +19,10 @@ import { filtroCartucho, calcularCargaFiltroCartuchoManual,
 import { filtrosCartucho }  from "../data/filtrosCartucho";
 import { prefiltros }       from "../data/prefiltros";
 import { generarMemoriaCalculo } from "../utils/memoriaCalculo";
+
+import { apiEquilibrio } from "../utils/api";
+
+
 import { retorno }    from "../utils/retorno";
 import { desnatador } from "../utils/desnatador";
 import { barredora }  from "../utils/barredora";
@@ -2292,7 +2296,7 @@ function BloqueVerificacion({
     return lineas;
   };
 
-  const iniciarVerificacion = () => {
+  const iniciarVerificacion = async () => {
     if (!puedeVerificar) return;
     if (onLimpiarOperacion) onLimpiarOperacion();
     setFase("verificando"); setLineasTerminal([]); setResultado(null);
@@ -2330,7 +2334,6 @@ function BloqueVerificacion({
     }, 80);
 
     autoScrollRef.current = true;
-    setVelocidadMaxima(velMaxRef.current);
     let res = null;
     try {
       const cargasBase = Object.fromEntries(
@@ -2342,11 +2345,30 @@ function BloqueVerificacion({
       const snapshotCargas  = { ...cargasBase };
       const snapshotCDT     = cargaTotalGlobal;
       const snapshotEstados = JSON.parse(JSON.stringify(estados));
-      res = calcularEquilibrio({
+
+      const payload = {
         bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal,
         estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal,
         usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado,
-      });
+        velocidadMaxima: velMaxRef.current,
+      };
+
+      try {
+        // INTENTO 1: backend (lógica protegida)
+        res = await apiEquilibrio(payload);
+      } catch (errBackend) {
+        // RESPALDO: cálculo local si el backend no responde
+        console.warn("Backend no disponible, usando cálculo local:", errBackend.message);
+        setVelocidadMaxima(velMaxRef.current);
+        try {
+          res = calcularEquilibrio({
+            bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal,
+            estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal,
+            usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado,
+          });
+        } finally { setVelocidadMaxima(false); }
+      }
+
       if (res && !res.error) {
         res._snapshotCargas  = snapshotCargas;
         res._snapshotCDT     = snapshotCDT;
@@ -2355,8 +2377,7 @@ function BloqueVerificacion({
         res._snapshotCDTGlobal = cargaTotalGlobal;
       }
     } catch (e) { res = { error: e.message }; }
-    finally { setVelocidadMaxima(false); }
-
+    
     const lineas = res?.error
       ? [{ tipo: "error", texto: `⚠ ${res.error}` }]
       : construirLineasTerminal(res);
