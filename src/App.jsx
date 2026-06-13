@@ -436,11 +436,21 @@ export default function App() {
   const { flujo: flujoPS, carga: cargaPSft, tuberia: tuberiaPS, velocidad: velocidadPS } =
     useMemo(() => extraerFlujoCarga(calentamiento, { sistemaKey: "panelSolar", modoKey: "modoPS", selKey: "psSeleccionado", manualKey: "psManual", flujoFn: (s) => s.seleccion?.flujoTotal, cargaFn: (s) => s.hidraulica?.cargaTotal, tuberiaFn: (s) => s.hidraulica?.tablaTramos?.[0]?.tuberia ?? null, velocidadFn: (s) => s.hidraulica?.tablaTramos?.[0]?.velocidad ?? null, manualFlujoFn: (m) => m.flujoTotal, manualCargaFn: (m) => m.hidraulica?.cargaTotal, manualTuberiaFn: (m) => m.hidraulica?.tablaTramos?.[0]?.tuberia ?? null, manualVelocidadFn: (m) => m.hidraulica?.tablaTramos?.[0]?.velocidad ?? null }), [calentamiento]);
 
-  const { flujo: flujoCaldera, carga: cargaCalderaCft, tuberia: tuberiaCaldera, velocidad: velocidadCaldera } =
+  const calderaRaw =
     useMemo(() => extraerFlujoCarga(calentamiento, { sistemaKey: "caldera", modoKey: "modoCaldera", selKey: "calderaSeleccionada", manualKey: "calderaManual", flujoFn: (s) => s.seleccion?.flujoTotal, cargaFn: (s) => s.cargaTotal, manualFlujoFn: (m) => m.flujoTotal, manualCargaFn: (m) => m.hidraulica?.cargaTotal }), [calentamiento]);
+  const calderaPrevRef = useRef(calderaRaw);
+  if (calderaRaw.flujo != null) calderaPrevRef.current = calderaRaw;
+  const calderaSigueActiva = !!calentamiento?.sistemasSeleccionados?.caldera;
+  const { flujo: flujoCaldera, carga: cargaCalderaCft, tuberia: tuberiaCaldera, velocidad: velocidadCaldera } =
+    (calderaRaw.flujo == null && calderaSigueActiva) ? calderaPrevRef.current : calderaRaw;
 
-  const { flujo: flujoCE, carga: cargaCEft, tuberia: tuberiaCE, velocidad: velocidadCE } =
+  const ceRaw =
     useMemo(() => extraerFlujoCarga(calentamiento, { sistemaKey: "calentadorElectrico", modoKey: "modoCE", selKey: "ceSeleccionado", manualKey: "ceManual", flujoFn: (s) => s.seleccion?.flujoTotal, cargaFn: (s) => s.cargaTotal, manualFlujoFn: (m) => m.flujoTotal, manualCargaFn: (m) => m.hidraulica?.cargaTotal }), [calentamiento]);
+  const cePrevRef = useRef(ceRaw);
+  if (ceRaw.flujo != null) cePrevRef.current = ceRaw;
+  const ceSigueActivo = !!calentamiento?.sistemasSeleccionados?.calentadorElectrico;
+  const { flujo: flujoCE, carga: cargaCEft, tuberia: tuberiaCE, velocidad: velocidadCE } =
+    (ceRaw.flujo == null && ceSigueActivo) ? cePrevRef.current : ceRaw;
 
   const bdcListoParaMostrar     = sistemaListoCalor && flujoBDC     != null;
   const psListoParaMostrar      = sistemaListoCalor && flujoPS      != null;

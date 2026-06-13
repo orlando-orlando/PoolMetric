@@ -20,3 +20,6 @@ export function apiEquilibrio(input) {
 export function apiCalentamiento(input) {
   return postCalc("calentamiento", input);
 }
+export function apiEmpotrable(input) {
+  return postCalc("empotrable", input);
+}

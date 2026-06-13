@@ -3,26 +3,12 @@ import { apiCalentamiento } from "../utils/api";
 import "../estilos.css";
 import { getClimaMensual } from "../data/clima";
 
-import { qEvaporacion }    from "../utils/qEvaporacion";
-import { qConveccion }     from "../utils/qConveccion";
-import { qRadiacion }      from "../utils/qRadiacion";
-import { qTransmision }    from "../utils/qTransmision";
-import { qInfinity }       from "../utils/qInfinity";
-import { qCanal }          from "../utils/qCanal";
-import { qTuberia }        from "../utils/qTuberia";
-import { retorno }         from "../utils/retorno";
 import { volumen }         from "../utils/volumen";
 import { flujoFinal }      from "../utils/flujoFinal";
 import { flujoMaximo }     from "../utils/flujoMaximo";
 import { flujoInfinity }   from "../utils/flujoInfinity";
-import { volumenPorGrupo } from "../utils/volumenPorGrupo";
-import { bombaDeCalor, calcularCargaManual } from "../utils/bombaDeCalor";
 import { bombasCalor }     from "../data/bombasDeCalor";
-import { panelSolar, calcularPanelSolarManual } from "../utils/panelSolar";
-import { panelesSolares }  from "../data/panelesSolares";
-import { caldera as calcularCaldera, calcularCalderaManual, calcularBTUporGrado } from "../utils/caldera";
 import { calderasGas }           from "../data/calderasDeGas";
-import { calentadorElectrico as calcularCE, calcularCEManual } from "../utils/calentadorElectrico";
 import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
 
@@ -772,14 +758,8 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
     return calderaSeleccionada;
   }, [modoCaldera, calderaManual, calderaSeleccionada, sistemasSeleccionados]);
 
-  const bdcSeleccionada = useMemo(() => {
-    if (!sistemasSeleccionados.bombaCalor) return null;
-    if (perdidaTotalBTU <= 0) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.bombaCalor.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor.alturaVertical) || 0;
-    try { return bombaDeCalor(perdidaTotalBTU, distancia, alturaVertical, alturaMaxParaBDC); }
-    catch (e) { console.error("Error en bombaDeCalor() paso 2:", e); return null; }
-  }, [sistemasSeleccionados, perdidaTotalBTU, alturaMaxSistema]);
+  const bdcSeleccionada = (modoBDC === "recomendado" && calcBackend?.bdcFinal?.seleccion)
+    ? calcBackend.bdcFinal : null;
 
   useEffect(() => {
     const rec = calcBackend?.bdcRecomendado;
@@ -790,22 +770,22 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
   }, [modoBDC, calcBackend?.bdcRecomendado?.seleccion?.modelo]);
 
   const bdcManual = useMemo(() => {
-    if (!selManualBDCId || perdidaTotalBTU <= 0) return null;
-    const bombaElegida = bombasCalor.find(b => b.id === selManualBDCId);
-    if (!bombaElegida) return null;
-    const distancia      = parseFloat(sistemasSeleccionados.bombaCalor?.distancia)      || 0;
-    const alturaVertical = parseFloat(sistemasSeleccionados.bombaCalor?.alturaVertical) || 0;
-    const capTotal      = bombaElegida.specs.capacidadCalentamiento * selManualCantidad;
-    const exceso        = capTotal - perdidaTotalBTU;
-    const cubre         = capTotal >= perdidaTotalBTU;
-    const flujoPorBomba = bombaElegida.specs.flujo;
-    const flujoTotal    = flujoPorBomba * selManualCantidad;
-    try {
-      const hidraulica = calcularCargaManual(flujoPorBomba, selManualCantidad, distancia, alturaVertical, alturaMaxParaBDC);
-      if (hidraulica?.error) return null;
-      return { bomba: bombaElegida, cantidad: selManualCantidad, capTotal, exceso, cubre, flujoTotal, hidraulica };
-    } catch { return null; }
-  }, [selManualBDCId, selManualCantidad, perdidaTotalBTU, sistemasSeleccionados]);
+    if (modoBDC !== "manual") return null;
+    const bf = calcBackend?.bdcFinal;
+    if (!bf || !bf.seleccion) return null;
+    const s = bf.seleccion;
+    const bombaElegida = bombasCalor.find(b => b.id === s.id)
+      ?? bombasCalor.find(b => b.marca === s.marca && b.modelo === s.modelo);
+    return {
+      bomba:      bombaElegida ?? { id: s.id, marca: s.marca, modelo: s.modelo, specs: { capacidadCalentamiento: s.capUnitaria, flujo: s.flujoPorBomba } },
+      cantidad:   s.cantidad,
+      capTotal:   s.capTotal,
+      exceso:     parseFloat(s.exceso),
+      cubre:      s.cubre,
+      flujoTotal: parseFloat(s.flujoTotal),
+      hidraulica: bf,
+    };
+  }, [modoBDC, calcBackend]);
 
   const bdcEfectiva = useMemo(() => {
     if (!sistemasSeleccionados.bombaCalor) return null;
@@ -899,11 +879,6 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
         const res = await apiCalentamiento(payload);
         if (!cancelado) {
           setCalcBackend(res);
-          window.__cb = res;
-          console.log("=== CALC BACKEND ===",
-            "perdidaTotal:", res.perdidaTotalBTU,
-            "| BDC:", res.bdcFinal?.cargaTotal,
-            "| PS:", res.psFinal?.hidraulica?.cargaTotal);
                   }
       } catch (e) {
         if (!cancelado) console.warn("Backend calentamiento no disponible:", e.message);
@@ -1011,6 +986,18 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
     modoPS, selManualPSPct, selManualPSCant,
     modoCaldera, selManualCalderaId, selManualCalderaCant,
     modoCE, selManualCEId, selManualCECant,
+    /* Señales de equipos: JSON.stringify de los sub-objetos del backend.
+       Strings estables (solo cambian si el contenido cambia) → refrescan la
+       tabla al cambiar cualquier dato del equipo, sin reintroducir el bucle. */
+    JSON.stringify(calcBackend?.bdcFinal?.seleccion),
+    JSON.stringify(calcBackend?.psFinal?.seleccion),
+    JSON.stringify(calcBackend?.psFinal?.hidraulica?.cargaTotal),
+    JSON.stringify(calcBackend?.calFinal?.seleccion),
+    JSON.stringify(calcBackend?.calFinal?.caldera),
+    JSON.stringify(calcBackend?.calFinal?.hidraulica?.cargaTotal),
+    JSON.stringify(calcBackend?.ceFinal?.seleccion),
+    JSON.stringify(calcBackend?.ceFinal?.equipo),
+    JSON.stringify(calcBackend?.ceFinal?.hidraulica?.cargaTotal),
     setDatosPorSistema,
   ]);
 

@@ -20,14 +20,8 @@ import { filtrosCartucho }  from "../data/filtrosCartucho";
 import { prefiltros }       from "../data/prefiltros";
 import { generarMemoriaCalculo } from "../utils/memoriaCalculo";
 
-import { apiEquilibrio } from "../utils/api";
+import { apiEquilibrio, apiEmpotrable } from "../utils/api";
 
-
-import { retorno }    from "../utils/retorno";
-import { desnatador } from "../utils/desnatador";
-import { barredora }  from "../utils/barredora";
-import { drenFondo }  from "../utils/drenFondo";
-import { drenCanal }  from "../utils/drenCanal";
 import { volumen }    from "../utils/volumen";
 import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
 import { calcularEquilibrio } from "../utils/equilibrioHidraulico";
@@ -123,38 +117,6 @@ function volumenTotal(datosSistema) {
 /* =====================================================
    LÓGICA RECOMENDADO — EMPOTRABLES
 ===================================================== */
-function recomendarRetorno(flujoMaximo, datos) {
-  if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
-  try {
-    const res15 = retorno(flujoMaximo, "1.5", datos);
-    const tipo  = res15.resultadoR?.length > 25 ? "2.0" : "1.5";
-    const res   = tipo === "1.5" ? res15 : retorno(flujoMaximo, "2.0", datos);
-    if (!res?.resultadoR?.length) return null;
-    const num          = res.resultadoR.length;
-    const flujoPorEq   = flujoMaximo / num;
-    const catalogoTipo = retornos.filter(r => r.metadata.activo && r.specs.dimensionPuerto === parseFloat(tipo));
-    const equipo       = catalogoTipo.find(r => r.specs.flujo >= flujoPorEq) ?? catalogoTipo[catalogoTipo.length - 1];
-    if (!equipo) return null;
-    return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo, res };
-  } catch { return null; }
-}
-
-function recomendarDesnatador(flujoMaximo, datos) {
-  if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
-  try {
-    const catalogo = desnatadores.filter(d => d.metadata.activo && d.specs.dimensionPuerto === 2.0);
-    if (!catalogo.length) return null;
-    const equipo = catalogo[0];
-    const capFlujo = equipo.specs.flujo ?? 0;
-    const num = cantMinDesnatador(flujoMaximo, datos, capFlujo);
-    const flujoPorEq = flujoMaximo / num;
-    const tipo = tipoParaCalculo(equipo);
-    // Llamar con flujoMaximo y num — igual que BloqueEmpotrable en modo manual
-    const res = desnatador(flujoMaximo, tipo, datos, num);
-    if (!res?.resultadoD?.length) return null;
-    return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo, res };
-  } catch { return null; }
-}
 
 /* Calcula la cantidad mínima de desnatadores:
    max(ceil(area/40), ceil(flujo/capacidad_desnatador))
@@ -175,15 +137,6 @@ function cantMinDesnatador(flujoMaximo, datos, capacidadFlujoPorEquipo) {
   return Math.max(numPorArea, numPorFlujo, 1);
 }
 
-/* Calcula la cantidad mínima de drenes de fondo:
-   flujoMaximo × 2 / capacidadDren (igual que drenFondo.js) */
-function cantMinDrenFondo(flujoMaximo, datos, capacidadDren) {
-  if (!flujoMaximo || capacidadDren <= 0) return 2;
-  let num = Math.ceil((flujoMaximo * 2) / capacidadDren);
-  if (num % 2 !== 0) num++;
-  return Math.max(2, num);
-}
-
 /* Calcula la cantidad mínima de barredoras por geometría del área
    (misma lógica que barredora.js) para usarla en BloqueEmpotrable */
 function cantMinBarredora(flujoMaximo, datos) {
@@ -197,91 +150,6 @@ function cantMinBarredora(flujoMaximo, datos) {
   const numB = Math.sqrt(area) / (largoFinal * 2);
   const num = largoFinal > Math.sqrt(area) ? numB : numA;
   return Math.max(1, Math.ceil(num));
-}
-
-function recomendarBarredora(flujoMaximo, datos) {
-  if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
-  try {
-    const res = barredora(flujoMaximo, "2.0", datos);
-    if (!res?.resultadoB?.length) return null;
-    const num        = res.resultadoB.length;
-    const flujoPorEq = (flujoMaximo > 120 ? 120 : flujoMaximo) / num;
-    const catalogo   = barredoras.filter(b => b.metadata.activo && b.specs.dimensionPuerto === 2.0);
-    const equipo     = catalogo.find(b => b.specs.flujo >= flujoPorEq) ?? catalogo[catalogo.length - 1];
-    if (!equipo) return null;
-    return { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo: "2.0", res };
-  } catch { return null; }
-}
-
-const TIPOS_VALIDOS_DREN_FONDO  = ["1.5", "2.0", "7.5", "8.0", "9.0", "12.0", "18.0"];
-const TIPOS_VALIDOS_DREN_CANAL  = ["1.5", "2.0", "7.5", "8.0", "9.0"];
-const TAMANO_POR_TIPO_FONDO     = { "1.5": [1.5], "2.0": [2], "7.5": [7.5], "8.0": [8], "9.0": ["9x9"], "12.0": ["12x12"], "18.0": ["18x18"] };
-
-function recomendarDrenFondo(flujoMaximo, datos) {
-  if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
-  try {
-    let mejor = null;
-    for (const tipo of TIPOS_VALIDOS_DREN_FONDO) {
-      try {
-        const res = drenFondo(flujoMaximo, tipo, datos);
-        if (!res?.resultadoDF?.length) continue;
-        const num = res.resultadoDF.length;
-        if (!mejor || num < mejor.cantidad) {
-          const flujoPorEq     = flujoMaximo / num;
-          const tamanosValidos = TAMANO_POR_TIPO_FONDO[tipo] ?? [];
-          const catalogo       = drenesFondo.filter(d => d.metadata.activo && tamanosValidos.some(t => String(d.specs.tamano) === String(t)));
-          const equipo = catalogo.find(d => d.specs.flujo >= flujoPorEq) ?? catalogo[catalogo.length - 1];
-          if (equipo) mejor = { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo, res };
-        }
-      } catch { continue; }
-    }
-
-    // Si la cantidad supera 8, intentar con el siguiente tipo de mayor capacidad
-    if (mejor && mejor.cantidad > 8) {
-      const idxActual = TIPOS_VALIDOS_DREN_FONDO.indexOf(mejor.tipo);
-      for (let i = idxActual + 1; i < TIPOS_VALIDOS_DREN_FONDO.length; i++) {
-        const tipoSig = TIPOS_VALIDOS_DREN_FONDO[i];
-        try {
-          const resSig = drenFondo(flujoMaximo, tipoSig, datos);
-          if (!resSig?.resultadoDF?.length) continue;
-          const numSig = resSig.resultadoDF.length;
-          if (numSig < mejor.cantidad) {
-            const flujoPorEqSig  = flujoMaximo / numSig;
-            const tamanosValidos = TAMANO_POR_TIPO_FONDO[tipoSig] ?? [];
-            const catalogoSig    = drenesFondo.filter(d => d.metadata.activo && tamanosValidos.some(t => String(d.specs.tamano) === String(t)));
-            const equipoSig = catalogoSig.find(d => d.specs.flujo >= flujoPorEqSig) ?? catalogoSig[catalogoSig.length - 1];
-            if (equipoSig) {
-              mejor = { equipo: equipoSig, cantidad: numSig, flujoPorEquipo: parseFloat(flujoPorEqSig.toFixed(2)), flujoTotal: parseFloat((equipoSig.specs.flujo * numSig).toFixed(2)), tipo: tipoSig, res: resSig };
-              if (mejor.cantidad <= 8) break;
-            }
-          }
-        } catch { continue; }
-      }
-    }
-
-    return mejor;
-  } catch { return null; }
-}
-
-function recomendarDrenCanal(flujoMaximo, datos) {
-  if (!flujoMaximo || flujoMaximo <= 0 || !datos) return null;
-  try {
-    let mejor = null;
-    for (const tipo of TIPOS_VALIDOS_DREN_CANAL) {
-      try {
-        const res = drenCanal(flujoMaximo, tipo, datos);
-        if (!res?.resultadoDC?.length) continue;
-        const num = res.resultadoDC.length;
-        if (!mejor || num < mejor.cantidad) {
-          const flujoPorEq = flujoMaximo / num;
-          const catalogo   = drenesCanal.filter(d => d.metadata.activo && String(d.specs.tamano) === tipo);
-          const equipo = catalogo.find(d => d.specs.flujo >= flujoPorEq) ?? catalogo[catalogo.length - 1];
-          if (equipo) mejor = { equipo, cantidad: num, flujoPorEquipo: parseFloat(flujoPorEq.toFixed(2)), flujoTotal: parseFloat((equipo.specs.flujo * num).toFixed(2)), tipo, res };
-        }
-      } catch { continue; }
-    }
-    return mejor;
-  } catch { return null; }
 }
 
 /* =====================================================
@@ -607,7 +475,7 @@ function construirSnapshotSistema(estados, sistemasSeleccionadosSanit, sistemasS
   });
 }
 
-function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fnCalculo, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1,
+function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1,
   modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
   const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
   const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
@@ -616,9 +484,7 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
   const setSelId   = (v) => { setSelIdLocal(v);   setSelIdExterno?.(v);   };
   const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
-  const fnCalcRef = useRef(fnCalculo);
-  fnCalcRef.current = fnCalculo;
-
+  
   const marcas          = useMemo(() => ["todas", ...new Set(catalogo.filter(e => e.metadata.activo).map(e => e.marca))], [catalogo]);
   const catalogoFiltrado = useMemo(() => catalogo.filter(e => e.metadata.activo && (filtroMarca === "todas" || e.marca === filtroMarca)), [catalogo, filtroMarca]);
 
@@ -646,24 +512,32 @@ function BloqueEmpotrable({ icono, titulo, rec, catalogo, flujoMaximo, datos, fn
     setSelCant(calcMin(id));
   };
 
+  // Cálculo en backend con debounce (reemplaza fnCalculo local)
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaximo || flujoMaximo <= 0 || !datos) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiEmpotrable({
+          tipo, modo, flujoMaximo, datos,
+          equipoId: selId, cantidad: selCant,
+        });
+        if (!cancel) setCalcBack(res);
+      } catch (e) { if (!cancel) console.warn(`Empotrable ${tipo} backend:`, e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [tipo, modo, flujoMaximo, JSON.stringify(datos), selId, selCant]);
+
+  const rec = calcBack?.recomendado ?? null;
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
+
   useEffect(() => {
     if (modo === "manual" && !selId && rec) {
       setSelId(rec.equipo.id);
       setSelCant(rec.cantidad);
     }
-  }, [modo]);
-
-  let manualCalc = null;
-  if (selId && selCant && flujoMaximo && datos) {
-    const eq = catalogo.find(e => e.id === selId);
-    if (eq) {
-      try {
-        const tipo = tipoParaCalculo(eq);
-        const res  = fnCalcRef.current(flujoMaximo, tipo, datos, selCant);
-        manualCalc = { equipo: eq, cantidad: selCant, flujoPorEquipo: parseFloat((flujoMaximo / selCant).toFixed(2)), flujoTotal: parseFloat((eq.specs.flujo * selCant).toFixed(2)), res };
-      } catch { manualCalc = null; }
-    }
-  }
+  }, [modo, rec]);
 
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
   // sumaFinal incluye tramos + CM + disparos, pero NO el +1.5 ft de accesorio del empotrable
@@ -3358,12 +3232,6 @@ export default function Equipamiento({
     return d === "infinity" || d === "canal" || d === "ambos";
   }, [datosDim?.desborde]);
 
-  const recRetorno    = useMemo(() => datosEmpotrable ? recomendarRetorno(flujoMaxGlobal, datosEmpotrable)    : null, [flujoMaxGlobal, datosEmpotrable]);
-  const recDesnatador = useMemo(() => datosEmpotrable ? recomendarDesnatador(flujoMaxGlobal, datosEmpotrable) : null, [flujoMaxGlobal, datosEmpotrable]);
-  const recBarredora  = useMemo(() => datosEmpotrable ? recomendarBarredora(flujoMaxGlobal, datosEmpotrable)  : null, [flujoMaxGlobal, datosEmpotrable]);
-  const recDrenFondo  = useMemo(() => datosEmpotrable ? recomendarDrenFondo(flujoMaxGlobal, datosEmpotrable)  : null, [flujoMaxGlobal, datosEmpotrable]);
-  const recDrenCanal  = useMemo(() => datosEmpotrable ? recomendarDrenCanal(flujoMaxGlobal, datosEmpotrable)  : null, [flujoMaxGlobal, datosEmpotrable]);
-
   const CARGA_KEY_SANIT = { cloradorSalino: null, cloradorAutomatico: "cloradorAutomatico", lamparaUV: "lamparaUV" };
   const CARGA_KEY_FILT  = { filtroArena: "filtroArena", prefiltro: "prefiltro", filtroCartucho: "filtroCartucho" };
 
@@ -3695,7 +3563,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Retornos</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Suma al CDT</span>
                 </div>
-                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" rec={recRetorno} catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => retorno(flujo, tipo, dat, num)} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} mostrarPuerto modoExterno={modoRetorno} setModoExterno={setModoRetorno} selIdExterno={selRetornoId} setSelIdExterno={setSelRetornoId} selCantExterno={selRetornoCant} setSelCantExterno={setSelRetornoCant} />
+                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" tipo="retorno" catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} mostrarPuerto modoExterno={modoRetorno} setModoExterno={setModoRetorno} selIdExterno={selRetornoId} setSelIdExterno={setSelRetornoId} selCantExterno={selRetornoCant} setSelCantExterno={setSelRetornoCant} />
               </div>
             </div>
 
@@ -3710,14 +3578,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDrenCanal /></span>
                     <span className="sistema-detalle-titulo">Dren canal</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" rec={recDrenCanal} catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenCanal(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} modoExterno={modoDrenCanal} setModoExterno={setModoDrenCanal} selIdExterno={selDrenCanalId} setSelIdExterno={setSelDrenCanalId} selCantExterno={selDrenCanalCant} setSelCantExterno={setSelDrenCanalCant} />
+                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" tipo="drenCanal" catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} modoExterno={modoDrenCanal} setModoExterno={setModoDrenCanal} selIdExterno={selDrenCanalId} setSelIdExterno={setSelDrenCanalId} selCantExterno={selDrenCanalCant} setSelCantExterno={setSelDrenCanalCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>) : (<>
                 <div className="sistema-detalle-card" style={{ marginBottom: "0.5rem" }}>
@@ -3725,14 +3593,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDesnatador /></span>
                     <span className="sistema-detalle-titulo">Desnatadores</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" rec={recDesnatador} catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => desnatador(flujo, tipo, dat, num)} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} modoExterno={modoDesnatador} setModoExterno={setModoDesnatador} selIdExterno={selDesnatadorId} setSelIdExterno={setSelDesnatadorId} selCantExterno={selDesnatadorCant} setSelCantExterno={setSelDesnatadorCant} />
+                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" tipo="desnatador" catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} modoExterno={modoDesnatador} setModoExterno={setModoDesnatador} selIdExterno={selDesnatadorId} setSelIdExterno={setSelDesnatadorId} selCantExterno={selDesnatadorCant} setSelCantExterno={setSelDesnatadorCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" rec={recDrenFondo} catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => drenFondo(flujo, tipo, dat, num)} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>)}
             </div>
@@ -3744,7 +3612,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Barredoras</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Solo informativo</span>
                 </div>
-                  <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" rec={recBarredora} catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} fnCalculo={(flujo, tipo, dat, num) => barredora(flujo, tipo, dat, num)} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} modoExterno={modoBarredora} setModoExterno={setModoBarredora} selIdExterno={selBarredoraId} setSelIdExterno={setSelBarredoraId} selCantExterno={selBarredoraCant} setSelCantExterno={setSelBarredoraCant} />
+                              <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" tipo="barredora" catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} modoExterno={modoBarredora} setModoExterno={setModoBarredora} selIdExterno={selBarredoraId} setSelIdExterno={setSelBarredoraId} selCantExterno={selBarredoraCant} setSelCantExterno={setSelBarredoraCant} />
                               </div>
                             </div>
                               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>
