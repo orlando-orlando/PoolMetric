@@ -23,3 +23,6 @@ export function apiCalentamiento(input) {
 export function apiEmpotrable(input) {
   return postCalc("empotrable", input);
 }
+export function apiFiltro(input) {
+  return postCalc("filtro", input);
+}

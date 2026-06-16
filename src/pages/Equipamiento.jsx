@@ -12,19 +12,16 @@ import { retornos }              from "../data/retornos";
 import { calcularCargaCloradorManual }                               from "../utils/generadorDeCloro";
 import { cloradorAutomatico, calcularCargaCloradorAutomaticoManual } from "../utils/cloradorAutomatico";
 import { generadorUV, calcularCargaUVManual }                       from "../utils/generadorUV";
-import { filtroArena, calcularCargaFiltroArenaManual }               from "../utils/filtroArena";
-import { prefiltro, calcularCargaPrefiltroManual }                   from "../utils/prefiltro";
-import { filtroCartucho, calcularCargaFiltroCartuchoManual,
-         flujoEfectivo }                                             from "../utils/filtroCartucho";
+
+import { flujoEfectivo } from "../utils/flujoEfectivoCartucho";
 import { filtrosCartucho }  from "../data/filtrosCartucho";
 import { prefiltros }       from "../data/prefiltros";
 import { generarMemoriaCalculo } from "../utils/memoriaCalculo";
 
-import { apiEquilibrio, apiEmpotrable } from "../utils/api";
+import { apiEquilibrio, apiEmpotrable, apiFiltro } from "../utils/api";
 
 import { volumen }    from "../utils/volumen";
 import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
-import { calcularEquilibrio } from "../utils/equilibrioHidraulico";
 import { setVelocidadMaxima, getVelocidadMaxima } from "../utils/limiteVelocidad";
 import { motobombas1v } from "../data/motobombas1v";
 import { bombasCalor }          from "../data/bombasDeCalor";
@@ -33,6 +30,11 @@ import { calderasGas }          from "../data/calderasDeGas";
 import { calentadoresElectricos } from "../data/calentadoresElectricos";
 
 const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
+
+// Store de módulo: acumula los `res` (resultado hidráulico del backend) de cada empotrable.
+// Compartido entre BloqueEmpotrable (lo llena) y el botón de memoria (lo lee), sin prop drilling.
+const resEmpotrablesStore = { current: {} };
+const guardarResEmpotrable = (tipo, res) => { resEmpotrablesStore.current[tipo] = res; };
 
 /* =====================================================
    HELPERS
@@ -475,7 +477,7 @@ function construirSnapshotSistema(estados, sistemasSeleccionadosSanit, sistemasS
   });
 }
 
-function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, cantMinFn = null, cantMinMultiplier = 1,
+function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, mostrarPuerto = true, mostrarTamano = false, onCargaChange = null, onEstadoChange = null, onResChange = null, cantMinFn = null, cantMinMultiplier = 1,
   modoExterno, setModoExterno, selIdExterno, setSelIdExterno, selCantExterno, setSelCantExterno }) {
   const [modo,    setModoLocal]    = useState(modoExterno    ?? "recomendado");
   const [selId,   setSelIdLocal]   = useState(selIdExterno   ?? null);
@@ -561,6 +563,7 @@ function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, m
 
   useEffect(() => { if (onCargaChange) onCargaChange(cargaActivaFt); }, [cargaActivaFt]);
   useEffect(() => { if (onEstadoChange) onEstadoChange(estadoActual); }, [JSON.stringify(estadoActual)]);
+  useEffect(() => { if (onResChange) onResChange(tipo, infoActiva?.res ?? null); }, [tipo, infoActiva?.res?.sumaFinal, infoActiva?.cantidad, modo]);
 
   if (!flujoMaximo || flujoMaximo <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
 
@@ -696,11 +699,20 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
   const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
-  const rec = useMemo(() => {
-    if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = prefiltro(flujoMaximo, flujoMaximo); return r?.error ? null : r; }
-    catch { return null; }
-  }, [flujoMaximo]);
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFiltro({ tipo: "prefiltro", modo, flujoMaximo, equipoId: selId, cantidad: selCant });
+        if (!cancel) setCalcBack(res);
+      } catch (e) { if (!cancel) console.warn("Prefiltro backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [modo, flujoMaximo, selId, selCant]);
+
+  const rec = calcBack?.recomendado ?? null;
 
   const marcas = useMemo(() =>
     ["todas", ...new Set(prefiltros.filter(p => p.metadata.activo).map(p => p.marca))], []);
@@ -729,22 +741,15 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
     }
   }, [modo]);
 
-  let manualCalc = null;
-  if (selId && selCant && flujoMaximo) {
-    const p = prefiltros.find(pi => pi.id === selId);
-    if (p) {
-      try {
-        const res = calcularCargaPrefiltroManual(p.specs.maxFlow, selCant, flujoMaximo);
-        if (!res?.error) manualCalc = { prefiltroEq: p, cantidad: selCant, flujoPorPrefiltro: p.specs.maxFlow, flujoTotal: parseFloat((p.specs.maxFlow * selCant).toFixed(2)), ...res };
-      } catch { manualCalc = null; }
-    }
-  }
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
-  const datosActivos = modo === "recomendado" && rec
+  const datosActivos = modo === "recomendado" && rec?.seleccion
     ? (() => { const eq = prefiltros.find(p => p.marca === rec.seleccion.marca && p.modelo === rec.seleccion.modelo); return { id: eq?.id, marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoPorUnidad: rec.seleccion.flujoPorPrefiltro, diameter: rec.seleccion.diameter }; })()
-    : manualCalc
+    : (manualCalc && manualCalc.prefiltroEq)
     ? { id: manualCalc.prefiltroEq.id, marca: manualCalc.prefiltroEq.marca, modelo: manualCalc.prefiltroEq.modelo, cantidad: manualCalc.cantidad, flujoPorUnidad: manualCalc.flujoPorPrefiltro, diameter: manualCalc.prefiltroEq.specs.diameter }
+    : (manualCalc && manualCalc.seleccion)
+    ? (() => { const eq = prefiltros.find(p => p.marca === manualCalc.seleccion.marca && p.modelo === manualCalc.seleccion.modelo); return { id: eq?.id, marca: manualCalc.seleccion.marca, modelo: manualCalc.seleccion.modelo, cantidad: manualCalc.seleccion.cantidad, flujoPorUnidad: manualCalc.seleccion.flujoPorPrefiltro, diameter: manualCalc.seleccion.diameter }; })()
     : null;
 
   const cargaPrefiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
@@ -870,11 +875,19 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
   const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
-  const rec = useMemo(() => {
-    if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = filtroCartucho(flujoMaximo, usoGeneral, flujoMaximo); return r?.error ? null : r; }
-    catch { return null; }
-  }, [flujoMaximo, usoGeneral]);
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFiltro({ tipo: "filtroCartucho", modo, flujoMaximo, usoGeneral, equipoId: selId, cantidad: selCant });
+        if (!cancel) setCalcBack(res);
+      } catch (e) { if (!cancel) console.warn("FiltroCartucho backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [modo, flujoMaximo, usoGeneral, selId, selCant]);
+  const rec = calcBack?.recomendado ?? null;
 
   const marcas = useMemo(() =>
     ["todas", ...new Set(filtrosCartucho.filter(f => f.metadata.activo && flujoEfectivo(f, usoGeneral) !== null).map(f => f.marca))],
@@ -900,23 +913,13 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
   };
 
   useEffect(() => {
-    if (modo === "manual" && !selId && rec && !rec.error) {
+    if (modo === "manual" && !selId && rec && !rec.error && rec.seleccion) {
       const f = filtrosCartucho.find(f => f.marca === rec.seleccion.marca && f.modelo === rec.seleccion.modelo);
       if (f) { const fe = flujoEfectivo(f, usoGeneral); setSelId(f.id); setSelCant(fe ? Math.max(1, Math.ceil(flujoMaximo / fe)) : 1); }
     }
-  }, [modo]);
+  }, [modo, rec?.seleccion?.modelo]);
 
-  let manualCalc = null;
-  if (selId && selCant && flujoMaximo) {
-    const f  = filtrosCartucho.find(fi => fi.id === selId);
-    const fe = f ? flujoEfectivo(f, usoGeneral) : null;
-    if (f && fe) {
-      try {
-        const res = calcularCargaFiltroCartuchoManual(fe, selCant, flujoMaximo);
-        if (!res?.error) manualCalc = { filtroEq: f, flujoEf: fe, cantidad: selCant, flujoTotal: parseFloat((fe * selCant).toFixed(2)), ...res };
-      } catch { manualCalc = null; }
-    }
-  }
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
   const labelUso      = usoGeneral === "residencial" ? "Residencial" : "Comercial";
@@ -942,10 +945,12 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
 
   if (!flujoMaximo || flujoMaximo <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
 
-  const datosActivos = modo === "recomendado" && rec
+  const datosActivos = modo === "recomendado" && rec?.seleccion
     ? (() => { const eq = filtrosCartucho.find(f => f.marca === rec.seleccion.marca && f.modelo === rec.seleccion.modelo); return { id: eq?.id, marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoEf: rec.seleccion.flujoEfectivo, filtrationArea: rec.seleccion.filtrationArea }; })()
-    : manualCalc
+    : (manualCalc && manualCalc.filtroEq)
     ? { id: manualCalc.filtroEq.id, marca: manualCalc.filtroEq.marca, modelo: manualCalc.filtroEq.modelo, cantidad: manualCalc.cantidad, flujoEf: manualCalc.flujoEf, filtrationArea: manualCalc.filtroEq.specs.filtrationArea }
+    : (manualCalc && manualCalc.seleccion)
+    ? (() => { const eq = filtrosCartucho.find(f => f.marca === manualCalc.seleccion.marca && f.modelo === manualCalc.seleccion.modelo); return { id: eq?.id, marca: manualCalc.seleccion.marca, modelo: manualCalc.seleccion.modelo, cantidad: manualCalc.seleccion.cantidad, flujoEf: manualCalc.seleccion.flujoEfectivo, filtrationArea: manualCalc.seleccion.filtrationArea }; })()
     : null;
 
   return (
@@ -1051,11 +1056,19 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
   const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
-  const rec = useMemo(() => {
-    if (!flujoMaximo || flujoMaximo <= 0) return null;
-    try { const r = filtroArena(flujoMaximo, flujoMaximo); return r?.error ? null : r; }
-    catch { return null; }
-  }, [flujoMaximo]);
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaximo || flujoMaximo <= 0) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFiltro({ tipo: "filtroArena", modo, flujoMaximo, equipoId: selId, cantidad: selCant });
+        if (!cancel) setCalcBack(res);
+      } catch (e) { if (!cancel) console.warn("FiltroArena backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [modo, flujoMaximo, selId, selCant]);
+  const rec = calcBack?.recomendado ?? null;
 
   const marcas = useMemo(() =>
     ["todas", ...new Set(filtrosArena.filter(f => f.metadata.activo).map(f => f.marca))], []);
@@ -1078,22 +1091,13 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
   };
 
   useEffect(() => {
-    if (modo === "manual" && !selId && rec && !rec.error) {
+    if (modo === "manual" && !selId && rec && !rec.error && rec.seleccion) {
       const f = filtrosArena.find(f => f.marca === rec.seleccion.marca && f.modelo === rec.seleccion.modelo);
       if (f) { setSelId(f.id); setSelCant(Math.max(1, Math.ceil(flujoMaximo / f.specs.maxFlow))); }
     }
-  }, [modo]);
+  }, [modo, rec?.seleccion?.modelo]);
 
-  let manualCalc = null;
-  if (selId && selCant && flujoMaximo) {
-    const f = filtrosArena.find(fi => fi.id === selId);
-    if (f) {
-      try {
-        const res = calcularCargaFiltroArenaManual(f.specs.maxFlow, selCant, flujoMaximo);
-        if (!res?.error) manualCalc = { filtro: f, cantidad: selCant, flujoPorFiltro: f.specs.maxFlow, flujoTotal: parseFloat((f.specs.maxFlow * selCant).toFixed(2)), ...res };
-      } catch { manualCalc = null; }
-    }
-  }
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
   const cargaFiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
@@ -2228,19 +2232,12 @@ function BloqueVerificacion({
       };
 
       try {
-        // INTENTO 1: backend (lógica protegida)
+        // Backend (lógica protegida). Sin fallback local: la lógica de equilibrio
+        // vive solo en el servidor. Si el backend falla, se degrada sin recalcular.
         res = await apiEquilibrio(payload);
       } catch (errBackend) {
-        // RESPALDO: cálculo local si el backend no responde
-        console.warn("Backend no disponible, usando cálculo local:", errBackend.message);
-        setVelocidadMaxima(velMaxRef.current);
-        try {
-          res = calcularEquilibrio({
-            bombaId, nBombas, flujoInicial: flujoMaxGlobal, cargaInicial: cargaTotalGlobal,
-            estados, cargasIniciales: cargasBase, datosEmpotrable, tieneDesbordeCanal,
-            usoGeneral, excluirCloradorAutomatico: cloradorEnLineaQuitado,
-          });
-        } finally { setVelocidadMaxima(false); }
+        console.error("Error en equilibrio (backend):", errBackend.message);
+        res = { error: errBackend.message };
       }
 
       if (res && !res.error) {
@@ -2874,12 +2871,6 @@ function ResumenEquiposConfirmacion({
           onClick={() => {
             if (hayCambios && !confirmado) return;
             try {
-              console.log("=== GENERAR MEMORIA ===");
-              console.log("modoCloradorSalino:", modoCloradorSalino);
-              console.log("selCloradorSalinoId:", selCloradorSalinoId);
-              console.log("selCloradorSalinoCant:", selCloradorSalinoCant);
-              console.log("estados.cloradorSalino:", estados?.cloradorSalino);
-
               let estadoCloradorSalinoActual = estados?.cloradorSalino ?? null;
               if (modoCloradorSalino === "manual") {
                 const equipo = selCloradorSalinoId
@@ -2907,17 +2898,41 @@ function ResumenEquiposConfirmacion({
                   }
                 }
               }
-
+// Construir equiposRecalcIter desde los `res` del backend (empotrables).
+              // Si un empotrable tiene su res capturado, la memoria lo usa en vez de recalcular.
+              const equiposRecalcEmpotrables = {};
+              for (const [tipoEmp, resEmp] of Object.entries(resEmpotrablesStore.current)) {
+                if (!resEmp) continue;
+                const estEmp = estados?.[tipoEmp];
+                equiposRecalcEmpotrables[tipoEmp] = {
+                  resultadoHidraulico: resEmp,
+                  cantidad: estEmp?.cantidad ?? null,
+                  marca:    estEmp?.marca ?? null,
+                  modelo:   estEmp?.modelo ?? null,
+                };
+              }
+              // Filtros: el `res` ya viaja en estados[tipo].resultado (vía onEstadoChange)
+              for (const ftipo of ["prefiltro", "filtroArena", "filtroCartucho"]) {
+                const estF = estados?.[ftipo];
+                if (estF?.resultado && !estF.resultado.error) {
+                  equiposRecalcEmpotrables[ftipo] = {
+                    resultadoHidraulico: estF.resultado,
+                    cantidad: estF.cantidad ?? null,
+                    marca:    estF.marca ?? null,
+                    modelo:   estF.modelo ?? null,
+                  };
+                }
+              }
               generarMemoriaCalculo({
                 estados: resultado?._snapshotEstados ?? estados,
                 estadosActuales: {
                   ...estados,
                   ...(estadoCloradorSalinoActual ? { cloradorSalino: estadoCloradorSalinoActual } : {}),
                 },
-                label: "Diseno original",
-                flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
-                equiposRecalcIter: null,
-                seleccionesAjustadas: equiposConfirmados ?? null,
+label: "Diseno original",
+    flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
+    equiposRecalcEmpotrables: equiposRecalcEmpotrables ?? null,
+    seleccionesAjustadas: equiposConfirmados ?? null,
                 specsEquipos: Object.fromEntries(
                   Object.entries(estados).map(([k, v]) => [k, { spec: v?.spec ?? null }])
                 ),
@@ -3078,6 +3093,9 @@ export default function Equipamiento({
   const [selDrenCanalCant,  setSelDrenCanalCant]  = useState(eqPrev.selDrenCanalCant  ?? null);
   const [selCloradorAutomaticoId,   setSelCloradorAutomaticoId]   = useState(eqPrev.selCloradorAutomaticoId   ?? null);
   const [selCloradorAutomaticoCant, setSelCloradorAutomaticoCant] = useState(eqPrev.selCloradorAutomaticoCant ?? 1);
+
+  // Ref que acumula los `res` (resultado hidráulico) de cada empotrable, calculados en el backend.
+  // Se usa solo al generar la memoria de cálculo (no dispara renders).
 
   const setCarga = (key, valor) => setCargas(prev => prev[key] === valor ? prev : { ...prev, [key]: valor });
   const setEstado = (key, valor) => setEstados(prev => {
@@ -3563,7 +3581,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Retornos</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Suma al CDT</span>
                 </div>
-                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" tipo="retorno" catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} mostrarPuerto modoExterno={modoRetorno} setModoExterno={setModoRetorno} selIdExterno={selRetornoId} setSelIdExterno={setSelRetornoId} selCantExterno={selRetornoCant} setSelCantExterno={setSelRetornoCant} />
+                <BloqueEmpotrable icono={<IconoRetorno />} titulo="Retornos" tipo="retorno" catalogo={retornos} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("retorno", v)} onEstadoChange={e => setEstado("retorno", e)} onResChange={guardarResEmpotrable} mostrarPuerto modoExterno={modoRetorno} setModoExterno={setModoRetorno} selIdExterno={selRetornoId} setSelIdExterno={setSelRetornoId} selCantExterno={selRetornoCant} setSelCantExterno={setSelRetornoCant} />
               </div>
             </div>
 
@@ -3578,14 +3596,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDrenCanal /></span>
                     <span className="sistema-detalle-titulo">Dren canal</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" tipo="drenCanal" catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} modoExterno={modoDrenCanal} setModoExterno={setModoDrenCanal} selIdExterno={selDrenCanalId} setSelIdExterno={setSelDrenCanalId} selCantExterno={selDrenCanalCant} setSelCantExterno={setSelDrenCanalCant} />
+                  <BloqueEmpotrable icono={<IconoDrenCanal />} titulo="Dren canal" tipo="drenCanal" catalogo={drenesCanal} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenCanal", v)} onEstadoChange={e => setEstado("drenCanal", e)} onResChange={guardarResEmpotrable} modoExterno={modoDrenCanal} setModoExterno={setModoDrenCanal} selIdExterno={selDrenCanalId} setSelIdExterno={setSelDrenCanalId} selCantExterno={selDrenCanalCant} setSelCantExterno={setSelDrenCanalCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} onResChange={guardarResEmpotrable} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>) : (<>
                 <div className="sistema-detalle-card" style={{ marginBottom: "0.5rem" }}>
@@ -3593,14 +3611,14 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoDesnatador /></span>
                     <span className="sistema-detalle-titulo">Desnatadores</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" tipo="desnatador" catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} mostrarPuerto cantMinFn={cantMinDesnatador} modoExterno={modoDesnatador} setModoExterno={setModoDesnatador} selIdExterno={selDesnatadorId} setSelIdExterno={setSelDesnatadorId} selCantExterno={selDesnatadorCant} setSelCantExterno={setSelDesnatadorCant} />
+                  <BloqueEmpotrable icono={<IconoDesnatador />} titulo="Desnatadores" tipo="desnatador" catalogo={desnatadores} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("desnatador", v)} onEstadoChange={e => setEstado("desnatador", e)} onResChange={guardarResEmpotrable} mostrarPuerto cantMinFn={cantMinDesnatador} modoExterno={modoDesnatador} setModoExterno={setModoDesnatador} selIdExterno={selDesnatadorId} setSelIdExterno={setSelDesnatadorId} selCantExterno={selDesnatadorCant} setSelCantExterno={setSelDesnatadorCant} />
                 </div>
                 <div className="sistema-detalle-card">
                   <div className="sistema-detalle-header">
                     <span className="sistema-detalle-icon-svg"><IconoDrenFondo /></span>
                     <span className="sistema-detalle-titulo">Dren fondo</span>
                   </div>
-                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
+                  <BloqueEmpotrable icono={<IconoDrenFondo />} titulo="Dren fondo" tipo="drenFondo" catalogo={drenesFondo} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} mostrarPuerto={false} mostrarTamano={true} onCargaChange={v => setCarga("drenFondo", v)} onEstadoChange={e => setEstado("drenFondo", e)} onResChange={guardarResEmpotrable} cantMinMultiplier={2} modoExterno={modoDrenFondo} setModoExterno={setModoDrenFondo} selIdExterno={selDrenFondoId} setSelIdExterno={setSelDrenFondoId} selCantExterno={selDrenFondoCant} setSelCantExterno={setSelDrenFondoCant} />
                 </div>
               </>)}
             </div>
@@ -3612,7 +3630,7 @@ export default function Equipamiento({
                   <span className="sistema-detalle-titulo">Barredoras</span>
                   <span style={{ marginLeft: "auto", fontSize: "0.65rem", background: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: "20px", padding: "0.1rem 0.5rem" }}>Solo informativo</span>
                 </div>
-                              <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" tipo="barredora" catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} mostrarPuerto cantMinFn={cantMinBarredora} modoExterno={modoBarredora} setModoExterno={setModoBarredora} selIdExterno={selBarredoraId} setSelIdExterno={setSelBarredoraId} selCantExterno={selBarredoraCant} setSelCantExterno={setSelBarredoraCant} />
+                              <BloqueEmpotrable icono={<IconoBarredora />} titulo="Barredoras" tipo="barredora" catalogo={barredoras} flujoMaximo={flujoMaxGlobal} datos={datosEmpotrable} onCargaChange={v => setCarga("barredora", v)} onEstadoChange={e => setEstado("barredora", e)} onResChange={guardarResEmpotrable} mostrarPuerto cantMinFn={cantMinBarredora} modoExterno={modoBarredora} setModoExterno={setModoBarredora} selIdExterno={selBarredoraId} setSelIdExterno={setSelBarredoraId} selCantExterno={selBarredoraCant} setSelCantExterno={setSelBarredoraCant} />
                               </div>
                             </div>
                               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem", paddingRight: "1.2rem", marginBottom: "1.2rem" }}>

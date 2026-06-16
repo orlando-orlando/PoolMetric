@@ -5,14 +5,6 @@
    sin guiones ni "Ver memoria de cálculo".
    ================================================================ */
 
-import { retorno }        from "./retorno";
-import { desnatador }     from "./desnatador";
-import { barredora }      from "./barredora";
-import { drenFondo }      from "./drenFondo";
-import { drenCanal }      from "./drenCanal";
-import { calcularCargaFiltroArenaManual }        from "./filtroArena";
-import { calcularCargaPrefiltroManual }          from "./prefiltro";
-import { calcularCargaFiltroCartuchoManual }     from "./filtroCartucho";
 import { calcularCargaUVManual }                 from "./generadorUV";
 import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
 import { generadoresUV } from "../data/generadoresUV";
@@ -152,19 +144,12 @@ function generarReporte({
     ? ["retorno", "barredora", "drenFondo", "drenCanal"]
     : ["retorno", "desnatador", "barredora", "drenFondo"];
 
-  const fnsEmp = {
-    retorno:    (f,t,d,n) => retorno(f,t,d,n),
-    desnatador: (f,t,d,n) => desnatador(f,t,d,n),
-    barredora:  (f,t,d,n) => barredora(f,t,d,n),
-    drenFondo:  (f,t,d,n) => drenFondo(f,t,d,n),
-    drenCanal:  (f,t,d,n) => drenCanal(f,t,d,n),
-  };
-
   const empotrables = {};
   for (const key of empKeys) {
     if (!est(key)?.selId) continue;
     const resIter = equiposRecalcIter?.[key]?.resultadoHidraulico;
-    const res = resIter ?? fnsEmp[key](flujoCalculo, tipo(key), datosEmpotrable, cantParaKey(key));
+    const res = resIter ?? null;
+    if (!res) continue; // sin res del backend, no se incluye este empotrable
     const data = empacarEmpotrable(res, key);
     if (data) {
       const recKey = equiposRecalcIter?.[key];
@@ -191,7 +176,7 @@ function generarReporte({
     const cant = cantParaKey("filtroArena") ?? 1;
     const marcaFiltro  = marcaAjustada("filtroArena")  ?? eq.marca;
     const modeloFiltro = modeloAjustado("filtroArena") ?? eq.modelo;
-    const res = resIter ?? calcularCargaFiltroArenaManual(eq.flujoEf ?? 0, cant, flujoCalculo);
+    const res = resIter ?? null;
     const data = empacarFiltroRes(res, "Filtro de arena", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroArena = data;
   }
@@ -203,7 +188,7 @@ function generarReporte({
     const cant = cantParaKey("prefiltro") ?? 1;
     const marcaFiltro  = marcaAjustada("prefiltro")  ?? eq.marca;
     const modeloFiltro = modeloAjustado("prefiltro") ?? eq.modelo;
-    const res = resIter ?? calcularCargaPrefiltroManual(eq.flujoEf ?? 0, cant, flujoCalculo);
+const res = resIter ?? null;
     const data = empacarFiltroRes(res, "Prefiltro", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.prefiltro = data;
   }
@@ -215,7 +200,7 @@ function generarReporte({
     const cant = cantParaKey("filtroCartucho") ?? 1;
     const marcaFiltro  = marcaAjustada("filtroCartucho")  ?? eq.marca;
     const modeloFiltro = modeloAjustado("filtroCartucho") ?? eq.modelo;
-    const res = resIter ?? calcularCargaFiltroCartuchoManual(eq.flujoEf ?? 0, cant, flujoCalculo);
+const res = resIter ?? null;
     const data = empacarFiltroRes(res, "Filtro de cartucho", { marca: marcaFiltro, modelo: modeloFiltro, cantidad: cant, flujoTotal: (eq.flujoEf ?? 0) * cant });
     if (data) filtros.filtroCartucho = data;
   }
@@ -423,6 +408,7 @@ export function generarMemoriaCalculo({
   sistemasSeleccionadosSanit, sistemasSeleccionadosFilt,
   cargas, equiposConfirmados, specsEquipos,
   tipoSistema,
+  equiposRecalcEmpotrables,
   // ── NUEVOS parámetros de tubería y velocidad ──
   tubFiltrado, velFiltrado,
   tubInfinity, velInfinity,
@@ -518,7 +504,7 @@ export function generarMemoriaCalculo({
     estados: estadosMerged,
     label: "Diseno original",
     flujo: flujoMaxGlobal, flujoDiseno: flujoMaxGlobal,
-    equiposRecalcIter: null,
+    equiposRecalcIter: equiposRecalcEmpotrables ?? null,
     seleccionesAjustadas: equiposConfirmados ?? null,
   });
 
