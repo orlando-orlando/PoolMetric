@@ -9,16 +9,13 @@ import { desnatadores }          from "../data/desnatadores";
 import { drenesFondo }           from "../data/drenesFondo";
 import { drenesCanal }           from "../data/drenesCanal";
 import { retornos }              from "../data/retornos";
-import { calcularCargaCloradorManual }                               from "../utils/generadorDeCloro";
-import { cloradorAutomatico, calcularCargaCloradorAutomaticoManual } from "../utils/cloradorAutomatico";
-import { generadorUV, calcularCargaUVManual }                       from "../utils/generadorUV";
 
 import { flujoEfectivo } from "../utils/flujoEfectivoCartucho";
 import { filtrosCartucho }  from "../data/filtrosCartucho";
 import { prefiltros }       from "../data/prefiltros";
 import { generarMemoriaCalculo } from "../utils/memoriaCalculo";
 
-import { apiEquilibrio, apiEmpotrable, apiFiltro } from "../utils/api";
+import { apiEquilibrio, apiEmpotrable, apiFiltro, apiSanitizacion } from "../utils/api";
 
 import { volumen }    from "../utils/volumen";
 import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
@@ -35,6 +32,8 @@ const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
 // Compartido entre BloqueEmpotrable (lo llena) y el botón de memoria (lo lee), sin prop drilling.
 const resEmpotrablesStore = { current: {} };
 const guardarResEmpotrable = (tipo, res) => { resEmpotrablesStore.current[tipo] = res; };
+const resSanitizacionStore = { current: {} };
+const guardarResSanitizacion = (tipo, res) => { resSanitizacionStore.current[tipo] = res; };
 
 /* =====================================================
    HELPERS
@@ -1221,7 +1220,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
 /* =====================================================
    BLOQUE GENERADOR DE CLORO SALINO
 ===================================================== */
-function BloqueCloradorSalino({ resultadoClorador, flujoMaximo, onEstadoChange,
+function BloqueCloradorSalino({ resultadoClorador, flujoMaximo, onEstadoChange, onResChange = null,
   modoCL, setModoCL, selManualCLId, setSelManualCLId, selManualCLCant, setSelManualCLCant,
   usoGeneral = "residencial", volumenLitros = 0, kgDiaNecesario = null
 }) {
@@ -1242,19 +1241,22 @@ function BloqueCloradorSalino({ resultadoClorador, flujoMaximo, onEstadoChange,
     }
   }, [modoCL]);
 
-  const cloradorManual = useMemo(() => {
-    if (!selManualCLId || selManualCLCant <= 0) return null;
-    const equipo = generadoresDeCloro.find(g => g.id === selManualCLId);
-    if (!equipo) return null;
-    try {
-      const hidraulica = calcularCargaCloradorManual(equipo.specs.flujo, selManualCLCant, flujoMaximo);
-      if (hidraulica?.error) return null;
-      return { equipo, cantidad: selManualCLCant, flujoTotal: equipo.specs.flujo * selManualCLCant, hidraulica };
-    } catch { return null; }
-  }, [selManualCLId, selManualCLCant]);
+  const [calcBackCL, setCalcBackCL] = useState(null);
+  useEffect(() => {
+    if (modoCL !== "manual" || !selManualCLId || selManualCLCant <= 0) { setCalcBackCL(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiSanitizacion({ tipo: "cloradorSalino", modo: "manual", equipoId: selManualCLId, cantidad: selManualCLCant });
+        if (!cancel) setCalcBackCL(r);
+      } catch (e) { if (!cancel) console.warn("Clorador salino manual backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [modoCL, selManualCLId, selManualCLCant]);
+  const cloradorManual = (modoCL === "manual") ? (calcBackCL?.efectivo ?? null) : null;
 
 const infoActiva = useMemo(() => {
-  if (modoCL === "manual" && cloradorManual) {
+  if (modoCL === "manual" && cloradorManual && cloradorManual.equipo) {
     const esResidencial = usoGeneral === "residencial";
     const capInstalada = esResidencial
       ? cloradorManual.cantidad * (cloradorManual.equipo.specs.capacidadResidencial ?? 0)
@@ -1302,8 +1304,13 @@ const infoActiva = useMemo(() => {
       cargaTotal: infoActiva.cargaTotal,
       spec: infoActiva.capInstalada != null ? `${infoActiva.capInstalada} ${infoActiva.unidad ?? "kg/día"}` : null,
     });
-  }, [modoCL, infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, infoActiva?.capInstalada]);
-
+}, [modoCL, infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, infoActiva?.capInstalada]);
+  // Eleva el `res` del manual del salino para la memoria (solo en modo manual)
+  useEffect(() => {
+    if (!onResChange) return;
+    const resCL = (modoCL === "manual") ? (cloradorManual?.hidraulica ?? null) : null;
+    onResChange("cloradorSalino", resCL);
+  }, [modoCL, cloradorManual?.hidraulica?.cargaTotal]);
   if (!rec) return <div className="sanitizacion-pendiente">Completa las dimensiones para ver la selección de generadores de cloro</div>;
 
   return (
@@ -1442,7 +1449,7 @@ const infoActiva = useMemo(() => {
    BLOQUE CLORADOR AUTOMÁTICO
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, instalacion = null, setInstalacion,
+function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, onResChange = null, instalacion = null, setInstalacion,
   modoExterno, setModoExterno, selManualCLIdExterno, setSelManualCLIdExterno, selManualCLCantExterno, setSelManualCLCantExterno }) {
   const [modoCL,          setModoCLLocal]         = useState(modoExterno              ?? "recomendado");
   const [selManualCLId,   setSelManualCLIdLocal]   = useState(selManualCLIdExterno    ?? null);
@@ -1452,11 +1459,20 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
   const setSelManualCLCant = (v) => { setSelManualCLCantLocal(v); setSelManualCLCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca]     = useState("todas");
 
-  const rec = useMemo(() => {
-    if (!instalacion || !volumenLitros || volumenLitros <= 0) return null;
-    try { const r = cloradorAutomatico(volumenLitros, usoGeneral, areaM2, volumenM3, tempC, instalacion); return r?.error ? null : r; }
-    catch { return null; }
-  }, [instalacion, volumenLitros, usoGeneral, areaM2, volumenM3, tempC]);
+  const [calcBackCA, setCalcBackCA] = useState(null);
+  useEffect(() => {
+    if (!instalacion || !volumenLitros || volumenLitros <= 0) { setCalcBackCA(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiSanitizacion({ tipo: "cloradorAutomatico", modo: modoCL, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, instalacion, equipoId: selManualCLId, cantidad: selManualCLCant });
+        if (!cancel) setCalcBackCA(r);
+      } catch (e) { if (!cancel) console.warn("Clorador automático backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [instalacion, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, modoCL, selManualCLId, selManualCLCant]);
+
+  const rec = calcBackCA?.recomendado ?? null;
 
   const marcasDisponibles = useMemo(() =>
     ["todas", ...new Set(cloradoresAutomaticos.filter(c => c.metadata.activo && (!instalacion || c.instalacion === instalacion)).map(c => c.marca))],
@@ -1483,19 +1499,10 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     }
   }, [modoCL, instalacion]);
 
-  const cloradorManual = useMemo(() => {
-    if (!selManualCLId || selManualCLCant <= 0) return null;
-    const equipo = cloradoresAutomaticos.find(c => c.id === selManualCLId);
-    if (!equipo) return null;
-    try {
-      const hidraulica = calcularCargaCloradorAutomaticoManual(equipo.specs.flujo, selManualCLCant, equipo.instalacion);
-      if (hidraulica?.error) return null;
-      return { equipo, cantidad: selManualCLCant, flujoTotal: equipo.specs.flujo * selManualCLCant, hidraulica };
-    } catch { return null; }
-  }, [selManualCLId, selManualCLCant]);
+  const cloradorManual = (modoCL === "manual") ? (calcBackCA?.efectivo ?? null) : null;
 
 const infoActiva = useMemo(() => {
-  if (modoCL === "manual" && cloradorManual) {
+  if (modoCL === "manual" && cloradorManual && cloradorManual.equipo) {
     const esResidencial = usoGeneral === "residencial";
     const capInstalada = esResidencial
       ? cloradorManual.cantidad * (cloradorManual.equipo.specs.capacidadResidencial ?? 0)
@@ -1549,10 +1556,16 @@ const infoActiva = useMemo(() => {
       cargaTotal: parseFloat(infoActiva.cargaTotal) || null,  // ← agregar
       spec: specCA 
     } : null);
-      }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
-
+}, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
+  // Eleva el `res` del clorador automático para la memoria
+  useEffect(() => {
+    if (!onResChange) return;
+    const resCA = (modoCL === "manual")
+      ? (cloradorManual?.hidraulica ?? null)
+      : (calcBackCA?.recomendado ?? null);
+    onResChange("cloradorAutomatico", resCA);
+  }, [modoCL, calcBackCA?.recomendado?.cargaTotal, cloradorManual?.hidraulica?.cargaTotal]);
   const labelInst = (i) => i === "enLinea" ? "En línea" : "Fuera de línea";
-
   if (!instalacion) {
     return (
       <div className="sanitizacion-bloque-equipo">
@@ -1651,7 +1664,7 @@ const infoActiva = useMemo(() => {
               {selManualCLId && (
                 <div className="bdc-manual-resultado">
                   <div className="bdc-manual-cant-row"><span className="bdc-manual-cant-label">Cantidad</span><div className="bdc-manual-cant-ctrl"><button onClick={() => setSelManualCLCant(c => Math.max(1, c - 1))}>−</button><span>{selManualCLCant}</span><button onClick={() => setSelManualCLCant(c => c + 1)}>+</button></div></div>
-                  {cloradorManual && (<>
+                  {cloradorManual && cloradorManual.equipo && (<>
                     <div className="bdc-demanda-fila"><span className="bdc-demanda-label">Flujo total</span><span className="bdc-demanda-valor">{parseFloat(cloradorManual.flujoTotal).toFixed(1)} GPM</span></div>
                     {(() => {
                       const capInstalada = usoGeneral === "residencial"
@@ -1700,7 +1713,7 @@ const infoActiva = useMemo(() => {
    BLOQUE LÁMPARA UV
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange = null,
+function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange = null, onResChange = null,
   modoExterno, setModoExterno, selManualUVIdExterno, setSelManualUVIdExterno, selManualUVCantExterno, setSelManualUVCantExterno }) {
   const [modoUV,         setModoUVLocal]         = useState(modoExterno             ?? "recomendado");
   const [selManualUVId,  setSelManualUVIdLocal]   = useState(selManualUVIdExterno   ?? null);
@@ -1709,34 +1722,33 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
   const setSelManualUVId  = (v) => { setSelManualUVIdLocal(v);   setSelManualUVIdExterno?.(v);    };
   const setSelManualUVCant= (v) => { setSelManualUVCantLocal(v); setSelManualUVCantExterno?.(v);  };
 
-  const rec = useMemo(() => {
-    if (!flujoMaxSistema || flujoMaxSistema <= 0) return null;
-    try { const r = generadorUV(flujoMaxSistema, flujoMaxSistema); return r?.error ? null : r; }
-    catch { return null; }
-  }, [flujoMaxSistema]);
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaxSistema || flujoMaxSistema <= 0) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiSanitizacion({ tipo: "generadorUV", modo: modoUV, flujoMaximo: flujoMaxSistema, equipoId: selManualUVId, cantidad: selManualUVCant });
+        if (!cancel) setCalcBack(res);
+      } catch (e) { if (!cancel) console.warn("UV backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [modoUV, flujoMaxSistema, selManualUVId, selManualUVCant]);
 
-  const uvManual = useMemo(() => {
-    if (!selManualUVId || selManualUVCant <= 0) return null;
-    const equipo = generadoresUV.find(g => g.id === selManualUVId);
-    if (!equipo) return null;
-    try {
-      const hidraulica = calcularCargaUVManual(equipo.specs.flujo, selManualUVCant, flujoMaxSistema);
-      if (hidraulica?.error) return null;
-      return { equipo, cantidad: selManualUVCant, flujoTotal: equipo.specs.flujo * selManualUVCant, hidraulica };
-    } catch { return null; }
-  }, [selManualUVId, selManualUVCant]);
+  const rec = calcBack?.recomendado ?? null;
+  const uvManual = (modoUV === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   useEffect(() => {
-    if (modoUV === "manual" && !selManualUVId && rec) {
+    if (modoUV === "manual" && !selManualUVId && rec && rec.seleccion) {
       const eq = generadoresUV.find(g => g.marca === rec.seleccion.marca && g.modelo === rec.seleccion.modelo);
       if (eq) { setSelManualUVId(eq.id); setSelManualUVCant(rec.seleccion.cantidad ?? 1); }
     }
-  }, [modoUV]);
+  }, [modoUV, rec?.seleccion?.modelo]);
 
   const infoActiva = useMemo(() => {
-    if (modoUV === "manual" && uvManual)
+    if (modoUV === "manual" && uvManual && uvManual.equipo)
       return { id: uvManual.equipo.id, marca: uvManual.equipo.marca, modelo: uvManual.equipo.modelo, cantidad: uvManual.cantidad, flujoTotal: uvManual.flujoTotal, cargaTotal: uvManual.hidraulica?.cargaTotal, cargaTotalPSI: uvManual.hidraulica?.cargaTotalPSI };
-    if (rec) {
+    if (rec && rec.seleccion) {
       const eqRecUV = generadoresUV.find(g => g.marca === rec.seleccion.marca && g.modelo === rec.seleccion.modelo);
       return { id: eqRecUV?.id ?? rec.seleccion.id ?? rec.id, marca: rec.seleccion.marca, modelo: rec.seleccion.modelo, cantidad: rec.seleccion.cantidad, flujoTotal: rec.seleccion.flujoTotal, cargaTotal: rec.cargaTotal, cargaTotalPSI: rec.cargaTotalPSI };
     };
@@ -1757,10 +1769,16 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
       cargaTotal: parseFloat(infoActiva.cargaTotal) || null,  // ← agregar
       spec: specUV 
     } : null);
-  }, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, modoUV, selManualUVId]);
-
+}, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad, modoUV, selManualUVId]);
+  // Eleva el `res` del backend para la memoria (UV manual lo envuelve en .hidraulica)
+  useEffect(() => {
+    if (!onResChange) return;
+    const resUV = (modoUV === "manual")
+      ? (calcBack?.efectivo?.hidraulica ?? null)
+      : (calcBack?.recomendado ?? null);
+    onResChange("lamparaUV", resUV);
+  }, [modoUV, calcBack?.recomendado?.cargaTotal, calcBack?.efectivo?.hidraulica?.cargaTotal]);
   if (!flujoMaxSistema || flujoMaxSistema <= 0) return <div className="sanitizacion-pendiente">Completa las dimensiones para calcular el flujo máximo del sistema</div>;
-
   return (
     <div className="sanitizacion-bloque-equipo">
       <div className="bdc-modo-toggle-wrapper">
@@ -2871,33 +2889,10 @@ function ResumenEquiposConfirmacion({
           onClick={() => {
             if (hayCambios && !confirmado) return;
             try {
-              let estadoCloradorSalinoActual = estados?.cloradorSalino ?? null;
-              if (modoCloradorSalino === "manual") {
-                const equipo = selCloradorSalinoId
-                  ? generadoresDeCloro.find(g => g.id === selCloradorSalinoId)
-                  : null;
-                if (equipo) {
-                  try {
-                    const hidraulica = calcularCargaCloradorManual(equipo.specs.flujo, selCloradorSalinoCant);
-                    if (!hidraulica?.error) {
-                      const capInstalada = parseFloat((selCloradorSalinoCant * equipo.specs.capacidadComercial).toFixed(3));
-                      estadoCloradorSalinoActual = {
-                        marca: equipo.marca, modelo: equipo.modelo,
-                        cantidad: selCloradorSalinoCant,
-                        flujoTotal: equipo.specs.flujo * selCloradorSalinoCant,
-                        cargaTotal: hidraulica.cargaTotal,
-                        spec: `${capInstalada} kg/día`,
-                      };
-                    }
-                  } catch { /* continuar al fallback */ }
-                }
-                if (!equipo || !estadoCloradorSalinoActual?.marca) {
-                  const est = estados?.cloradorSalino;
-                  if (est?.marca && est?.modelo) {
-                    estadoCloradorSalinoActual = est;
-                  }
-                }
-              }
+              // El estado del salino (manual o recomendado) ya viene completo del
+              // componente vía onEstadoChange (marca, modelo, cantidad, flujoTotal,
+              // cargaTotal, spec). No se recalcula aquí.
+              const estadoCloradorSalinoActual = estados?.cloradorSalino ?? null;
 // Construir equiposRecalcIter desde los `res` del backend (empotrables).
               // Si un empotrable tiene su res capturado, la memoria lo usa en vez de recalcular.
               const equiposRecalcEmpotrables = {};
@@ -2922,6 +2917,18 @@ function ResumenEquiposConfirmacion({
                     modelo:   estF.modelo ?? null,
                   };
                 }
+              }
+              // Sanitización: el `res` viaja por el store (no en el estado)
+              for (const [stipo, resS] of Object.entries(resSanitizacionStore.current)) {
+                if (!resS) continue;
+                const estS = estados?.[stipo];
+                equiposRecalcEmpotrables[stipo] = {
+                  resultadoHidraulico: resS,
+                  cantidad: estS?.cantidad ?? null,
+                  marca:    estS?.marca ?? null,
+                  modelo:   estS?.modelo ?? null,
+                  selId:    estS?.selId ?? null,
+                };
               }
               generarMemoriaCalculo({
                 estados: resultado?._snapshotEstados ?? estados,
@@ -3197,19 +3204,24 @@ export default function Equipamiento({
       if (!sistemasSeleccionadosSanit?.lamparaUV) return;
       if (!flujoUVEfectivo || flujoUVEfectivo <= 0) return;
       if (modoLamparaUV === "manual") return;  // ← no sobreescribir en modo manual
-      try {
-        const r = generadorUV(flujoUVEfectivo, flujoUVEfectivo);
-      if (!r || r.error) return;
-      const eqUV = generadoresUV.find(g => g.marca === r.seleccion?.marca && g.modelo === r.seleccion?.modelo);
-      const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
-      setEstado("lamparaUV", {
-        selId: eqUV?.id ?? null,
-        marca: r.seleccion?.marca, modelo: r.seleccion?.modelo,
-        cantidad: r.seleccion?.cantidad, flujoTotal: r.seleccion?.flujoTotal,
-        spec: specUV,
-      });
-    } catch { /* mantener estado anterior */ }
-  }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.lamparaUV]);
+      let cancel = false;
+      (async () => {
+        try {
+          const resp = await apiSanitizacion({ tipo: "generadorUV", modo: "recomendado", flujoMaximo: flujoUVEfectivo });
+          const r = resp?.recomendado;
+          if (cancel || !r || r.error) return;
+          const eqUV = generadoresUV.find(g => g.marca === r.seleccion?.marca && g.modelo === r.seleccion?.modelo);
+          const specUV = eqUV?.specs?.flujo != null ? `${eqUV.specs.flujo} GPM` : null;
+          setEstado("lamparaUV", {
+            selId: eqUV?.id ?? null,
+            marca: r.seleccion?.marca, modelo: r.seleccion?.modelo,
+            cantidad: r.seleccion?.cantidad, flujoTotal: r.seleccion?.flujoTotal,
+            spec: specUV,
+          });
+        } catch { /* mantener estado anterior */ }
+      })();
+      return () => { cancel = true; };
+  }, [flujoUVEfectivo, sistemasSeleccionadosSanit?.lamparaUV, modoLamparaUV]);
 
   // Detectar si el clorador en línea excede el límite — solo para mostrar aviso, no modificar estado
   const cloradorAutomaticoEsEnLinea = estados?.cloradorAutomatico?.instalacion === "enLinea";
@@ -3408,6 +3420,7 @@ export default function Equipamiento({
                     resultadoClorador={resultadoClorador}
                     flujoMaximo={flujoMaxGlobal}   
                     onEstadoChange={e => setEstado("cloradorSalino", e)}
+                    onResChange={guardarResSanitizacion}
                     modoCL={modoCloradorSalino} setModoCL={setModoCloradorSalino}
                     selManualCLId={selCloradorSalinoId} setSelManualCLId={setSelCloradorSalinoId}
                     selManualCLCant={selCloradorSalinoCant} setSelManualCLCant={setSelCloradorSalinoCant}
@@ -3425,7 +3438,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoCloradorAutomatico /></span>
                     <span className="sistema-detalle-titulo">Clorador automático</span>
                   </div>
-                  <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} modoExterno={modoCloradorAutomatico} setModoExterno={setModoCloradorAutomatico} selManualCLIdExterno={selCloradorAutomaticoId} setSelManualCLIdExterno={setSelCloradorAutomaticoId} selManualCLCantExterno={selCloradorAutomaticoCant} setSelManualCLCantExterno={setSelCloradorAutomaticoCant} />
+                  <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} onResChange={guardarResSanitizacion} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} modoExterno={modoCloradorAutomatico} setModoExterno={setModoCloradorAutomatico} selManualCLIdExterno={selCloradorAutomaticoId} setSelManualCLIdExterno={setSelCloradorAutomaticoId} selManualCLCantExterno={selCloradorAutomaticoCant} setSelManualCLCantExterno={setSelCloradorAutomaticoCant} />
                  </div>
               </div>
             )}
@@ -3437,7 +3450,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-titulo">Lámpara UV</span>
                   </div>
                   <BloqueLamparaUV flujoMaxSistema={flujoMaxGlobal}
-                  onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} modoExterno={modoLamparaUV} setModoExterno={setModoLamparaUV} selManualUVIdExterno={selManualUVId} setSelManualUVIdExterno={setSelManualUVId} selManualUVCantExterno={selManualUVCant} setSelManualUVCantExterno={setSelManualUVCant} />
+                  onCargaChange={v => setCarga("lamparaUV", v)} onEstadoChange={e => setEstado("lamparaUV", e)} onResChange={guardarResSanitizacion} modoExterno={modoLamparaUV} setModoExterno={setModoLamparaUV} selManualUVIdExterno={selManualUVId} setSelManualUVIdExterno={setSelManualUVId} selManualUVCantExterno={selManualUVCant} setSelManualUVCantExterno={setSelManualUVCant} />
                 </div>
               </div>
             )}

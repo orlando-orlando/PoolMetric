@@ -15,7 +15,7 @@ import { flujoFinal }       from "./utils/flujoFinal";
 import { flujoInfinity }    from "./utils/flujoInfinity";
 import { volumenPorCircuito } from "./utils/volumenPorCircuito";
 import { flujoPorVolumen }   from "./utils/flujoVolumen";
-import { generadorDeCloro } from "./utils/generadorDeCloro";
+import { apiSanitizacion } from "./utils/api";
 
 import { formatBTU, formatM2, formatM3, formatMetro, formatGPM } from "./utils/format";
 import { velocidadCargaFlujo } from "./utils/velocidadCargaFlujo";
@@ -465,11 +465,17 @@ export default function App() {
     return datosPorSistema?.calentamiento?.tempDeseada ?? 30;
   }, [datosPorSistema?.calentamiento]);
 
-  const resultadoClorador = useMemo(() => {
-    if (!volumenTotal || volumenTotal <= 0) return null;
-    if (!areaCalculada || areaCalculada <= 0) return null;
-    try { return generadorDeCloro(volumenTotal * 1000, usoGeneralSistema, areaCalculada, volumenTotal, tempAgua); }
-    catch { return null; }
+  const [resultadoClorador, setResultadoClorador] = useState(null);
+  useEffect(() => {
+    if (!volumenTotal || volumenTotal <= 0 || !areaCalculada || areaCalculada <= 0) { setResultadoClorador(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiSanitizacion({ tipo: "cloradorSalino", modo: "recomendado", volumenLitros: volumenTotal * 1000, usoGeneral: usoGeneralSistema, areaM2: areaCalculada, volumenM3: volumenTotal, tempC: tempAgua });
+        if (!cancel) setResultadoClorador(r?.recomendado ?? null);
+      } catch (e) { if (!cancel) console.warn("Clorador salino backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
   }, [volumenTotal, areaCalculada, usoGeneralSistema, tempAgua]);
 
   const kgDiaCloroNecesario = useMemo(() => (!resultadoClorador || resultadoClorador.error) ? null : (resultadoClorador.kgDiaNecesario ?? null), [resultadoClorador]);

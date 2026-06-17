@@ -5,10 +5,7 @@
    sin guiones ni "Ver memoria de cálculo".
    ================================================================ */
 
-import { calcularCargaUVManual }                 from "./generadorUV";
-import { calcularCargaCloradorAutomaticoManual } from "./cloradorAutomatico";
 import { generadoresUV } from "../data/generadoresUV";
-import { calcularCargaCloradorManual } from "./generadorDeCloro";
 import { generadoresDeCloro }          from "../data/generadoresDeCloro";
 
 const FLUJO_MAX_CLORADOR_EN_LINEA = 90; // GPM
@@ -209,15 +206,15 @@ const res = resIter ?? null;
 
   if (sistemasSeleccionadosSanit?.cloradorSalino) {
     const estCS = est("cloradorSalino");
+    const resIterCS = equiposRecalcIter?.cloradorSalino?.resultadoHidraulico;    
     if (resultadoClorador && !resultadoClorador.error) {
       const tieneManual = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
-
       let resCS, selCS;
       if (tieneManual && !equiposRecalcIter) {
         const cant = estCS.cantidad ?? 1;
         const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
         const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
-        resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
+        resCS = resIterCS ?? null;
         selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
       } else {
         const tieneManualIter = estCS?.marca && estCS?.modelo && estCS?.cargaTotal != null;
@@ -225,7 +222,7 @@ const res = resIter ?? null;
           const cant = estCS.cantidad ?? 1;
           const eq = generadoresDeCloro.find(g => g.marca === estCS.marca && g.modelo === estCS.modelo);
           const flujoPorEquipo = eq?.specs?.flujo ?? (parseFloat(estCS.flujoTotal) / cant);
-          resCS = calcularCargaCloradorManual(flujoPorEquipo, cant, flujoCalculo);
+          resCS = resIterCS ?? null;
           selCS = { marca: estCS.marca, modelo: estCS.modelo, cantidad: cant, flujoTotal: estCS.flujoTotal };
         } else {
           resCS = resultadoClorador;
@@ -254,7 +251,7 @@ const res = resIter ?? null;
         ? eqNuevoEnCatalogo.specs.flujo * cant
         : (eqUV?.flujoTotal ? parseFloat(eqUV.flujoTotal) : flujoCalculo);
       const flujoPorUV = cant > 0 ? flujoNominalUV / cant : flujoCalculo;
-      const res = resIter ?? calcularCargaUVManual(flujoPorUV, cant, flujoCalculo);
+      const res = resIter ?? null;
       const data = empacarFiltroRes(res, "Lampara UV", { marca: marcaUV, modelo: modeloUV, cantidad: cant, flujoTotal: flujoNominalUV });
       if (data) {
         if (!equiposRecalcIter && eqUV?.cargaTotal != null) {
@@ -294,7 +291,8 @@ const res = resIter ?? null;
         const cant = eqCA?.cantidad ?? cantParaKey("cloradorAutomatico") ?? 1;
         const flujoTotalCA = eqCA?.flujoTotal ? parseFloat(eqCA.flujoTotal) : flujoCalculo;
         const flujoPorCA = cant > 0 ? flujoTotalCA / cant : flujoCalculo;
-        const res = calcularCargaCloradorAutomaticoManual(flujoPorCA, cant, instalacion);
+        const resIterCA = equiposRecalcIter?.cloradorAutomatico?.resultadoHidraulico;
+        const res = resIterCA ?? null;
         const data = empacarFiltroRes(res, "Clorador automatico", { marca: eqCA?.marca, modelo: eqCA?.modelo, cantidad: cant, flujoTotal: flujoTotalCA });
         if (data) {
           if (!equiposRecalcIter && eqCA?.cargaTotal != null) {
@@ -507,17 +505,28 @@ export function generarMemoriaCalculo({
     equiposRecalcIter: equiposRecalcEmpotrables ?? null,
     seleccionesAjustadas: equiposConfirmados ?? null,
   });
-
+  // El clorador automático, UV y salino NO se recalculan en el equilibrio:
+  // mantienen su `res` de diseño (del store). Inyectarlo en las iteraciones,
+  // salvo que el equilibrio los haya marcado como excluidos.
+  const inyectarSanit = (eqIter) => {
+    if (!eqIter || !equiposRecalcEmpotrables) return eqIter;
+    const merged = { ...eqIter };
+    for (const k of ["cloradorAutomatico", "lamparaUV", "cloradorSalino"]) {
+      if (equiposRecalcEmpotrables[k] && !eqIter[k]?.excluido) {
+        merged[k] = equiposRecalcEmpotrables[k];
+      }
+    }
+    return merged;
+  };
   const reporteIter1 = eqIter1 ? generarReporte({
     ...ctx, label: `Iter. 1 — ${f2(eqIter1.flujoEquilibrio)} GPM`,
     flujo: eqIter1.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
-    equiposRecalcIter: eqIter1.equiposRecalc,
+    equiposRecalcIter: inyectarSanit(eqIter1.equiposRecalc),
   }) : null;
-
   const reporteIter2 = eqIter2 ? generarReporte({
     ...ctx, label: `Iter. 2 — ${f2(eqIter2.flujoEquilibrio)} GPM`,
     flujo: eqIter2.flujoEquilibrio, flujoDiseno: flujoMaxGlobal,
-    equiposRecalcIter: eqIter2.equiposRecalc,
+    equiposRecalcIter: inyectarSanit(eqIter2.equiposRecalc),
   }) : null;
 
   const calentamientoData = [];

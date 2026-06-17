@@ -16,7 +16,6 @@ async function postCalc(endpoint, payload) {
 export function apiEquilibrio(input) {
   return postCalc("equilibrio", input);
 }
-
 export function apiCalentamiento(input) {
   return postCalc("calentamiento", input);
 }
@@ -25,4 +24,7 @@ export function apiEmpotrable(input) {
 }
 export function apiFiltro(input) {
   return postCalc("filtro", input);
+}
+export function apiSanitizacion(input) {
+  return postCalc("sanitizacion", input);
 }
