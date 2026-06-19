@@ -1572,7 +1572,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
                               return (
                                 <div key={b.id}
                                   className={`bdc-manual-fila ${seleccionado ? "bdc-manual-fila-activa" : ""}`}
-                                  onClick={() => { setSelManualBDCId(seleccionado ? null : b.id); setSelManualCantidad(1); }}
+                                  onClick={() => { setSelManualBDCId(b.id); setSelManualCantidad(1); }}
                                 >
                                   <div className="bdc-manual-fila-info">
                                     <span className="bdc-manual-marca">{b.marca}</span>
@@ -2310,7 +2310,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
                                     return (
                                       <div key={c.id}
                                         className={`bdc-manual-fila ${seleccionado ? "bdc-manual-fila-activa" : ""}`}
-                                        onClick={() => { setSelManualCalderaId(seleccionado ? null : c.id); setSelManualCalderaCant(1); }}
+                                        onClick={() => { setSelManualCalderaId(c.id); setSelManualCalderaCant(1); }}
                                       >
                                         <div className="bdc-manual-fila-info">
                                           <span className="bdc-manual-marca">{c.marca}</span>
@@ -2683,7 +2683,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
                                     return (
                                       <div key={eq.id}
                                         className={`bdc-manual-fila ${seleccionado ? "bdc-manual-fila-activa" : ""}`}
-                                        onClick={() => { setSelManualCEId(seleccionado ? null : eq.id); setSelManualCECant(1); }}
+                                        onClick={() => { setSelManualCEId(eq.id); setSelManualCECant(1); }}
                                       >
                                         <div className="bdc-manual-fila-info">
                                           <span className="bdc-manual-marca">{eq.marca}</span>

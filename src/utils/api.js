@@ -28,3 +28,6 @@ export function apiFiltro(input) {
 export function apiSanitizacion(input) {
   return postCalc("sanitizacion", input);
 }
+export function apiMotobomba(input) {
+  return postCalc("motobomba", input);
+}

@@ -511,7 +511,7 @@ export function generarMemoriaCalculo({
   const inyectarSanit = (eqIter) => {
     if (!eqIter || !equiposRecalcEmpotrables) return eqIter;
     const merged = { ...eqIter };
-    for (const k of ["cloradorAutomatico", "lamparaUV", "cloradorSalino"]) {
+    for (const k of ["cloradorAutomatico", "cloradorSalino"]) {
       if (equiposRecalcEmpotrables[k] && !eqIter[k]?.excluido) {
         merged[k] = equiposRecalcEmpotrables[k];
       }

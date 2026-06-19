@@ -7,6 +7,7 @@ import { drenesCanal } from "../data/drenesCanal";
 import { filtrosArena }    from "../data/filtrosArena";
 import { prefiltros }      from "../data/prefiltros";
 import { filtrosCartucho } from "../data/filtrosCartucho";
+import { generadoresUV } from "../data/generadoresUV";
 
 /* ═══ ESTILOS GLOBALES DE IMPRESIÓN ═══ */
 const printStyles = `
@@ -1914,8 +1915,12 @@ function getCapacidadEquipo(key, resumen, reportes, calentamiento) {
   if (key === "lamparaUV") {
     const d = r.sanitizacion?.lamparaUV;
     if (!d) return "—";
-    const flujo = d.seleccion?.flujoTotal;
-    return flujo ? `${f2(flujo)} GPM` : "—";
+    const sel = d.seleccion ?? {};
+    const eqCat = generadoresUV.find(g => g.marca === sel.marca && g.modelo === sel.modelo);
+    const cant = sel.cantidad ?? 1;
+    const flujoUnit = eqCat?.specs?.flujo
+      ?? (cant > 0 && sel.flujoTotal ? parseFloat(sel.flujoTotal) / cant : null);
+    return flujoUnit ? `${f2(flujoUnit)} GPM` : "—";
   }
 
   /* Filtración — GPM desde catálogo o flujoTotal/cantidad */

@@ -9,16 +9,12 @@ import { desnatadores }          from "../data/desnatadores";
 import { drenesFondo }           from "../data/drenesFondo";
 import { drenesCanal }           from "../data/drenesCanal";
 import { retornos }              from "../data/retornos";
-
 import { flujoEfectivo } from "../utils/flujoEfectivoCartucho";
 import { filtrosCartucho }  from "../data/filtrosCartucho";
 import { prefiltros }       from "../data/prefiltros";
 import { generarMemoriaCalculo } from "../utils/memoriaCalculo";
-
-import { apiEquilibrio, apiEmpotrable, apiFiltro, apiSanitizacion } from "../utils/api";
-
+import { apiEquilibrio, apiEmpotrable, apiFiltro, apiSanitizacion, apiMotobomba } from "../utils/api";
 import { volumen }    from "../utils/volumen";
-import { seleccionarMotobomba, cantidadMinima, puntoOperacion } from "../utils/seleccionMotobomba";
 import { setVelocidadMaxima, getVelocidadMaxima } from "../utils/limiteVelocidad";
 import { motobombas1v } from "../data/motobombas1v";
 import { bombasCalor }          from "../data/bombasDeCalor";
@@ -508,11 +504,10 @@ function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, m
   const cantMinima = calcMin();
 
   const handleSelEquipo = (id) => {
-    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    if (selId === id) { return; }
     setSelId(id);
     setSelCant(calcMin(id));
   };
-
   // Cálculo en backend con debounce (reemplaza fnCalculo local)
   const [calcBack, setCalcBack] = useState(null);
   useEffect(() => {
@@ -727,7 +722,7 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
   }, [selId, flujoMaximo]);
 
   const handleSel = (id) => {
-    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    if (selId === id) { return; }
     setSelId(id);
     const p = prefiltros.find(p => p.id === id);
     setSelCant(p && flujoMaximo ? Math.max(1, Math.ceil(flujoMaximo / p.specs.maxFlow)) : 1);
@@ -904,7 +899,7 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
   }, [selId, flujoMaximo, usoGeneral]);
 
   const handleSel = (id) => {
-    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    if (selId === id) { return; }
     setSelId(id);
     const f  = filtrosCartucho.find(f => f.id === id);
     const fe = f ? flujoEfectivo(f, usoGeneral) : null;
@@ -1083,7 +1078,7 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
   }, [selId, flujoMaximo]);
 
   const handleSelFiltro = (id) => {
-    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    if (selId === id) { return; }
     setSelId(id);
     const f = filtrosArena.find(f => f.id === id);
     setSelCant(f && flujoMaximo ? Math.max(1, Math.ceil(flujoMaximo / f.specs.maxFlow)) : 1);
@@ -1377,7 +1372,7 @@ const infoActiva = useMemo(() => {
                   const esRec = rec && g.marca === rec.seleccion.marca && g.modelo === rec.seleccion.modelo;
                   const sel   = selManualCLId === g.id;
                   return (
-                    <div key={g.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualCLId(sel ? null : g.id); setSelManualCLCant(1); }}>
+                    <div key={g.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualCLId(g.id); setSelManualCLCant(1); }}>
                       <div className="bdc-manual-fila-info"><span className="bdc-manual-marca">{g.marca}</span><span className="bdc-manual-modelo">{nombreComercial(g)}</span>{mostrarCodigo(g) && <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{g.modelo}</span>}<span className="bdc-manual-vel vel-1v">{g.specs.flujo} GPM</span>{esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}</div>
                         <div className="bdc-manual-fila-cap">
                           {usoGeneral === "residencial"
@@ -1648,7 +1643,7 @@ const infoActiva = useMemo(() => {
                   const esRec = rec && c.marca === rec.seleccion.marca && c.modelo === rec.seleccion.modelo;
                   const sel   = selManualCLId === c.id;
                   return (
-                    <div key={c.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualCLId(sel ? null : c.id); setSelManualCLCant(1); }}>
+                    <div key={c.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualCLId(c.id); setSelManualCLCant(1); }}>
                       <div className="bdc-manual-fila-info"><span className="bdc-manual-marca">{c.marca}</span><span className="bdc-manual-modelo">{nombreComercial(c)}</span>{mostrarCodigo(c) && <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{c.modelo}</span>}<span className="bdc-manual-vel vel-1v">{c.specs.flujo} GPM</span>{esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}</div>
                       <div className="bdc-manual-fila-cap">
                         {usoGeneral === "residencial"
@@ -1824,7 +1819,7 @@ function BloqueLamparaUV({ flujoMaxSistema, onCargaChange = null, onEstadoChange
                   const esRec = rec && g.marca === rec.seleccion.marca && g.modelo === rec.seleccion.modelo;
                   const sel   = selManualUVId === g.id;
                   return (
-                    <div key={g.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualUVId(sel ? null : g.id); setSelManualUVCant(1); }}>
+                    <div key={g.id} className={`bdc-manual-fila ${sel ? "bdc-manual-fila-activa" : ""}`} onClick={() => { setSelManualUVId(g.id); setSelManualUVCant(1); }}>
                       <div className="bdc-manual-fila-info"><span className="bdc-manual-marca">{g.marca}</span><span className="bdc-manual-modelo">{nombreComercial(g)}</span>{mostrarCodigo(g) && <span className="bdc-manual-vel" style={{color:"#64748b",fontSize:"0.6rem"}}>{g.modelo}</span>}<span className="bdc-manual-vel vel-1v">{g.specs.flujo} GPM</span>{esRec && <span className="bdc-manual-badge-rec">★ Rec.</span>}</div>
                     </div>
                   );
@@ -1863,11 +1858,21 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
   const setSelCant = (v) => { setSelCantLocal(v); setSelCantExterno?.(v); };
   const [filtroMarca, setFiltroMarca] = useState("todas");
 
-  const rec = useMemo(() => {
-    if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) return null;
-    try { const r = seleccionarMotobomba(flujoMaximo, cargaRequerida); return r?.error ? null : r; }
-    catch { return null; }
-  }, [flujoMaximo, cargaRequerida]);
+  const [calcBack, setCalcBack] = useState(null);
+  useEffect(() => {
+    if (!flujoMaximo || !cargaRequerida || flujoMaximo <= 0 || cargaRequerida <= 0) { setCalcBack(null); return; }
+    let cancel = false;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiMotobomba({ flujoMaximo, cargaRequerida, modo, equipoId: selId, cantidad: selCant });
+        if (!cancel) setCalcBack(r);
+      } catch (e) { if (!cancel) console.warn("Motobomba backend:", e.message); }
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [flujoMaximo, cargaRequerida, modo, selId, selCant]);
+
+  const rec = calcBack?.recomendado ?? null;
+  const cantidadesMin = calcBack?.cantidadesMin ?? {};
 
   const marcas = useMemo(() => ["todas", ...new Set(motobombas1v.map(b => b.marca))], []);
   const catalogoFiltrado = useMemo(() =>
@@ -1875,26 +1880,21 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
   [filtroMarca]);
 
   const cantMin = useMemo(() => {
-    if (!selId || !flujoMaximo || !cargaRequerida) return 1;
-    const b = motobombas1v.find(b => b.id === selId);
-    return b ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? 1) : 1;
-  }, [selId, flujoMaximo, cargaRequerida]);
+    if (!selId) return 1;
+    return cantidadesMin[selId] ?? 1;
+  }, [selId, cantidadesMin]);
 
   const handleSel = (id) => {
-    if (selId === id) { setSelId(null); setSelCant(null); return; }
+    if (selId === id) { return; }
     setSelId(id);
-    const b = motobombas1v.find(b => b.id === id);
-    setSelCant(b && flujoMaximo && cargaRequerida ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? 1) : 1);
+    setSelCant(cantidadesMin[id] ?? 1);
   };
-
   // Cuando cambia flujo o CDT, reajustar selección manual si existe
   useEffect(() => {
     if (modo !== "manual" || !selId) return;
     if (!flujoMaximo || !cargaRequerida) return;
-    const b = motobombas1v.find(b => b.id === selId);
-    if (!b) return;
-    const nuevoMin = cantidadMinima(b, flujoMaximo, cargaRequerida);
-    if (nuevoMin === null) {
+    const nuevoMin = cantidadesMin[selId];
+    if (nuevoMin == null) {
       // La bomba ya no puede cubrir el CDT — volver a recomendado
       setModo("recomendado");
       setSelId(null);
@@ -1903,7 +1903,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
       // Actualizar cantidad al nuevo mínimo si la actual ya no alcanza
       setSelCant(c => (c === null || c < nuevoMin) ? nuevoMin : c);
     }
-  }, [flujoMaximo, cargaRequerida]);
+  }, [flujoMaximo, cargaRequerida, cantidadesMin]);
 
   useEffect(() => {
     if (modo === "manual" && !selId && rec) {
@@ -1912,14 +1912,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
     }
   }, [modo]);
 
-  let manualCalc = null;
-  if (selId && selCant && flujoMaximo && cargaRequerida) {
-    const b = motobombas1v.find(b => b.id === selId);
-    if (b) {
-      const op = puntoOperacion(b, flujoMaximo, selCant);
-      if (op) manualCalc = { bomba: b, ...op, flujoMaximo: parseFloat(flujoMaximo.toFixed(2)), cargaRequerida: parseFloat(cargaRequerida.toFixed(2)) };
-    }
-  }
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   const infoActiva  = modo === "recomendado" ? rec : manualCalc;
 
@@ -2005,7 +1998,7 @@ useEffect(() => { if (onEstadoChange) onEstadoChange(estBActual); }, [JSON.strin
                 {catalogoFiltrado.map(b => {
                   const esRec    = rec && b.id === rec.bomba.id;
                   const sel      = selId === b.id;
-                  const nMin     = flujoMaximo && cargaRequerida ? (cantidadMinima(b, flujoMaximo, cargaRequerida) ?? null) : null;
+                  const nMin     = cantidadesMin[b.id] ?? null;
                   const bloqueada = nMin === null || nMin > 10;
                   const razónBloqueo = nMin === null ? "no cubre CDT" : nMin > 10 ? `requiere ${nMin} uds` : null;
                   return (
