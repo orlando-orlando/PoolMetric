@@ -578,14 +578,6 @@ export default function App() {
     return vals.length ? vals.reduce((a, b) => a + parseFloat(b), 0) : null;
   }, [cargaBDCft, cargaPSft, cargaCalderaCft, cargaCEft]);
 
-  const cargaSumaSanitizacion = useMemo(() => {
-    const vals = [];
-    if (cloradorSeleccionado           && cargaClorador           != null) vals.push(cargaClorador);
-    if (uvSeleccionado                 && cargaLamparaUV          != null) vals.push(cargaLamparaUV);
-    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) vals.push(cargaCloradorAutomatico);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
-  }, [cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico]);
-
   const ORDEN_TAB = { sanitizacion: 0, calentamiento: 1, filtracion: 2, empotrables: 3, motobomba: 4 };
   const tabIdxActual = ORDEN_TAB[tabActivaEq] ?? 0;
 
@@ -635,7 +627,11 @@ export default function App() {
         if (estCA?.flujoTotal != null) {
           const flujoCA     = parseFloat(estCA.flujoTotal);
           const instalacion = estCA?.instalacion ?? "enLinea";
-          const esEnLineaExcedido = instalacion === "enLinea" && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+          // El clorador en línea se excluye si el flujo que pasa por él supera 90:
+          // ya sea el flujo del sistema (otros equipos) o su propio flujo instalado.
+          const flujoSistemaSinCA = lista.length ? Math.max(...lista.map(f => f.valor)) : 0;
+          const flujoQuePasa = Math.max(flujoSistemaSinCA, flujoCA);
+          const esEnLineaExcedido = instalacion === "enLinea" && flujoQuePasa > FLUJO_MAX_CLORADOR_EN_LINEA;
           if (flujoCA > 0) {
             lista.push({ label: "Clorador automático", valor: flujoCA, excluido: esEnLineaExcedido });
           }
@@ -655,15 +651,32 @@ export default function App() {
     if (!activos.length) return null;
     return Math.max(...activos.map(f => f.valor));
   }, [flujosCandidatos]);
-
+  // Flujo real que pasa por el clorador en línea: el mayor entre el flujo del
+  // sistema (otros equipos) y el flujo propio instalado del clorador. Es el
+  // criterio único de exclusión >90, usado en flujo, carga (CDT) y aviso.
+  const flujoPorCloradorEnLinea = useMemo(() => {
+    const estCA = estados?.cloradorAutomatico;
+    if (estCA?.instalacion !== "enLinea") return 0;
+    const flujoPropio = parseFloat(estCA?.flujoTotal ?? 0);
+    const flujoSistemaSinCA = flujosCandidatos
+      .filter(f => f.label !== "Clorador automático")
+      .reduce((max, f) => Math.max(max, f.valor), 0);
+    return Math.max(flujoSistemaSinCA, flujoPropio);
+  }, [estados, flujosCandidatos]);
   const cloradorEnLineaExcede = useMemo(() => {
     if (!cloradorAutomaticoSeleccionado) return false;
     const estCA = estados?.cloradorAutomatico;
     if (estCA?.instalacion !== "enLinea") return false;
-    const flujoCA = parseFloat(estCA?.flujoTotal ?? 0);
-    return flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
-  }, [cloradorAutomaticoSeleccionado, estados]);
-
+    return flujoPorCloradorEnLinea > FLUJO_MAX_CLORADOR_EN_LINEA;
+  }, [cloradorAutomaticoSeleccionado, estados, flujoPorCloradorEnLinea]);
+  const cargaSumaSanitizacion = useMemo(() => {
+    const vals = [];
+    if (cloradorSeleccionado           && cargaClorador           != null) vals.push(cargaClorador);
+    if (uvSeleccionado                 && cargaLamparaUV          != null) vals.push(cargaLamparaUV);
+    // El clorador en línea excluido (flujo >90) no suma su carga al subtotal.
+    if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && !cloradorEnLineaExcede) vals.push(cargaCloradorAutomatico);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+  }, [cloradorSeleccionado, cargaClorador, uvSeleccionado, cargaLamparaUV, cloradorAutomaticoSeleccionado, cargaCloradorAutomatico, cloradorEnLineaExcede]);
   const { tuberiaMaxGlobal, velocidadMaxGlobal } = useMemo(() => {
     if (!flujoMaxGlobal || flujoMaxGlobal <= 0) return { tuberiaMaxGlobal: null, velocidadMaxGlobal: null };
     const { velocidadFlujo } = velocidadCargaFlujo(flujoMaxGlobal);
@@ -705,9 +718,11 @@ export default function App() {
       if (cloradorSeleccionado && cargaClorador != null)
         lista.push({ label: "Generador de cloro salino", valor: parseFloat(cargaClorador), grupo: "sanitizacion" });
       if (cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null) {
-        const estCA = estados?.cloradorAutomatico;
-        const flujoCA = estCA?.flujoTotal != null ? parseFloat(estCA.flujoTotal) : (flujoMaxGlobal ?? 0);
-        const cloradorEnLineaExcedido = estCA?.instalacion === "enLinea" && flujoCA > FLUJO_MAX_CLORADOR_EN_LINEA;
+const estCA = estados?.cloradorAutomatico;
+        // El clorador en línea recibe todo el caudal del sistema: la exclusión >90
+        // se evalúa con el flujo del sistema (flujoMaxGlobal), no con su flujo propio.
+        const cloradorEnLineaExcedido = estCA?.instalacion === "enLinea"
+          && flujoPorCloradorEnLinea > FLUJO_MAX_CLORADOR_EN_LINEA;
         lista.push({
           label: "Clorador automático",
           valor: parseFloat(cargaCloradorAutomatico),
@@ -987,6 +1002,18 @@ export default function App() {
               {cloradorSeleccionado && cloradorListo && (<><div className="resultado-subheader resultado-subheader--cloro">Generador de cloro salino</div><table className="tabla-resultados"><tbody><tr><th className="th-indent">Flujo total:</th><td className="td-flujo">{fmtGPM(estados?.cloradorSalino?.flujoTotal ?? flujoClorador)}</td></tr><tr><th className="th-indent">Tubería distribución:</th><td>{fmtTub(tuberiaClorador)}</td></tr><tr><th className="th-indent">Velocidad:</th><td className="td-vel">{fmtVel(velocidadClorador)}</td></tr><tr><th className="th-indent">CDT:</th><td className="td-cdt">{fmtFt(cargaClorador)}</td></tr></tbody></table></>)}
               {cloradorSeleccionado && cloradorListo && kgDiaCloroNecesario != null && (<table className="tabla-resultados"><tbody><tr><th className="th-indent">Cloro necesario:</th><td className="td-cloro-nec">{fmtKg(kgDiaCloroNecesario)}</td></tr></tbody></table>)}
               {cloradorAutomaticoSeleccionado && cargaCloradorAutomatico != null && (() => {
+                const esEnLineaCA = estados?.cloradorAutomatico?.instalacion === "enLinea";
+                // En línea: todo el caudal pasa por el clorador → usa el flujo del sistema (como UV).
+                // Fuera de línea: es derivación → usa su flujo propio de dosificación.
+                if (esEnLineaCA) {
+                  const gris = cloradorEnLineaExcede ? { color: "#64748b" } : {};
+                  return (<><div className="resultado-subheader resultado-subheader--cloro">Clorador automático{cloradorEnLineaExcede ? " — excluido" : ""}</div><table className="tabla-resultados"><tbody>
+                    <tr><th className="th-indent">Flujo sistema:</th><td className="td-flujo" style={gris}>{fmtGPM(flujoMaxGlobal)}</td></tr>
+                    <tr><th className="th-indent">Tubería distribución:</th><td style={gris}>{fmtTub(tuberiaMaxGlobal)}</td></tr>
+                    <tr><th className="th-indent">Velocidad:</th><td className="td-vel" style={gris}>{fmtVel(velocidadMaxGlobal)}</td></tr>
+                    <tr><th className="th-indent">CDT:</th><td className="td-cdt" style={cloradorEnLineaExcede ? { color: "#64748b" } : {}}>{cloradorEnLineaExcede ? "no suma" : fmtFt(cargaCloradorAutomatico)}</td></tr>
+                  </tbody></table></>);
+                }
                 const flujoCA = estados?.cloradorAutomatico?.flujoTotal != null ? parseFloat(estados.cloradorAutomatico.flujoTotal) : flujoMaxGlobal;
                 const { velocidadFlujo: velCA } = flujoCA ? velocidadCargaFlujo(flujoCA) : { velocidadFlujo: {} };
                 const tubCAraw = flujoCA ? tuberiaSeleccionada(velCA, "descarga") : null;

@@ -1444,7 +1444,7 @@ const infoActiva = useMemo(() => {
    BLOQUE CLORADOR AUTOMÁTICO
    — onCargaChange sube la carga al padre (App.jsx)
 ===================================================== */
-function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, onResChange = null, instalacion = null, setInstalacion,
+function BloqueCloradorAutomatico({ flujoMaximo, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, onCargaChange = null, onEstadoChange = null, onResChange = null, instalacion = null, setInstalacion,
   modoExterno, setModoExterno, selManualCLIdExterno, setSelManualCLIdExterno, selManualCLCantExterno, setSelManualCLCantExterno }) {
   const [modoCL,          setModoCLLocal]         = useState(modoExterno              ?? "recomendado");
   const [selManualCLId,   setSelManualCLIdLocal]   = useState(selManualCLIdExterno    ?? null);
@@ -1460,12 +1460,12 @@ function BloqueCloradorAutomatico({ volumenLitros, usoGeneral, areaM2, volumenM3
     let cancel = false;
     const t = setTimeout(async () => {
       try {
-        const r = await apiSanitizacion({ tipo: "cloradorAutomatico", modo: modoCL, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, instalacion, equipoId: selManualCLId, cantidad: selManualCLCant });
+        const r = await apiSanitizacion({ tipo: "cloradorAutomatico", modo: modoCL, flujoMaximo, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, instalacion, equipoId: selManualCLId, cantidad: selManualCLCant });
         if (!cancel) setCalcBackCA(r);
       } catch (e) { if (!cancel) console.warn("Clorador automático backend:", e.message); }
     }, 350);
     return () => { cancel = true; clearTimeout(t); };
-  }, [instalacion, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, modoCL, selManualCLId, selManualCLCant]);
+  }, [instalacion, volumenLitros, usoGeneral, areaM2, volumenM3, tempC, modoCL, selManualCLId, selManualCLCant, flujoMaximo]);
 
   const rec = calcBackCA?.recomendado ?? null;
 
@@ -1545,13 +1545,14 @@ const infoActiva = useMemo(() => {
     const eqCA = infoActiva ? cloradoresAutomaticos.find(g => g.marca === infoActiva.marca && g.modelo === infoActiva.modelo) : null;
     const specCA = eqCA?.specs?.capacidadComercial != null ? `${eqCA.specs.capacidadComercial} kg/día` : null;
     onEstadoChange(infoActiva ? { 
+      selId: infoActiva.id,
       marca: infoActiva.marca, modelo: infoActiva.modelo, 
       instalacion: infoActiva.instalacion, cantidad: infoActiva.cantidad, 
       flujoTotal: infoActiva.flujoTotal, 
-      cargaTotal: parseFloat(infoActiva.cargaTotal) || null,  // ← agregar
+      cargaTotal: parseFloat(infoActiva.cargaTotal) || null,
       spec: specCA 
     } : null);
-}, [infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
+}, [infoActiva?.id, infoActiva?.marca, infoActiva?.modelo, infoActiva?.cantidad]);
   // Eleva el `res` del clorador automático para la memoria
   useEffect(() => {
     if (!onResChange) return;
@@ -2658,11 +2659,12 @@ function ResumenEquiposConfirmacion({
   );
 
   const hayCambios = uvCambio || Object.entries(equiposRecalc).some(([k, e]) => k !== "lamparaUV" && e?.cambio);
-  const flujoRealCloradorLocal = parseFloat(estados?.cloradorAutomatico?.flujoTotal ?? 0);
   const flujoEquilibrioFinal = resultado?.equilibrio?.flujo ?? 0;
+  // cloradorEnLineaQuitado viene de App con el criterio correcto (flujo del sistema
+  // o flujo propio del clorador >90). Se combina con la exclusión por equilibrio.
   const cloradorExcluidoLocal = sistemasSeleccionadosSanit?.cloradorAutomatico
     && estados?.cloradorAutomatico?.instalacion === "enLinea"
-    && (flujoRealCloradorLocal > FLUJO_MAX_CLORADOR_EN_LINEA
+    && (cloradorEnLineaQuitado
         || flujoEquilibrioFinal > FLUJO_MAX_CLORADOR_EN_LINEA);
 
   return (
@@ -3049,6 +3051,10 @@ export default function Equipamiento({
   const [estadoBomba, setEstadoBomba] = useState(eqPrev.estadoBomba ?? null);
   const [ajustesConfirmados, setAjustesConfirmados] = useState(eqPrev.ajustesConfirmados ?? {});
   const [verificacionResultado, setVerificacionResultado] = useState(eqPrev.verificacionResultado ?? null);
+  // CDT de diseño a 6/8 persistente — sobrevive al reset de verificacionResultado
+  // para que la cargaRequerida de la motobomba no caiga al fallback (cargaTotalGlobal)
+  // durante reverificar. Solo se actualiza con un valor válido del backend.
+  const [cdtDisenoPersistente, setCdtDisenoPersistente] = useState(eqPrev.cdtDisenoPersistente ?? null);
   const [verificacionFase,      setVerificacionFase]      = useState(eqPrev.verificacionResultado ? "listo" : "idle");
   const [verificacionLineas,    setVerificacionLineas]    = useState(eqPrev.verificacionResultado ? [] : []);
 
@@ -3218,10 +3224,10 @@ export default function Equipamiento({
 
   // Detectar si el clorador en línea excede el límite — solo para mostrar aviso, no modificar estado
   const cloradorAutomaticoEsEnLinea = estados?.cloradorAutomatico?.instalacion === "enLinea";
-  const flujoRealClorador = parseFloat(estados?.cloradorAutomatico?.flujoTotal ?? 0);
-  const cloradorEnLineaExcede = sistemasSeleccionadosSanit?.cloradorAutomatico
-      && cloradorAutomaticoEsEnLinea
-      && flujoRealClorador > FLUJO_MAX_CLORADOR_EN_LINEA;
+  const cloradorEnLineaExcede = cloradorEnLineaExcedeFromApp
+      ?? (sistemasSeleccionadosSanit?.cloradorAutomatico
+          && cloradorAutomaticoEsEnLinea
+          && flujoMaxGlobal > FLUJO_MAX_CLORADOR_EN_LINEA);
 
   const datosDim      = datosPorSistema?.[sistemaActivo];
   const areaM2        = useMemo(() => areaTotal(datosDim),    [datosDim]);
@@ -3431,7 +3437,7 @@ export default function Equipamiento({
                     <span className="sistema-detalle-icon-svg"><IconoCloradorAutomatico /></span>
                     <span className="sistema-detalle-titulo">Clorador automático</span>
                   </div>
-                  <BloqueCloradorAutomatico volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} onResChange={guardarResSanitizacion} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} modoExterno={modoCloradorAutomatico} setModoExterno={setModoCloradorAutomatico} selManualCLIdExterno={selCloradorAutomaticoId} setSelManualCLIdExterno={setSelCloradorAutomaticoId} selManualCLCantExterno={selCloradorAutomaticoCant} setSelManualCLCantExterno={setSelCloradorAutomaticoCant} />
+                  <BloqueCloradorAutomatico flujoMaximo={flujoMaxGlobal} volumenLitros={volumenLitros} usoGeneral={usoGeneral} areaM2={areaM2} volumenM3={volM3} tempC={tempC} onCargaChange={v => setCarga("cloradorAutomatico", v)} onEstadoChange={e => setEstado("cloradorAutomatico", e)} onResChange={guardarResSanitizacion} instalacion={instalacionCloradorAutomatico} setInstalacion={setInstalacionCloradorAutomatico} modoExterno={modoCloradorAutomatico} setModoExterno={setModoCloradorAutomatico} selManualCLIdExterno={selCloradorAutomaticoId} setSelManualCLIdExterno={setSelCloradorAutomaticoId} selManualCLCantExterno={selCloradorAutomaticoCant} setSelManualCLCantExterno={setSelCloradorAutomaticoCant} />
                  </div>
               </div>
             )}
@@ -3653,7 +3659,7 @@ export default function Equipamiento({
                 ⚙️ Motobomba
                 <span className="selector-subtitulo-hint">Selección basada en flujo máximo y CDT total del sistema</span>
               </div>
-                <BloqueMotobomba flujoMaximo={flujoMaxGlobal} cargaRequerida={cargaTotalGlobal} onEstadoChange={setEstadoBomba}
+                <BloqueMotobomba flujoMaximo={flujoMaxGlobal} cargaRequerida={(getVelocidadMaxima() && cdtDisenoPersistente) ? cdtDisenoPersistente : cargaTotalGlobal} onEstadoChange={setEstadoBomba}
                 modoExterno={modoMotobomba} setModoExterno={setModoMotobomba}
                 selIdExterno={selMotobombaId} setSelIdExterno={setSelMotobombaId}
                 selCantExterno={selMotobombaCant} setSelCantExterno={setSelMotobombaCant}
@@ -3667,6 +3673,11 @@ export default function Equipamiento({
                       onResultadoChange={(r) => {
                         setVerificacionResultado(r);
                         setVerificacionFase(r ? "listo" : "idle");
+                        // Persistir el CDT de diseño a 6/8 cuando llega un valor válido.
+                        // No se borra en onReset, así la motobomba no cae al fallback.
+                        if (r && !r.error && r.cdtDisenoSistema != null) {
+                          setCdtDisenoPersistente(r.cdtDisenoSistema);
+                        }
                         const snapshot = r ? construirSnapshotSistema(
                           estados,
                           sistemasSeleccionadosSanit,

@@ -512,7 +512,9 @@ export function generarMemoriaCalculo({
     if (!eqIter || !equiposRecalcEmpotrables) return eqIter;
     const merged = { ...eqIter };
     for (const k of ["cloradorAutomatico", "cloradorSalino"]) {
-      if (equiposRecalcEmpotrables[k] && !eqIter[k]?.excluido) {
+      // No inyectar el de diseño si el equilibrio ya lo recalculó (trae resultadoHidraulico).
+      // Esto pasa con el clorador automático EN LÍNEA, que sí usa el flujo de operación.
+      if (equiposRecalcEmpotrables[k] && !eqIter[k]?.excluido && !eqIter[k]?.resultadoHidraulico) {
         merged[k] = equiposRecalcEmpotrables[k];
       }
     }
