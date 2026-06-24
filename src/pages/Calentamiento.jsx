@@ -724,15 +724,6 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
   /* ── Caldera recomendada: paso 2 con demanda real ── */
   const calderaSeleccionada = (modoCaldera === "recomendado" && calcBackend?.calFinal?.seleccion)
     ? calcBackend.calFinal : null;
-
-  useEffect(() => {
-    const rec = calcBackend?.calRecomendado;
-    if (modoCaldera === "manual" && !selManualCalderaId && rec?.seleccion && !rec.error) {
-      const c = calderasGas.find(c => c.marca === rec.seleccion.marca && c.modelo === rec.seleccion.modelo);
-      if (c) { setSelManualCalderaId(c.id); setSelManualCalderaCant(rec.seleccion.cantidad ?? 1); }
-    }
-  }, [modoCaldera, calcBackend?.calRecomendado?.seleccion?.modelo]);
-
   /* ── Catálogo caldera filtrado ── */
   const marcasCalderaDisponibles = useMemo(() =>
     ["todas", ...new Set(calderasGas.filter(c => c.metadata.activo).map(c => c.marca))],
@@ -746,7 +737,22 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
       return true;
     }),
   [filtroCalderaMarca, filtroCalderaTipoGas]);
-
+  useEffect(() => {
+    if (modoCaldera !== "manual" || selManualCalderaId) return;
+    // Fallback al no seleccionar nada (error del usuario):
+    // - Si hay marca filtrada → primera caldera de esa marca (id válido para la marca → sin bucle con el efecto de limpieza).
+    // - Si filtro en "todas" → recomendado global (comportamiento original).
+    if (filtroCalderaMarca !== "todas") {
+      const primera = catalogoCalderaFiltrado[0];
+      if (primera) { setSelManualCalderaId(primera.id); setSelManualCalderaCant(1); }
+      return;
+    }
+    const rec = calcBackend?.calRecomendado;
+    if (rec?.seleccion && !rec.error) {
+      const c = calderasGas.find(c => c.marca === rec.seleccion.marca && c.modelo === rec.seleccion.modelo);
+      if (c) { setSelManualCalderaId(c.id); setSelManualCalderaCant(rec.seleccion.cantidad ?? 1); }
+    }
+  }, [modoCaldera, selManualCalderaId, filtroCalderaMarca, catalogoCalderaFiltrado, calcBackend?.calRecomendado?.seleccion?.modelo]);
   /* ── Caldera manual ── */
   const calderaManual = (modoCaldera === "manual" && calcBackend?.calFinal?.caldera)
     ? calcBackend.calFinal : null;
@@ -2293,6 +2299,9 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
                                       ))}
                                     </select>
                                   </div>
+                                  {/* Filtro de tipo de gas oculto temporalmente — pendiente definir
+                                      semántica (dual vs versiones separadas) y filtro inclusivo/exacto.
+                                      filtroCalderaTipoGas queda en "todos", así no filtra por gas.
                                   <div className="campo">
                                     <label>Tipo de gas</label>
                                     <select value={filtroCalderaTipoGas} onChange={e => setFiltroCalderaTipoGas(e.target.value)}>
@@ -2302,6 +2311,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
                                       <option value="natural / propano">Natural / propano</option>
                                     </select>
                                   </div>
+                                  */}
                                 </div>
                                 <div className="bdc-manual-lista">
                                   {catalogoCalderaFiltrado.map(c => {
