@@ -3,12 +3,13 @@ import ReactDOM from "react-dom/client";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {
   Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette,
-  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown
+  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown, FolderOpen
 } from "lucide-react";
 
 import Dimensiones   from "./pages/Dimensiones.jsx";
 import Calentamiento from "./pages/Calentamiento.jsx";
 import Equipamiento  from "./pages/Equipamiento.jsx";
+import ProyectosDrawer from "./components/ProyectosDrawer.jsx";
 
 import { volumen }          from "./utils/volumen";
 import { flujoFinal }       from "./utils/flujoFinal";
@@ -19,6 +20,8 @@ import { apiSanitizacion } from "./utils/api";
 
 import { formatBTU, formatM2, formatM3, formatMetro, formatGPM } from "./utils/format";
 import { velocidadCargaFlujo } from "./utils/velocidadCargaFlujo";
+import { useAuth } from "./utils/AuthContext.jsx";
+
 
 function tuberiaSeleccionada(velocidades, tipo) {
   const limite = tipo === "succion" ? 4.5 : 6.5;
@@ -46,6 +49,12 @@ function areaTotal(datosSistema) {
 }
 
 function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro }) {
+  const { cerrarSesion, usuario, perfil } = useAuth();
+  const emailUsuario = usuario?.email ?? "";
+  const inicial = (usuario?.email?.[0] ?? "?").toUpperCase();
+  const planUsuario = perfil?.plan
+    ? perfil.plan.charAt(0).toUpperCase() + perfil.plan.slice(1)
+    : "—";
   const menuRef = useRef(null);
   useEffect(() => {
     if (!abierto) return;
@@ -59,10 +68,10 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
   return (
     <div ref={menuRef} className={`menu-usuario-popup ${panelColapsado ? "menu-usuario-colapsado" : ""}`}>
       <div className="menu-usuario-cuenta">
-        <div className="menu-usuario-avatar">OS</div>
+        <div className="menu-usuario-avatar">{inicial}</div>
         <div className="menu-usuario-info">
-          <span className="menu-usuario-nombre">Orlando Salcedo</span>
-          <span className="menu-usuario-plan">Gratis</span>
+          <span className="menu-usuario-nombre">{emailUsuario}</span>
+          <span className="menu-usuario-plan">{planUsuario}</span>
         </div>
       </div>
       <div className="menu-usuario-divider" />
@@ -81,7 +90,7 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
         <HelpCircle size={15} /><span>Ayuda</span>
         <ChevronRight size={13} className="menu-usuario-arrow" />
       </button>
-      <button className="menu-usuario-item menu-usuario-item-danger">
+      <button className="menu-usuario-item menu-usuario-item-danger" onClick={() => cerrarSesion()}>
         <LogOut size={15} /><span>Cerrar sesión</span>
       </button>
       <div className="menu-usuario-divider" />
@@ -89,10 +98,10 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
         <span>Política de privacidad</span><span>·</span><span>Condiciones del servicio</span>
       </div>
       <div className="menu-usuario-upgrade">
-        <div className="menu-usuario-avatar menu-usuario-avatar-sm">OS</div>
+        <div className="menu-usuario-avatar menu-usuario-avatar-sm">{inicial}</div>
         <div className="menu-usuario-upgrade-info">
-          <span>Orlando Salc...</span>
-          <span className="menu-usuario-plan">Gratis</span>
+          <span>{emailUsuario}</span>
+          <span className="menu-usuario-plan">{planUsuario}</span>
         </div>
         <button className="menu-usuario-btn-upgrade">Mejorar plan</button>
       </div>
@@ -293,6 +302,9 @@ export default function App() {
   const [temaOscuro, setTemaOscuro]                 = useState(true);
   const [datosPorSistema, setDatosPorSistema]       = useState({});
   const [sistemaActivo, setSistemaActivo]           = useState(null);
+  const [drawerProyectosAbierto, setDrawerProyectosAbierto] = useState(false);
+  const { perfil: perfilApp } = useAuth();
+  const esGratis = perfilApp?.plan === "gratis";
   const dimensionesRef                              = useRef(null);
 
   // ── NUEVO: estado drawer de resultados en móvil ──
@@ -789,8 +801,18 @@ const estCA = estados?.cloradorAutomatico;
   }, [vis, cloradorSeleccionado, uvSeleccionado, cloradorAutomaticoSeleccionado, cargaSumaFiltracion, cargaRetorno, succionActiva]);
 
   return (
+    <>
+      <ProyectosDrawer
+        abierto={drawerProyectosAbierto}
+        onCerrar={() => setDrawerProyectosAbierto(false)}
+        esGratis={esGratis}
+        datosPorSistema={datosPorSistema}
+        sistemaActivo={sistemaActivo}
+        setDatosPorSistema={setDatosPorSistema}
+        setSistemaActivo={setSistemaActivo}
+        setSeccion={setSeccion}
+      />
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
-
       {/* ══════════ PANEL IZQUIERDO ══════════ */}
       <div className={`panel-izquierdo ${panelColapsado ? "colapsado" : ""}`}>
 
@@ -828,8 +850,11 @@ const estCA = estados?.cloradorAutomatico;
             <span className="nav-icon"><Wrench size={16} strokeWidth={1.5} /></span>
             {!panelColapsado && <span className="nav-text">Equipamiento</span>}
           </button>
+          <button className="nav-item" onClick={() => setDrawerProyectosAbierto(true)}>
+            <span className="nav-icon"><FolderOpen size={16} strokeWidth={1.5} /></span>
+            {!panelColapsado && <span className="nav-text">Proyectos</span>}
+          </button>
         </div>
-
         {/* ══════════ RESULTADOS ══════════ */}
         {/*
           En escritorio: se muestra inline en el panel izquierdo.
@@ -1233,7 +1258,7 @@ const estCA = estados?.cloradorAutomatico;
           )}
         </div>
       </div>
-
     </div>
+    </>
   );
 }
