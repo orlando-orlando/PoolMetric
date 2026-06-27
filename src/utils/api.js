@@ -28,7 +28,28 @@ async function postCalc(endpoint, payload) {
   }
   return resp.json();
 }
-
+// Inicia el checkout de Stripe para un plan ("fundador" | "pro").
+// Devuelve la URL de pago de Stripe a la que hay que redirigir.
+export async function iniciarCheckout(plan) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Debes iniciar sesión para suscribirte.");
+  const resp = await fetch(`${API_BASE}/api/stripe/checkout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify({ plan }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+    throw new Error(err.error || `Error HTTP ${resp.status}`);
+  }
+  const { url } = await resp.json();
+  if (!url) throw new Error("No se recibió la URL de pago.");
+  return url;
+}
 export function apiEquilibrio(input) {
   return postCalc("equilibrio", input);
 }

@@ -1,8 +1,25 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "../utils/AuthContext.jsx";
-
+import { iniciarCheckout } from "../utils/api.js";
+import { cuposFundadorDisponibles } from "../utils/cupos.js";
 export default function PlanExpirado() {
   const { usuario, cerrarSesion } = useAuth();
-
+  const [procesando, setProcesando] = useState(null);
+  const [cuposLibres, setCuposLibres] = useState(null); // null = cargando/desconocido
+  useEffect(() => {
+    cuposFundadorDisponibles().then(setCuposLibres);
+  }, []);
+  const fundadorAgotado = cuposLibres === 0;
+  const handleSuscribir = async (plan) => {
+    setProcesando(plan);
+    try {
+      const url = await iniciarCheckout(plan);
+      window.location.href = url; // redirige a la página de pago de Stripe
+    } catch (e) {
+      alert(e.message || "No se pudo iniciar el pago.");
+      setProcesando(null);
+    }
+  };
   return (
     <div style={S.fondo}>
       <div style={S.tarjeta}>
@@ -12,7 +29,8 @@ export default function PlanExpirado() {
         </p>
         <div style={S.planes}>
           {/* Plan Fundador */}
-          <div style={S.plan}>
+          <div style={{ ...S.plan, ...(fundadorAgotado ? S.planAgotado : {}) }}>
+            {fundadorAgotado && <div style={S.selloAgotado}>AGOTADO</div>}
             <div style={S.planBadge}>Cupos limitados</div>
             <h2 style={S.planNombre}>Fundador</h2>
             <div style={S.planPrecio}>$49 <span style={S.planPrecioSub}>USD/mes</span></div>
@@ -23,7 +41,13 @@ export default function PlanExpirado() {
               <li>Proyectos guardados ilimitados</li>
               <li>Tu precio nunca cambia</li>
             </ul>
-            <button style={S.botonPlan} disabled>Próximamente</button>
+            <button
+              style={fundadorAgotado ? S.botonAgotado : S.botonPlan}
+              onClick={() => handleSuscribir("fundador")}
+              disabled={procesando !== null || fundadorAgotado}
+            >
+              {fundadorAgotado ? "Cupos agotados" : (procesando === "fundador" ? "Procesando..." : "Elegir Fundador")}
+            </button>
           </div>
           {/* Plan Pro */}
           <div style={S.plan}>
@@ -36,7 +60,9 @@ export default function PlanExpirado() {
               <li>Proyectos guardados ilimitados</li>
               <li>Soporte prioritario</li>
             </ul>
-            <button style={S.botonPlanSec} disabled>Próximamente</button>
+            <button style={S.botonPlanSec} onClick={() => handleSuscribir("pro")} disabled={procesando !== null}>
+              {procesando === "pro" ? "Procesando..." : "Elegir Pro"}
+            </button>
           </div>
         </div>
         <div style={S.footer}>
@@ -61,8 +87,11 @@ const S = {
   planPrecioSub: { color: "#64748b", fontSize: "0.8rem", fontWeight: 400 },
   planNota: { color: "#38bdf8", fontSize: "0.72rem", fontWeight: 600, marginBottom: "1rem", minHeight: "1rem" },
   beneficios: { listStyle: "none", padding: 0, margin: "0 0 1.5rem 0", color: "#cbd5e1", fontSize: "0.85rem", lineHeight: 1.9 },
-  botonPlan: { width: "100%", padding: "0.7rem", borderRadius: "8px", border: "none", background: "#0284c7", color: "white", fontSize: "0.9rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 },
-  botonPlanSec: { width: "100%", padding: "0.7rem", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#cbd5e1", fontSize: "0.9rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 },
+  botonPlan: { width: "100%", padding: "0.7rem", borderRadius: "8px", border: "none", background: "#0284c7", color: "white", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer" },
+  planAgotado: { opacity: 0.55 },
+  selloAgotado: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-12deg)", background: "#dc2626", color: "white", fontSize: "1.1rem", fontWeight: 800, letterSpacing: "0.1em", padding: "0.4rem 1.2rem", borderRadius: "6px", boxShadow: "0 4px 12px rgba(0,0,0,0.4)", zIndex: 2, pointerEvents: "none" },
+  botonAgotado: { width: "100%", padding: "0.7rem", borderRadius: "8px", border: "1px solid #475569", background: "#1e293b", color: "#64748b", fontSize: "0.9rem", fontWeight: 600, cursor: "not-allowed" },
+  botonPlanSec: { width: "100%", padding: "0.7rem", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#cbd5e1", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer" },
   footer: { marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" },
   emailTxt: { color: "#64748b", fontSize: "0.8rem" },
   cerrar: { background: "none", border: "none", color: "#38bdf8", fontSize: "0.85rem", cursor: "pointer" },
