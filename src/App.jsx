@@ -297,6 +297,7 @@ function FlashValue({ value, children }) {
 
 export default function App() {
   const [seccion, setSeccion]                       = useState("dimensiones");
+  const [proyectoVersion, setProyectoVersion]       = useState(0);
   const [panelColapsado, setPanelColapsado]         = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const [temaOscuro, setTemaOscuro]                 = useState(true);
@@ -810,7 +811,9 @@ const estCA = estados?.cloradorAutomatico;
         sistemaActivo={sistemaActivo}
         setDatosPorSistema={setDatosPorSistema}
         setSistemaActivo={setSistemaActivo}
+        seccion={seccion}
         setSeccion={setSeccion}
+        setProyectoVersion={setProyectoVersion}
       />
     <div className={`app-contenedor ${temaOscuro ? "tema-oscuro" : "tema-claro"}`}>
       {/* ══════════ PANEL IZQUIERDO ══════════ */}
@@ -1212,6 +1215,7 @@ const estCA = estados?.cloradorAutomatico;
         <div className="panel-derecho-contenido">
           {seccion === "dimensiones" && (
             <Dimensiones
+              key={`dim-${proyectoVersion}`}
               ref={dimensionesRef}
               setSeccion={setSeccion}
               sistemaActivo={sistemaActivo}
@@ -1223,6 +1227,7 @@ const estCA = estados?.cloradorAutomatico;
           )}
           {seccion === "calentamiento" && (
             <Calentamiento
+              key={`cal-${proyectoVersion}`}
               setSeccion={setSeccion}
               tipoSistema={sistemaActivo}
               datosPorSistema={datosPorSistema}
@@ -1235,6 +1240,7 @@ const estCA = estados?.cloradorAutomatico;
           )}
           {seccion === "equipamiento" && (
             <Equipamiento
+              key={`eq-${proyectoVersion}`}
               setSeccion={setSeccion}
               sistemaActivo={sistemaActivo}
               datosPorSistema={datosPorSistema}

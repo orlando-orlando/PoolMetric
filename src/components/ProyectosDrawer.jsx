@@ -4,12 +4,13 @@ import { guardarProyecto, listarProyectos, cargarProyecto, borrarProyecto } from
 
 export default function ProyectosDrawer({
   abierto, onCerrar, esGratis,
-  datosPorSistema, sistemaActivo,
-  setDatosPorSistema, setSistemaActivo, setSeccion,
+  datosPorSistema, sistemaActivo, seccion,
+  setDatosPorSistema, setSistemaActivo, setSeccion, setProyectoVersion,
 }) {
   const [proyectos, setProyectos] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
+  const [proyectoCargadoId, setProyectoCargadoId] = useState(null);
 
   // Cargar la lista cada vez que se abre el drawer
   useEffect(() => {
@@ -34,7 +35,7 @@ export default function ProyectosDrawer({
   async function handleGuardar() {
     const nombre = window.prompt("Nombre del proyecto:");
     if (!nombre || !nombre.trim()) return;
-    const { error } = await guardarProyecto(nombre.trim(), { datosPorSistema, sistemaActivo });
+    const { error } = await guardarProyecto(nombre.trim(), { datosPorSistema, sistemaActivo, seccion });
     if (error) {
       setMensaje({ tipo: "error", txt: error.message });
       return;
@@ -51,7 +52,9 @@ export default function ProyectosDrawer({
     const d = data.datos ?? {};
     setDatosPorSistema(d.datosPorSistema ?? {});
     setSistemaActivo(d.sistemaActivo ?? null);
-    setSeccion("dimensiones");
+    setSeccion(d.seccion ?? "dimensiones");
+    setProyectoCargadoId(id); // recordar cuál está cargado
+    setProyectoVersion(v => v + 1); // fuerza re-montaje limpio de las secciones
     onCerrar();
   }
 
@@ -61,6 +64,14 @@ export default function ProyectosDrawer({
     if (!ok) return;
     const { error } = await borrarProyecto(id);
     if (error) { setMensaje({ tipo: "error", txt: error.message }); return; }
+    // Resetear la app SOLO si borraste el proyecto que tenías cargado.
+    if (id === proyectoCargadoId) {
+      setDatosPorSistema({});
+      setSistemaActivo(null);
+      setSeccion("dimensiones");
+      setProyectoCargadoId(null);
+      setProyectoVersion(v => v + 1); // re-montaje limpio al resetear
+    }
     recargarLista();
   }
 

@@ -1894,6 +1894,9 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
   useEffect(() => {
     if (modo !== "manual" || !selId) return;
     if (!flujoMaximo || !cargaRequerida) return;
+    // El cálculo del backend aún no ha llegado (calcBack null o cantidadesMin vacío):
+    // no decidir todavía, para no degradar a "recomendado" por falta de datos al cargar.
+    if (!calcBack || Object.keys(cantidadesMin).length === 0) return;
     const nuevoMin = cantidadesMin[selId];
     if (nuevoMin == null) {
       // La bomba ya no puede cubrir el CDT — volver a recomendado
@@ -1904,7 +1907,7 @@ function BloqueMotobomba({ flujoMaximo, cargaRequerida, onEstadoChange = null,
       // Actualizar cantidad al nuevo mínimo si la actual ya no alcanza
       setSelCant(c => (c === null || c < nuevoMin) ? nuevoMin : c);
     }
-  }, [flujoMaximo, cargaRequerida, cantidadesMin]);
+  }, [flujoMaximo, cargaRequerida, cantidadesMin, calcBack]);
 
   useEffect(() => {
     if (modo === "manual" && !selId && rec) {
@@ -2532,10 +2535,21 @@ function ResumenEquiposConfirmacion({
   tubInfinity, velInfinity,
   tubCanal,    velCanal,
 }) {
-  const [confirmado, setConfirmado] = useState(false);
+  // Si hay un puntoOperacion guardado, los ajustes ya se confirmaron (proyecto cargado).
+  // Restauramos SOLO el flag visual; no tocamos equiposConfirmados para no disparar
+  // efectos que escriban en datosPorSistema (eso invalidaría la verificación).
+  const [confirmado, setConfirmado] = useState(!!(datosPorSistema?.equipamiento?.puntoOperacion?.confirmado));
   const [equiposConfirmados, setEquiposConfirmados] = useState(null);
-
+  // Guarda el último flujo con el que se evaluó, para resetear SOLO cuando el flujo
+  // realmente cambia de un valor a otro distinto (no en dobles renders ni al cargar,
+  // donde el flujo llega igual al guardado).
+  const flujoConfirmadoRef = useRef(resultado?.equilibrio?.flujo ?? null);
   useEffect(() => {
+    const flujoActual = resultado?.equilibrio?.flujo ?? null;
+    // Si el flujo no cambió respecto al último conocido, no hacer nada.
+    if (flujoActual === flujoConfirmadoRef.current) return;
+    // El flujo cambió de verdad → desconfirmar (el usuario modificó algo).
+    flujoConfirmadoRef.current = flujoActual;
     setConfirmado(false);
     setEquiposConfirmados(null);
   }, [resultado?.equilibrio?.flujo]);
@@ -2855,7 +2869,7 @@ function ResumenEquiposConfirmacion({
               className="btn-primario"
               style={{ whiteSpace: "nowrap", fontSize: "0.75rem", padding: "0.45rem 1rem", background: "linear-gradient(135deg, #9a3412, #7c2d12)", borderColor: "rgba(249,115,22,0.4)" }}
               onClick={() => {
-                if (onAjustarCargas) onAjustarCargas({ equipos: equiposRecalc, flujo: resultado?.equilibrio?.flujo ?? null, cdt: resultado?.equilibrio?.carga ?? null });
+                if (onAjustarCargas) onAjustarCargas({ equipos: equiposRecalc, flujo: resultado?.equilibrio?.flujo ?? null, cdt: resultado?.equilibrio?.carga ?? null, confirmado: true });
                 setEquiposConfirmados(equiposRecalc);
                 setConfirmado(true);
               }}
@@ -3042,7 +3056,7 @@ export default function Equipamiento({
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
 
-  const [tabActiva, setTabActiva] = useState("sanitizacion");
+  const [tabActiva, setTabActiva] = useState(eqPrev.tabActiva ?? "sanitizacion");
 
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
@@ -3057,6 +3071,8 @@ export default function Equipamiento({
   const [cdtDisenoPersistente, setCdtDisenoPersistente] = useState(eqPrev.cdtDisenoPersistente ?? null);
   const [verificacionFase,      setVerificacionFase]      = useState(eqPrev.verificacionResultado ? "listo" : "idle");
   const [verificacionLineas,    setVerificacionLineas]    = useState(eqPrev.verificacionResultado ? [] : []);
+  // Bandera para no invalidar la verificación durante el primer ciclo tras cargar un proyecto.
+  const verificacionInicializada = useRef(false);
 
   // Estado del clorador salino — persiste entre tabs porque vive en el padre
   const [modoCloradorSalino,    setModoCloradorSalino]    = useState(eqPrev.modoCloradorSalino    ?? "recomendado");
@@ -3138,6 +3154,17 @@ export default function Equipamiento({
   useEffect(() => {
     const snapshotGuardado = datosPorSistema?.equipamiento?.verificacionSnapshot ?? null;
     if (!snapshotGuardado) return;
+
+    // En el primer ciclo tras cargar un proyecto, los estados (estados, selecciones,
+    // calentamiento) se asientan en renders sucesivos y el snapshot reconstruido puede
+    // diferir transitoriamente del guardado. Saltamos esa primera comprobación para no
+    // invalidar una verificación recién restaurada. A partir del segundo ciclo, los
+    // cambios reales del usuario sí invalidan como debe ser.
+    if (!verificacionInicializada.current) {
+      verificacionInicializada.current = true;
+      return;
+    }
+
     const snapshotActual = construirSnapshotSistema(
       estados,
       sistemasSeleccionadosSanit,
@@ -3725,18 +3752,35 @@ export default function Equipamiento({
                       datosPorSistema={datosPorSistema}
                       resultadoClorador={resultadoClorador}
                       onAjustarCargas={(payload) => {
-                        setDatosPorSistema(ps => ({
-                          ...ps,
-                          equipamiento: {
-                            ...(ps.equipamiento ?? {}),
-                            puntoOperacion: {
-                              equipos:   payload.equipos ?? payload,
-                              flujo:     payload.flujo   ?? null,
-                              cdt:       payload.cdt     ?? null,
-                              timestamp: Date.now(),
+                        setDatosPorSistema(ps => {
+                          const flujoNuevo = payload.flujo ?? null;
+                          const puntoPrevio = ps.equipamiento?.puntoOperacion ?? null;
+                          // El flag "confirmado" SOLO cambia en dos casos:
+                          // - payload.confirmado === true → el usuario presionó "Confirmar ajustes".
+                          // - el flujo cambió respecto al guardado → desconfirmar (cambio real).
+                          // Si es el ajuste automático con el mismo flujo, se PRESERVA el flag previo.
+                          let confirmado;
+                          if (payload.confirmado === true) {
+                            confirmado = true;
+                          } else if (puntoPrevio && puntoPrevio.flujo === flujoNuevo) {
+                            confirmado = puntoPrevio.confirmado === true; // preservar
+                          } else {
+                            confirmado = false; // flujo distinto → desconfirmar
+                          }
+                          return {
+                            ...ps,
+                            equipamiento: {
+                              ...(ps.equipamiento ?? {}),
+                              puntoOperacion: {
+                                equipos:   payload.equipos ?? payload,
+                                flujo:     flujoNuevo,
+                                cdt:       payload.cdt ?? null,
+                                timestamp: Date.now(),
+                                confirmado,
+                              },
                             },
-                          },
-                        }));
+                          };
+                        });
                       }}
                       flujoInfinityVal={flujoInfinityVal ?? null}
                       flujoFiltradoVal={flujoFiltradoVal ?? null}
