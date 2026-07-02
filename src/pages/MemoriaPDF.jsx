@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { debeMostrarPopupAsync } from "../utils/feedback.js";
+import ModalFeedback from "../components/ModalFeedback.jsx";
 import { retornos }    from "../data/retornos";
 import { desnatadores } from "../data/desnatadores";
 import { barredoras }  from "../data/barredoras";
@@ -2399,7 +2401,20 @@ export default function MemoriaPDF() {
   const [memoria, setMemoria]         = useState(null);
   const [error, setError]             = useState(null);
   const [logoEmpresa, setLogoEmpresa] = useState(null);
+  const [popupFeedback, setPopupFeedback] = useState(false);
   const inputRef = useRef(null);
+
+  // El reporte ya está en pantalla frente al usuario: momento de valor.
+  // Consultamos Supabase (la sesión se comparte entre pestañas) para decidir si
+  // mostrar la encuesta. Un pequeño retraso deja que el usuario vea su reporte primero.
+  useEffect(() => {
+    let cancelado = false;
+    const timer = setTimeout(async () => {
+      const mostrar = await debeMostrarPopupAsync();
+      if (!cancelado && mostrar) setPopupFeedback(true);
+    }, 2500);
+    return () => { cancelado = true; clearTimeout(timer); };
+  }, []);
 
   const fecha = new Date().toLocaleDateString("es-MX", { year:"numeric", month:"long", day:"numeric" });
 
@@ -2463,6 +2478,9 @@ export default function MemoriaPDF() {
         <PaginaResumen       memoria={memoria} logoEmpresa={logoEmpresa} fecha={fecha} />
         <PaginaDisclaimers   memoria={memoria} logoEmpresa={logoEmpresa} fecha={fecha} />
       </div>
+      {popupFeedback && (
+        <ModalFeedback modo="encuesta" esPopup onCerrar={() => setPopupFeedback(false)} />
+      )}
     </>
   );
 }

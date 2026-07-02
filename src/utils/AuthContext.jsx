@@ -8,9 +8,10 @@ export function AuthProvider({ children }) {
   const [perfil, setPerfil] = useState(null);
   const [perfilCargado, setPerfilCargado] = useState(false); // ¿terminó el intento de cargar perfil?
   const [cargando, setCargando] = useState(true);
-  // Carga el perfil del usuario desde la tabla profiles
+  const [confirmandoPago, setConfirmandoPago] = useState(false); // mostrando "Confirmando tu pago..."
+  // Carga el perfil del usuario desde la tabla profiles. Retorna el perfil (o null).
   const cargarPerfil = async (userId) => {
-    if (!userId) { setPerfil(null); setPerfilCargado(true); return; }
+    if (!userId) { setPerfil(null); setPerfilCargado(true); return null; }
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -19,10 +20,12 @@ export function AuthProvider({ children }) {
     if (error) {
       console.error("Error cargando perfil:", error.message);
       setPerfil(null);
-    } else {
-      setPerfil(data);
+      setPerfilCargado(true);
+      return null;
     }
+    setPerfil(data);
     setPerfilCargado(true); // el intento terminó, haya o no perfil
+    return data;
   };
   // Rastrea el id del usuario actualmente cargado, para ignorar eventos de auth
   // que no cambian de usuario (refresh de token, sincronización entre pestañas).
@@ -38,16 +41,19 @@ export function AuthProvider({ children }) {
       setCargando(false);
 
       // 1b. Si venimos de un pago exitoso, el webhook pudo tardar en actualizar el
-      // plan. Recargamos el perfil con reintentos hasta ver el cambio, y limpiamos la URL.
+      // plan. Mostramos "Confirmando tu pago..." mientras recargamos el perfil con
+      // reintentos, hasta ver el cambio de plan. Limpiamos la URL al entrar.
       const params = new URLSearchParams(window.location.search);
       if (userId && params.get("pago") === "exito") {
-        // Limpiar el parámetro de la URL (sin recargar la página)
         window.history.replaceState({}, "", window.location.pathname);
-        // Reintentar la carga del perfil unas veces, dando tiempo al webhook
-        for (let i = 0; i < 5; i++) {
+        setConfirmandoPago(true);
+        for (let i = 0; i < 6; i++) {
           await new Promise((r) => setTimeout(r, 1500));
-          await cargarPerfil(userId);
+          const p = await cargarPerfil(userId);
+          // Si el plan ya es de pago, dejamos de esperar.
+          if (p && (p.plan === "fundador" || p.plan === "pro")) break;
         }
+        setConfirmandoPago(false);
       }
     });
     // 2. Escuchar cambios de sesión
@@ -104,6 +110,7 @@ export function AuthProvider({ children }) {
     perfil,
     perfilCargado,
     cargando,
+    confirmandoPago,
     registrarse,
     iniciarSesion,
     cerrarSesion,

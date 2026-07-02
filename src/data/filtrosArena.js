@@ -380,6 +380,195 @@ export const filtrosArena = [
     specs: { diameter: 31, maxFlow: 99, filtrationArea: 4.9, arena: 160, grava: 0 },
     unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
     metadata: { precio: null, activo: true }
+  },
+  // ═══════════ COLOMBIA · PENTAIR ═══════════
+{
+    id: "sanddollar-sd35",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "SD35",
+    specs: { diameter: 16, maxFlow: 35, filtrationArea: 1.4, arena: 46, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "sanddollar-sd40",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "SD40",
+    specs: { diameter: 19, maxFlow: 40, filtrationArea: 1.8, arena: 69, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "sanddollar-sd60",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "SD60",
+    specs: { diameter: 22, maxFlow: 60, filtrationArea: 2.3, arena: 114, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "sanddollar-sd70",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "SD70",
+    specs: { diameter: 24, maxFlow: 70, filtrationArea: 3.15, arena: 137, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "sanddollar-sd80",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "SD80",
+    specs: { diameter: 26, maxFlow: 75, filtrationArea: 3.5, arena: 159, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tagelus-ta40d",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TA40D",
+    specs: { diameter: 19, maxFlow: 40, filtrationArea: 1.8, arena: 80, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tagelus-ta50d",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TA50D",
+    specs: { diameter: 21, maxFlow: 50, filtrationArea: 2.3, arena: 103, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tagelus-ta60d",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TA60D",
+    specs: { diameter: 24, maxFlow: 60, filtrationArea: 3.1, arena: 148, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tagelus-ta100d",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TA100D",
+    specs: { diameter: 30, maxFlow: 100, filtrationArea: 4.9, arena: 273, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "triton2-tr40",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR40",
+    specs: { diameter: 19, maxFlow: 38, filtrationArea: 1.92, arena: 80, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "triton2-tr50",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR50",
+    specs: { diameter: 21, maxFlow: 49, filtrationArea: 2.46, arena: 103, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "triton2-tr60",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR60",
+    specs: { diameter: 24, maxFlow: 63, filtrationArea: 3.14, arena: 148, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "triton2-tr100",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR100",
+    specs: { diameter: 30, maxFlow: 74, filtrationArea: 4.91, arena: 273, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "triton2-tr140",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR140",
+    specs: { diameter: 36, maxFlow: 106, filtrationArea: 7.06, arena: 420, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "cristalflo2-cf1115",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "CF1115",
+    specs: { diameter: 15, maxFlow: 35, filtrationArea: 1.2, arena: 46, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "cristalflo2-cf1119",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "CF1119",
+    specs: { diameter: 19, maxFlow: 40, filtrationArea: 1.9, arena: 69, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "cristalflo2-cf1122",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "CF1122",
+    specs: { diameter: 22, maxFlow: 60, filtrationArea: 2.3, arena: 114, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "cristalflo2-cf1124",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "CF1124",
+    specs: { diameter: 24, maxFlow: 70, filtrationArea: 3.15, arena: 137, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "cristalflo2-cf1126",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "CF1126",
+    specs: { diameter: 26, maxFlow: 75, filtrationArea: 3.5, arena: 159, grava: 0 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tritonc-tr100c",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR100C",
+    specs: { diameter: 30, maxFlow: 98, filtrationArea: 4.91, arena: 205, grava: 69 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
+  },
+  {
+    id: "tritonc-tr140c",
+    tipoEquipo: "filtroArena",
+    marca: "Pentair",
+    modelo: "TR140C",
+    specs: { diameter: 36, maxFlow: 141, filtrationArea: 7.06, arena: 295, grava: 125 },
+    unidades: { diameter: "in", maxFlow: "gpm", filtrationArea: "ft2", arena: "kg", grava: "kg" },
+    metadata: { precio: null, activo: true }
   }
-
 ];

@@ -464,6 +464,7 @@ export default function Calentamiento({
 
   const datosPrevios = datosPorSistema?.calentamiento || {};
   const [usarBombaCalentamiento, setUsarBombaCalentamiento] = useState(datosPrevios.usarBombaCalentamiento ?? null);
+  const [pais, setPais]                     = useState(datosPrevios.pais || "colombia");
   const [ciudad, setCiudad]                 = useState(datosPrevios.ciudad || "");
   const [tempDeseada, setTempDeseada]       = useState(datosPrevios.tempDeseada ?? null);
   const [tempDeseadaInput, setTempDeseadaInput] = useState(datosPrevios.tempDeseada != null ? String(datosPrevios.tempDeseada) : "");
@@ -557,25 +558,43 @@ export default function Calentamiento({
   const FLUJO_MAX_PERMITIDO = 4490;
   const flujoExcedido = flujoMaxGlobal != null && flujoMaxGlobal > FLUJO_MAX_PERMITIDO;
 
-  const ciudadesMexico = [
-    { key: "guadalajara", label: "Guadalajara" }, { key: "mexicali", label: "Mexicali" },
-    { key: "losCabos", label: "Los Cabos" }, { key: "hermosillo", label: "Hermosillo" },
-    { key: "chihuahua", label: "Chihuahua" }, { key: "torreon", label: "Torreón" },
-    { key: "monterrey", label: "Monterrey" }, { key: "tampico", label: "Tampico" },
-    { key: "veracruz", label: "Veracruz" }, { key: "sanLuisPotosi", label: "San Luis Potosí" },
-    { key: "durango", label: "Durango" }, { key: "culiacan", label: "Culiacán" },
-    { key: "tepic", label: "Tepic" }, { key: "colima", label: "Colima" },
-    { key: "aguascalientes", label: "Aguascalientes" }, { key: "zacatecas", label: "Zacatecas" },
-    { key: "morelia", label: "Morelia" }, { key: "leon", label: "León" },
-    { key: "queretaro", label: "Querétaro" }, { key: "pachuca", label: "Pachuca" },
-    { key: "ciudadDeMexico", label: "Ciudad de México" }, { key: "acapulco", label: "Acapulco" },
-    { key: "cuernavaca", label: "Cuernavaca" }, { key: "puebla", label: "Puebla" },
-    { key: "tlaxcala", label: "Tlaxcala" }, { key: "oaxaca", label: "Oaxaca" },
-    { key: "villahermosa", label: "Villahermosa" }, { key: "tuxtlaGutierrez", label: "Tuxtla Gutierrez" },
-    { key: "campeche", label: "Campeche" }, { key: "merida", label: "Mérida" },
-    { key: "cancun", label: "Cancún" }, { key: "manzanillo", label: "Manzanillo" },
-    { key: "puertoVallarta", label: "Puerto Vallarta" },
+  const ciudadesPorPais = {
+    colombia: [
+      { key: "bogota", label: "Bogotá" }, { key: "medellin", label: "Medellín" },
+      { key: "barranquilla", label: "Barranquilla" }, { key: "cartagena", label: "Cartagena" },
+      { key: "santaMarta", label: "Santa Marta" }, { key: "bucaramanga", label: "Bucaramanga" },
+      { key: "pereira", label: "Pereira" }, { key: "monteria", label: "Montería" },
+      { key: "sincelejo", label: "Sincelejo" }, { key: "armenia", label: "Armenia" },
+      { key: "tunja", label: "Tunja" }, { key: "pasto", label: "Pasto" },
+      { key: "quibdo", label: "Quibdó" }, { key: "villavicencio", label: "Villavicencio" },
+      { key: "neiva", label: "Neiva" }, { key: "cucuta", label: "Cúcuta" },
+      { key: "cali", label: "Cali" },
+    ],
+    mexico: [
+      { key: "guadalajara", label: "Guadalajara" }, { key: "mexicali", label: "Mexicali" },
+      { key: "losCabos", label: "Los Cabos" }, { key: "hermosillo", label: "Hermosillo" },
+      { key: "chihuahua", label: "Chihuahua" }, { key: "torreon", label: "Torreón" },
+      { key: "monterrey", label: "Monterrey" }, { key: "tampico", label: "Tampico" },
+      { key: "veracruz", label: "Veracruz" }, { key: "sanLuisPotosi", label: "San Luis Potosí" },
+      { key: "durango", label: "Durango" }, { key: "culiacan", label: "Culiacán" },
+      { key: "tepic", label: "Tepic" }, { key: "colima", label: "Colima" },
+      { key: "aguascalientes", label: "Aguascalientes" }, { key: "zacatecas", label: "Zacatecas" },
+      { key: "morelia", label: "Morelia" }, { key: "leon", label: "León" },
+      { key: "queretaro", label: "Querétaro" }, { key: "pachuca", label: "Pachuca" },
+      { key: "ciudadDeMexico", label: "Ciudad de México" }, { key: "acapulco", label: "Acapulco" },
+      { key: "cuernavaca", label: "Cuernavaca" }, { key: "puebla", label: "Puebla" },
+      { key: "tlaxcala", label: "Tlaxcala" }, { key: "oaxaca", label: "Oaxaca" },
+      { key: "villahermosa", label: "Villahermosa" }, { key: "tuxtlaGutierrez", label: "Tuxtla Gutierrez" },
+      { key: "campeche", label: "Campeche" }, { key: "merida", label: "Mérida" },
+      { key: "cancun", label: "Cancún" }, { key: "manzanillo", label: "Manzanillo" },
+      { key: "puertoVallarta", label: "Puerto Vallarta" },
+    ],
+  };
+  const paises = [
+    { key: "colombia", label: "Colombia" },
+    { key: "mexico", label: "México" },
   ];
+  const ciudadesDelPais = ciudadesPorPais[pais] || [];
 
   const clima = useMemo(() => { if (!ciudad) return []; return getClimaMensual(ciudad); }, [ciudad]);
 
@@ -913,7 +932,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
      Esto evita que interacciones de UI (hover, foco) disparen todo el árbol. ── */
   const saveRef = useRef({});
   saveRef.current = {
-    decision, usarBombaCalentamiento, ciudad, tempDeseada, cubierta, techada,
+    decision, usarBombaCalentamiento, pais, ciudad, tempDeseada, cubierta, techada,
     mesesCalentar, perdidasBTU, perdidaTotalBTU, sistemasSeleccionados,
     modoBDC, selManualBDCId, selManualCantidad,
     modoPS, selManualPSPct, selManualPSCant,
@@ -932,6 +951,7 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
       calentamiento: {
         decision:              s.decision,
         usarBombaCalentamiento: s.usarBombaCalentamiento,
+        pais:                  s.pais,
         ciudad:                s.ciudad,
         tempDeseada:           s.tempDeseada,
         cubierta:              s.cubierta,
@@ -1230,11 +1250,17 @@ const perdidaTotalPaso1 = calcBackend?.perdidaTotalPaso1 ?? 0;
           <div className="selector-grupo">
             <div className="selector-subtitulo">Datos generales del proyecto</div>
             <div className="selector-grid">
+              <div className="campo">
+                <label>País</label>
+                <select className="input-azul" value={pais} onChange={e => { setPais(e.target.value); setCiudad(""); }}>
+                  {paises.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </div>
               <div className="campo" onMouseEnter={() => !formularioBloqueado && setHoveredField("ciudad")} onMouseLeave={() => setHoveredField(null)}>
                 <label>Ubicación del proyecto</label>
                 <select className={`input-azul ${mostrarErrores && errores.ciudad ? "input-error" : ""}`} value={ciudad} onChange={e => setCiudad(e.target.value)}>
                   <option value="">Selecciona ciudad</option>
-                  {ciudadesMexico.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  {ciudadesDelPais.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                 </select>
               </div>
               <div className="campo" onMouseEnter={() => !formularioBloqueado && setHoveredField("tempDeseada")} onMouseLeave={() => setHoveredField(null)}>

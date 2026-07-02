@@ -8,8 +8,7 @@ import PlanExpirado from "./pages/PlanExpirado.jsx";
 const root = document.getElementById("root");
 // Guardián: decide qué mostrar según la sesión y el acceso.
 function AppConAuth({ App }) {
-  const { session, perfil, perfilCargado, cargando, accesoPermitido, cerrarSesion } = useAuth();
-
+  const { session, perfil, perfilCargado, cargando, accesoPermitido, cerrarSesion, confirmandoPago } = useAuth();
   // Si hay sesión válida pero el perfil terminó de cargar y NO existe (cuenta borrada
   // o error), es un estado inválido: cerramos sesión para mandar al login limpiamente.
   useEffect(() => {
@@ -17,13 +16,22 @@ function AppConAuth({ App }) {
       cerrarSesion();
     }
   }, [session, perfilCargado, perfil]);
-
   const Cargando = (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#94a3b8", fontFamily: "system-ui, sans-serif" }}>
       Cargando...
     </div>
   );
-
+  // Tras volver de un pago, mientras se confirma el plan nuevo con el webhook.
+  if (confirmandoPago) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#e2e8f0", fontFamily: "system-ui, sans-serif", gap: "1.2rem" }}>
+        <div style={{ width: "42px", height: "42px", border: "3px solid #1e293b", borderTopColor: "#0284c7", borderRadius: "50%", animation: "girarSpinner 0.8s linear infinite" }} />
+        <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>Confirmando tu pago…</div>
+        <div style={{ fontSize: "0.9rem", color: "#94a3b8" }}>Esto toma solo unos segundos.</div>
+        <style>{`@keyframes girarSpinner { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
   if (cargando) return Cargando;
   // Sin sesión → Login.
   if (!session) return <Login />;

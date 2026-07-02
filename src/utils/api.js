@@ -50,6 +50,27 @@ export async function iniciarCheckout(plan) {
   if (!url) throw new Error("No se recibió la URL de pago.");
   return url;
 }
+// Abre el Customer Portal de Stripe para gestionar/cancelar la suscripción.
+// Devuelve la URL del portal a la que hay que redirigir.
+export async function abrirPortal() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Debes iniciar sesión.");
+  const resp = await fetch(`${API_BASE}/api/stripe/portal`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+    throw new Error(err.error || `Error HTTP ${resp.status}`);
+  }
+  const { url } = await resp.json();
+  if (!url) throw new Error("No se recibió la URL del portal.");
+  return url;
+}
 export function apiEquilibrio(input) {
   return postCalc("equilibrio", input);
 }

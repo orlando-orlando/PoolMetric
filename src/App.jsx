@@ -3,20 +3,22 @@ import ReactDOM from "react-dom/client";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {
   Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette,
-  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown, FolderOpen
+  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown, FolderOpen, MessageSquarePlus
 } from "lucide-react";
 
 import Dimensiones   from "./pages/Dimensiones.jsx";
 import Calentamiento from "./pages/Calentamiento.jsx";
 import Equipamiento  from "./pages/Equipamiento.jsx";
+import PlanExpirado  from "./pages/PlanExpirado.jsx";
 import ProyectosDrawer from "./components/ProyectosDrawer.jsx";
+import ModalFeedback from "./components/ModalFeedback.jsx";
 
 import { volumen }          from "./utils/volumen";
 import { flujoFinal }       from "./utils/flujoFinal";
 import { flujoInfinity }    from "./utils/flujoInfinity";
 import { volumenPorCircuito } from "./utils/volumenPorCircuito";
 import { flujoPorVolumen }   from "./utils/flujoVolumen";
-import { apiSanitizacion } from "./utils/api";
+import { apiSanitizacion, abrirPortal } from "./utils/api";
 
 import { formatBTU, formatM2, formatM3, formatMetro, formatGPM } from "./utils/format";
 import { velocidadCargaFlujo } from "./utils/velocidadCargaFlujo";
@@ -48,8 +50,9 @@ function areaTotal(datosSistema) {
   return parseFloat(total.toFixed(1));
 }
 
-function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro }) {
+function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro, onMejorarPlan, onCambiarPlan, onAbrirFeedback }) {
   const { cerrarSesion, usuario, perfil } = useAuth();
+  const [ayudaAbierta, setAyudaAbierta] = useState(false);
   const emailUsuario = usuario?.email ?? "";
   const inicial = (usuario?.email?.[0] ?? "?").toUpperCase();
   const planUsuario = perfil?.plan
@@ -75,21 +78,30 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
         </div>
       </div>
       <div className="menu-usuario-divider" />
-      <button className="menu-usuario-item"><Plus size={15} /><span>Añadir una cuenta</span></button>
-      <div className="menu-usuario-divider" />
-      <button className="menu-usuario-item"><CreditCard size={15} /><span>Cambiar plan</span></button>
-      <button className="menu-usuario-item"><Palette size={15} /><span>Personalización</span></button>
-      <button className="menu-usuario-item"><Settings size={15} /><span>Configuración</span></button>
+      {(planUsuario === "Fundador" || planUsuario === "Pro") && (
+        <button className="menu-usuario-item" onClick={onCambiarPlan}><CreditCard size={15} /><span>Gestionar suscripción</span></button>
+      )}
       <button className="menu-usuario-item menu-usuario-item-tema" onClick={() => { setTemaOscuro(!temaOscuro); onCerrar(); }}>
         {temaOscuro ? <Sun size={15} /> : <Moon size={15} />}
         <span>{temaOscuro ? "Modo claro" : "Modo oscuro"}</span>
         <span className="menu-usuario-tema-badge">{temaOscuro ? "☀️" : "🌙"}</span>
       </button>
       <div className="menu-usuario-divider" />
-      <button className="menu-usuario-item menu-usuario-item-arrow">
+      <button className="menu-usuario-item menu-usuario-item-arrow" onClick={() => setAyudaAbierta(v => !v)}>
         <HelpCircle size={15} /><span>Ayuda</span>
-        <ChevronRight size={13} className="menu-usuario-arrow" />
+        <ChevronRight size={13} className="menu-usuario-arrow" style={{ transform: ayudaAbierta ? "rotate(90deg)" : "none", transition: "transform .18s" }} />
       </button>
+      {ayudaAbierta && (
+        <div style={{ paddingLeft: "0.6rem" }}>
+          <button className="menu-usuario-item" onClick={onAbrirFeedback}>
+            <MessageSquarePlus size={15} /><span>Danos tu opinión</span>
+          </button>
+          <button className="menu-usuario-item" disabled style={{ opacity: 0.5, cursor: "default" }}>
+            <HelpCircle size={15} /><span>Preguntas frecuentes</span>
+            <span style={{ marginLeft: "auto", fontSize: "0.65rem", color: "#64748b" }}>Próximamente</span>
+          </button>
+        </div>
+      )}
       <button className="menu-usuario-item menu-usuario-item-danger" onClick={() => cerrarSesion()}>
         <LogOut size={15} /><span>Cerrar sesión</span>
       </button>
@@ -103,9 +115,11 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
           <span>{emailUsuario}</span>
           <span className="menu-usuario-plan">{planUsuario}</span>
         </div>
-        <button className="menu-usuario-btn-upgrade">Mejorar plan</button>
+        {planUsuario === "Gratis" && (
+          <button className="menu-usuario-btn-upgrade" onClick={onMejorarPlan}>Mejorar plan</button>
+        )}
       </div>
-    </div>
+      </div>
   );
 }
 
@@ -300,6 +314,9 @@ export default function App() {
   const [proyectoVersion, setProyectoVersion]       = useState(0);
   const [panelColapsado, setPanelColapsado]         = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
+  const [modalFeedbackApp, setModalFeedbackApp] = useState(null); // null | "sugerencia" | "encuesta"
+  const [mostrarPlanes, setMostrarPlanes] = useState(false); // overlay "Mejorar plan"
+  const [abriendoPortal, setAbriendoPortal] = useState(false); // overlay "Abriendo portal..."
   const [temaOscuro, setTemaOscuro]                 = useState(true);
   const [datosPorSistema, setDatosPorSistema]       = useState({});
   const [sistemaActivo, setSistemaActivo]           = useState(null);
@@ -1203,7 +1220,10 @@ const estCA = estados?.cloradorAutomatico;
               <button className={`panel-bottom-icon-btn ${menuUsuarioAbierto ? "panel-bottom-icon-btn-activo" : ""}`} title="Configuración" onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}>
                 <Settings size={15} />
               </button>
-              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} />
+              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} onMejorarPlan={() => { setMostrarPlanes(true); setMenuUsuarioAbierto(false); }} onAbrirFeedback={() => { setModalFeedbackApp("sugerencia"); setMenuUsuarioAbierto(false); }} onCambiarPlan={async () => { setMenuUsuarioAbierto(false); setAbriendoPortal(true); try { const url = await abrirPortal(); window.location.href = url; } catch (e) { setAbriendoPortal(false); alert(e.message || "No se pudo abrir el portal."); } }} />
+              {modalFeedbackApp && (
+                <ModalFeedback modo={modalFeedbackApp} onCerrar={() => setModalFeedbackApp(null)} />
+              )}
             </div>
           </div>
         </div>
@@ -1265,6 +1285,19 @@ const estCA = estados?.cloradorAutomatico;
         </div>
       </div>
     </div>
+    {abriendoPortal && (
+      <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(15,23,42,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.2rem", color: "#e2e8f0", fontFamily: "system-ui, sans-serif" }}>
+        <div style={{ width: "42px", height: "42px", border: "3px solid #1e293b", borderTopColor: "#0284c7", borderRadius: "50%", animation: "girarSpinnerPortal 0.8s linear infinite" }} />
+        <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>Abriendo portal de suscripción…</div>
+        <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>Te llevaremos a la página segura de Stripe.</div>
+        <style>{`@keyframes girarSpinnerPortal { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )}
+    {mostrarPlanes && (
+      <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", overflowY: "auto", padding: "1rem" }}>
+        <PlanExpirado comoOverlay onCerrar={() => setMostrarPlanes(false)} />
+      </div>
+    )}
     </>
   );
 }

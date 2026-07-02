@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../utils/AuthContext.jsx";
 import { iniciarCheckout } from "../utils/api.js";
 import { cuposFundadorDisponibles } from "../utils/cupos.js";
-export default function PlanExpirado() {
+export default function PlanExpirado({ comoOverlay = false, onCerrar = null }) {
   const { usuario, cerrarSesion } = useAuth();
   const [procesando, setProcesando] = useState(null);
   const [cuposLibres, setCuposLibres] = useState(null); // null = cargando/desconocido
@@ -23,9 +23,14 @@ export default function PlanExpirado() {
   return (
     <div style={S.fondo}>
       <div style={S.tarjeta}>
-        <h1 style={S.titulo}>Tu prueba terminó</h1>
+        {comoOverlay && (
+          <button onClick={onCerrar} style={S.cerrarOverlay} aria-label="Cerrar">×</button>
+        )}
+        <h1 style={S.titulo}>{comoOverlay ? "Mejora tu plan" : "Tu prueba terminó"}</h1>
         <p style={S.subtitulo}>
-          Tu periodo de prueba de 30 días llegó a su fin. Elige un plan para seguir usando PoolMetric.
+          {comoOverlay
+            ? "Elige un plan para desbloquear PoolMetric sin límites."
+            : "Tu periodo de prueba de 30 días llegó a su fin. Elige un plan para seguir usando PoolMetric."}
         </p>
         <div style={S.planes}>
           {/* Plan Fundador */}
@@ -46,7 +51,7 @@ export default function PlanExpirado() {
               onClick={() => handleSuscribir("fundador")}
               disabled={procesando !== null || fundadorAgotado}
             >
-              {fundadorAgotado ? "Cupos agotados" : (procesando === "fundador" ? "Procesando..." : "Elegir Fundador")}
+              {fundadorAgotado ? "Cupos agotados" : (procesando === "fundador" ? <ProcesandoBtn /> : "Elegir Fundador")}
             </button>
           </div>
           {/* Plan Pro */}
@@ -61,7 +66,7 @@ export default function PlanExpirado() {
               <li>Soporte prioritario</li>
             </ul>
             <button style={S.botonPlanSec} onClick={() => handleSuscribir("pro")} disabled={procesando !== null}>
-              {procesando === "pro" ? "Procesando..." : "Elegir Pro"}
+              {procesando === "pro" ? <ProcesandoBtn /> : "Elegir Pro"}
             </button>
           </div>
         </div>
@@ -76,7 +81,7 @@ export default function PlanExpirado() {
 
 const S = {
   fondo: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", fontFamily: "system-ui, sans-serif", padding: "1rem" },
-  tarjeta: { background: "#1e293b", padding: "2.5rem", borderRadius: "12px", width: "100%", maxWidth: "640px", boxShadow: "0 10px 40px rgba(0,0,0,0.4)" },
+  tarjeta: { background: "#1e293b", padding: "2.5rem", borderRadius: "12px", width: "100%", maxWidth: "640px", boxShadow: "0 10px 40px rgba(0,0,0,0.4)", position: "relative" },
   titulo: { color: "#f1f5f9", fontSize: "1.8rem", fontWeight: 700, margin: 0, textAlign: "center" },
   subtitulo: { color: "#94a3b8", fontSize: "0.95rem", textAlign: "center", marginTop: "0.6rem", marginBottom: "2rem", lineHeight: 1.5 },
   planes: { display: "flex", gap: "1rem", flexWrap: "wrap" },
@@ -95,4 +100,16 @@ const S = {
   footer: { marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" },
   emailTxt: { color: "#64748b", fontSize: "0.8rem" },
   cerrar: { background: "none", border: "none", color: "#38bdf8", fontSize: "0.85rem", cursor: "pointer" },
+  cerrarOverlay: { position: "absolute", top: "1rem", right: "1.2rem", background: "none", border: "none", color: "#94a3b8", fontSize: "1.6rem", lineHeight: 1, cursor: "pointer", padding: 0 },
 };
+
+// Spinner + texto que se muestra en los botones de plan mientras se crea la sesión de pago.
+function ProcesandoBtn() {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", justifyContent: "center" }}>
+      <span style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.35)", borderTopColor: "white", borderRadius: "50%", animation: "girarBtn 0.7s linear infinite" }} />
+      Procesando…
+      <style>{`@keyframes girarBtn { to { transform: rotate(360deg); } }`}</style>
+    </span>
+  );
+}
