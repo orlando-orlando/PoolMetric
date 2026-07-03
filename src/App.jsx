@@ -13,6 +13,7 @@ import PlanExpirado  from "./pages/PlanExpirado.jsx";
 import ProyectosDrawer from "./components/ProyectosDrawer.jsx";
 import ModalFeedback from "./components/ModalFeedback.jsx";
 import ModalFAQ from "./components/ModalFAQ.jsx";
+import ModalLegal from "./components/ModalLegal.jsx";
 
 import { volumen }          from "./utils/volumen";
 import { flujoFinal }       from "./utils/flujoFinal";
@@ -51,7 +52,7 @@ function areaTotal(datosSistema) {
   return parseFloat(total.toFixed(1));
 }
 
-function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro, onMejorarPlan, onCambiarPlan, onAbrirFeedback, onAbrirFAQ }) {
+function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro, onMejorarPlan, onCambiarPlan, onAbrirFeedback, onAbrirFAQ, onAbrirLegal }) {
   const { cerrarSesion, usuario, perfil } = useAuth();
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
   const emailUsuario = usuario?.email ?? "";
@@ -126,7 +127,9 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
       </button>
       <div className="menu-usuario-divider" />
       <div className="menu-usuario-footer">
-        <span>Política de privacidad</span><span>·</span><span>Condiciones del servicio</span>
+        <span style={{ cursor: "pointer" }} onClick={() => onAbrirLegal("privacidad")}>Política de privacidad</span>
+        <span>·</span>
+        <span style={{ cursor: "pointer" }} onClick={() => onAbrirLegal("terminos")}>Condiciones del servicio</span>
       </div>
       <div className="menu-usuario-upgrade">
         <div className="menu-usuario-avatar menu-usuario-avatar-sm">{inicial}</div>
@@ -335,6 +338,7 @@ export default function App() {
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const [modalFeedbackApp, setModalFeedbackApp] = useState(null); // null | "sugerencia" | "encuesta"
   const [modalFAQApp, setModalFAQApp] = useState(false);
+  const [modalLegalApp, setModalLegalApp] = useState(null); // null | "privacidad" | "terminos"
   const [mostrarPlanes, setMostrarPlanes] = useState(false); // overlay "Mejorar plan"
   const [abriendoPortal, setAbriendoPortal] = useState(false); // overlay "Abriendo portal..."
   const [temaOscuro, setTemaOscuro]                 = useState(true);
@@ -1240,12 +1244,15 @@ const estCA = estados?.cloradorAutomatico;
               <button className={`panel-bottom-icon-btn ${menuUsuarioAbierto ? "panel-bottom-icon-btn-activo" : ""}`} title="Configuración" onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}>
                 <Settings size={15} />
               </button>
-              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} onMejorarPlan={() => { setMostrarPlanes(true); setMenuUsuarioAbierto(false); }} onAbrirFeedback={() => { setModalFeedbackApp("sugerencia"); setMenuUsuarioAbierto(false); }} onAbrirFAQ={() => { setModalFAQApp(true); setMenuUsuarioAbierto(false); }} onCambiarPlan={async () => { setMenuUsuarioAbierto(false); setAbriendoPortal(true); try { const url = await abrirPortal(); window.location.href = url; } catch (e) { setAbriendoPortal(false); alert(e.message || "No se pudo abrir el portal."); } }} />
+              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} onMejorarPlan={() => { setMostrarPlanes(true); setMenuUsuarioAbierto(false); }} onAbrirFeedback={() => { setModalFeedbackApp("sugerencia"); setMenuUsuarioAbierto(false); }} onAbrirFAQ={() => { setModalFAQApp(true); setMenuUsuarioAbierto(false); }} onAbrirLegal={(tipo) => { setModalLegalApp(tipo); setMenuUsuarioAbierto(false); }} onCambiarPlan={async () => { setMenuUsuarioAbierto(false); setAbriendoPortal(true); try { const url = await abrirPortal(); window.location.href = url; } catch (e) { setAbriendoPortal(false); alert(e.message || "No se pudo abrir el portal."); } }} />
               {modalFeedbackApp && (
                 <ModalFeedback modo={modalFeedbackApp} onCerrar={() => setModalFeedbackApp(null)} />
               )}
               {modalFAQApp && (
                 <ModalFAQ onCerrar={() => setModalFAQApp(false)} />
+              )}
+              {modalLegalApp && (
+                <ModalLegal tipo={modalLegalApp} onCerrar={() => setModalLegalApp(null)} />
               )}
             </div>
           </div>
