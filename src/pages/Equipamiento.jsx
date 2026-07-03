@@ -444,8 +444,18 @@ function tipoParaCalculo(eq) {
 /* =====================================================
    BLOQUE EMPOTRABLE GENÉRICO
 ===================================================== */
+// Serializa de forma estable: ordena las claves recursivamente para que dos objetos
+// con los mismos datos pero distinto orden de propiedades produzcan el MISMO string.
+// (Sin esto, JSON.stringify es sensible al orden y la verificación se invalida sola.)
+function stringifyEstable(valor) {
+  if (valor === null || typeof valor !== "object") return JSON.stringify(valor);
+  if (Array.isArray(valor)) return "[" + valor.map(stringifyEstable).join(",") + "]";
+  const claves = Object.keys(valor).sort();
+  return "{" + claves.map(k => JSON.stringify(k) + ":" + stringifyEstable(valor[k])).join(",") + "}";
+}
+
 function construirSnapshotSistema(estados, sistemasSeleccionadosSanit, sistemasSeleccionadosFilt, datosPorSistema) {
-  return JSON.stringify({
+  return stringifyEstable({
     selecciones: {
       retorno:            { id: estados?.retorno?.selId,            cant: estados?.retorno?.cantidad },
       desnatador:         { id: estados?.desnatador?.selId,         cant: estados?.desnatador?.cantidad },
@@ -2403,7 +2413,7 @@ function BloqueVerificacion({
           </div>
         )}
 
-        {fase === "listo" && haySobredimension && (
+        {fase === "listo" && (haySobredimension || velMax) && (
           <div style={{ marginBottom: "1rem", padding: "0.75rem 0.9rem", background: velMax ? "rgba(52,211,153,0.08)" : "rgba(249,115,22,0.08)", border: `1px solid ${velMax ? "rgba(52,211,153,0.3)" : "rgba(249,115,22,0.3)"}`, borderRadius: "8px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: "200px" }}>

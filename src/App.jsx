@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import {
   Home, ChevronLeft, ChevronRight, Settings, CreditCard, Palette,
-  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown, FolderOpen, MessageSquarePlus
+  HelpCircle, LogOut, Plus, Sun, Moon, Ruler, Flame, Wrench, BarChart2, ChevronDown, FolderOpen, MessageSquarePlus, Gauge
 } from "lucide-react";
 
 import Dimensiones   from "./pages/Dimensiones.jsx";
@@ -12,6 +12,7 @@ import Equipamiento  from "./pages/Equipamiento.jsx";
 import PlanExpirado  from "./pages/PlanExpirado.jsx";
 import ProyectosDrawer from "./components/ProyectosDrawer.jsx";
 import ModalFeedback from "./components/ModalFeedback.jsx";
+import ModalFAQ from "./components/ModalFAQ.jsx";
 
 import { volumen }          from "./utils/volumen";
 import { flujoFinal }       from "./utils/flujoFinal";
@@ -50,7 +51,7 @@ function areaTotal(datosSistema) {
   return parseFloat(total.toFixed(1));
 }
 
-function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro, onMejorarPlan, onCambiarPlan, onAbrirFeedback }) {
+function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOscuro, onMejorarPlan, onCambiarPlan, onAbrirFeedback, onAbrirFAQ }) {
   const { cerrarSesion, usuario, perfil } = useAuth();
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
   const emailUsuario = usuario?.email ?? "";
@@ -86,6 +87,25 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
         <span>{temaOscuro ? "Modo claro" : "Modo oscuro"}</span>
         <span className="menu-usuario-tema-badge">{temaOscuro ? "☀️" : "🌙"}</span>
       </button>
+      <div className="menu-usuario-unidades" style={{ padding: "0.5rem 0.85rem", opacity: 0.55 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.45rem" }}>
+          <Gauge size={15} />
+          <span style={{ fontSize: "0.82rem" }}>Unidades</span>
+          <span style={{ marginLeft: "auto", fontSize: "0.62rem", color: "#64748b", border: "1px solid rgba(148,163,184,0.25)", borderRadius: "999px", padding: "0.05rem 0.45rem" }}>Próximamente</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", paddingLeft: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.7rem", color: "#94a3b8" }}>
+            <span style={{ minWidth: "44px" }}>Flujo</span>
+            <span style={{ padding: "0.1rem 0.4rem", borderRadius: "5px", background: "rgba(148,163,184,0.12)", cursor: "not-allowed" }}>GPM</span>
+            <span style={{ padding: "0.1rem 0.4rem", borderRadius: "5px", cursor: "not-allowed" }}>LPM</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.7rem", color: "#94a3b8" }}>
+            <span style={{ minWidth: "44px" }}>Carga</span>
+            <span style={{ padding: "0.1rem 0.4rem", borderRadius: "5px", background: "rgba(148,163,184,0.12)", cursor: "not-allowed" }}>fthd</span>
+            <span style={{ padding: "0.1rem 0.4rem", borderRadius: "5px", cursor: "not-allowed" }}>mca</span>
+          </div>
+        </div>
+      </div>
       <div className="menu-usuario-divider" />
       <button className="menu-usuario-item menu-usuario-item-arrow" onClick={() => setAyudaAbierta(v => !v)}>
         <HelpCircle size={15} /><span>Ayuda</span>
@@ -96,9 +116,8 @@ function MenuUsuario({ abierto, onCerrar, panelColapsado, temaOscuro, setTemaOsc
           <button className="menu-usuario-item" onClick={onAbrirFeedback}>
             <MessageSquarePlus size={15} /><span>Danos tu opinión</span>
           </button>
-          <button className="menu-usuario-item" disabled style={{ opacity: 0.5, cursor: "default" }}>
+          <button className="menu-usuario-item" onClick={onAbrirFAQ}>
             <HelpCircle size={15} /><span>Preguntas frecuentes</span>
-            <span style={{ marginLeft: "auto", fontSize: "0.65rem", color: "#64748b" }}>Próximamente</span>
           </button>
         </div>
       )}
@@ -315,6 +334,7 @@ export default function App() {
   const [panelColapsado, setPanelColapsado]         = useState(false);
   const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   const [modalFeedbackApp, setModalFeedbackApp] = useState(null); // null | "sugerencia" | "encuesta"
+  const [modalFAQApp, setModalFAQApp] = useState(false);
   const [mostrarPlanes, setMostrarPlanes] = useState(false); // overlay "Mejorar plan"
   const [abriendoPortal, setAbriendoPortal] = useState(false); // overlay "Abriendo portal..."
   const [temaOscuro, setTemaOscuro]                 = useState(true);
@@ -1220,9 +1240,12 @@ const estCA = estados?.cloradorAutomatico;
               <button className={`panel-bottom-icon-btn ${menuUsuarioAbierto ? "panel-bottom-icon-btn-activo" : ""}`} title="Configuración" onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}>
                 <Settings size={15} />
               </button>
-              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} onMejorarPlan={() => { setMostrarPlanes(true); setMenuUsuarioAbierto(false); }} onAbrirFeedback={() => { setModalFeedbackApp("sugerencia"); setMenuUsuarioAbierto(false); }} onCambiarPlan={async () => { setMenuUsuarioAbierto(false); setAbriendoPortal(true); try { const url = await abrirPortal(); window.location.href = url; } catch (e) { setAbriendoPortal(false); alert(e.message || "No se pudo abrir el portal."); } }} />
+              <MenuUsuario abierto={menuUsuarioAbierto} onCerrar={() => setMenuUsuarioAbierto(false)} panelColapsado={panelColapsado} temaOscuro={temaOscuro} setTemaOscuro={setTemaOscuro} onMejorarPlan={() => { setMostrarPlanes(true); setMenuUsuarioAbierto(false); }} onAbrirFeedback={() => { setModalFeedbackApp("sugerencia"); setMenuUsuarioAbierto(false); }} onAbrirFAQ={() => { setModalFAQApp(true); setMenuUsuarioAbierto(false); }} onCambiarPlan={async () => { setMenuUsuarioAbierto(false); setAbriendoPortal(true); try { const url = await abrirPortal(); window.location.href = url; } catch (e) { setAbriendoPortal(false); alert(e.message || "No se pudo abrir el portal."); } }} />
               {modalFeedbackApp && (
                 <ModalFeedback modo={modalFeedbackApp} onCerrar={() => setModalFeedbackApp(null)} />
+              )}
+              {modalFAQApp && (
+                <ModalFAQ onCerrar={() => setModalFAQApp(false)} />
               )}
             </div>
           </div>
