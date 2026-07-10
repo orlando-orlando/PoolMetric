@@ -745,6 +745,11 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
     }
   }, [modo]);
 
+  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  useEffect(() => {
+    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+  }, [cantMinima]);
+
   const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
 
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
@@ -923,8 +928,12 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
     }
   }, [modo, rec?.seleccion?.modelo]);
 
-  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
+  // Si el mínimo sube (ej. cambió el flujo o el uso), ajustar selCant
+  useEffect(() => {
+    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+  }, [cantMinima]);
 
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
   const labelUso      = usoGeneral === "residencial" ? "Residencial" : "Comercial";
   const cargaCartucho = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
@@ -1101,8 +1110,12 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
     }
   }, [modo, rec?.seleccion?.modelo]);
 
-  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
+  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  useEffect(() => {
+    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+  }, [cantMinima]);
 
+  const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
   const infoActiva = (modo === "manual" && manualCalc) ? manualCalc : rec;
   const cargaFiltroFt = infoActiva && !infoActiva?.error ? parseFloat(infoActiva.cargaTotal) || null : null;
 
