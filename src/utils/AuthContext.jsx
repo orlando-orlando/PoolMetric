@@ -12,20 +12,33 @@ export function AuthProvider({ children }) {
   // Carga el perfil del usuario desde la tabla profiles. Retorna el perfil (o null).
   const cargarPerfil = async (userId) => {
     if (!userId) { setPerfil(null); setPerfilCargado(true); return null; }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (error) {
-      console.error("Error cargando perfil:", error.message);
+    try {
+      // La consulta a Supabase, con un timeout: si en 8s no responde, no colgamos.
+      const consulta = supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout cargando perfil")), 8000)
+      );
+      const { data, error } = await Promise.race([consulta, timeout]);
+      if (error) {
+        console.error("Error cargando perfil:", error.message);
+        setPerfil(null);
+        setPerfilCargado(true);
+        return null;
+      }
+      setPerfil(data);
+      setPerfilCargado(true); // el intento terminó, haya o no perfil
+      return data;
+    } catch (e) {
+      // Timeout o cualquier fallo inesperado: no dejamos el perfil en limbo.
+      console.error("Error cargando perfil:", e.message);
       setPerfil(null);
       setPerfilCargado(true);
       return null;
     }
-    setPerfil(data);
-    setPerfilCargado(true); // el intento terminó, haya o no perfil
-    return data;
   };
   // Rastrea el id del usuario actualmente cargado, para ignorar eventos de auth
   // que no cambian de usuario (refresh de token, sincronización entre pestañas).
@@ -34,15 +47,22 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // 1. Al montar, revisar sesión existente
     supabase.auth.getSession().then(async ({ data }) => {
-      const userId = data.session?.user?.id ?? null;
-      usuarioActualRef.current = userId;
-      setSession(data.session);
-      if (userId) await cargarPerfil(userId);
-      setCargando(false);
-
+      try {
+        const userId = data.session?.user?.id ?? null;
+        usuarioActualRef.current = userId;
+        setSession(data.session);
+        if (userId) await cargarPerfil(userId);
+      } catch (e) {
+        console.error("Error al inicializar sesión:", e);
+      } finally {
+        // SIEMPRE salimos del estado "cargando", pase lo que pase, para que la app
+        // nunca se quede en pantalla de carga colgada (ni aunque falle el perfil).
+        setCargando(false);
+      }
       // 1b. Si venimos de un pago exitoso, el webhook pudo tardar en actualizar el
       // plan. Mostramos "Confirmando tu pago..." mientras recargamos el perfil con
       // reintentos, hasta ver el cambio de plan. Limpiamos la URL al entrar.
+      const userId = data.session?.user?.id ?? null;
       const params = new URLSearchParams(window.location.search);
       if (userId && params.get("pago") === "exito") {
         window.history.replaceState({}, "", window.location.pathname);
@@ -55,6 +75,10 @@ export function AuthProvider({ children }) {
         }
         setConfirmandoPago(false);
       }
+    }).catch((e) => {
+      // Si getSession() mismo falla, no dejamos la app colgada.
+      console.error("Error obteniendo sesión:", e);
+      setCargando(false);
     });
     // 2. Escuchar cambios de sesión
     const { data: listener } = supabase.auth.onAuthStateChange(async (_evento, nuevaSesion) => {
