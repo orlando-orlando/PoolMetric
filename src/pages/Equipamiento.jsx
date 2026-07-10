@@ -3078,8 +3078,10 @@ export default function Equipamiento({
   cloradorEnLineaExcede: cloradorEnLineaExcedeFromApp,
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
-
-  const [tabActiva, setTabActiva] = useState(eqPrev.tabActiva ?? "sanitizacion");
+  // Siempre arrancamos en sanitización: el usuario debe recorrer las pestañas en orden
+  // para que cada bloque se monte y recalcule con el flujo/área actuales. Restaurar la
+  // pestaña guardada saltaría bloques que nunca se re-evalúan (CDT contaminado).
+  const [tabActiva, setTabActiva] = useState("sanitizacion");
 
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
@@ -3157,10 +3159,6 @@ export default function Equipamiento({
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), sistemasSeleccionadosFilt } }));
   }, [sistemasSeleccionadosFilt]);
-
-  useEffect(() => {
-    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), tabActiva } }));
-  }, [tabActiva]);
 
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas } }));
