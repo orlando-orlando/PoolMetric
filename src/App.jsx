@@ -1291,6 +1291,7 @@ const estCA = estados?.cloradorAutomatico;
           {seccion === "equipamiento" && (
             <Equipamiento
               key={`eq-${proyectoVersion}`}
+              proyectoVersion={proyectoVersion}
               setSeccion={setSeccion}
               sistemaActivo={sistemaActivo}
               datosPorSistema={datosPorSistema}

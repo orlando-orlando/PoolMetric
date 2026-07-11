@@ -560,9 +560,10 @@ function BloqueEmpotrable({ icono, titulo, tipo, catalogo, flujoMaximo, datos, m
     spec: infoActiva.equipo?.specs?.tamano ?? infoActiva.equipo?.specs?.dimensionPuerto ?? null,
   } : null;
 
-  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  // Si cambia el mínimo (ej. cambió el flujo), recalcular selCant al mínimo exacto,
+  // conservando el equipo elegido. No dispara al tocar +/− porque cantMinima no cambia.
   useEffect(() => {
-    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+    if (selCant !== null && selCant !== cantMinima) setSelCant(cantMinima);
   }, [cantMinima]);
 
   useEffect(() => { if (onCargaChange) onCargaChange(cargaActivaFt); }, [cargaActivaFt]);
@@ -745,9 +746,10 @@ function BloquePrefiltro({ flujoMaximo, onCargaChange = null, onEstadoChange = n
     }
   }, [modo]);
 
-  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  // Si cambia el mínimo (ej. cambió el flujo), recalcular selCant al mínimo exacto,
+  // conservando el equipo elegido. No dispara al tocar +/− porque cantMinima no cambia.
   useEffect(() => {
-    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+    if (selCant !== null && selCant !== cantMinima) setSelCant(cantMinima);
   }, [cantMinima]);
 
   const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
@@ -928,9 +930,10 @@ function BloqueFiltroCartucho({ flujoMaximo, usoGeneral, onCargaChange = null, o
     }
   }, [modo, rec?.seleccion?.modelo]);
 
-  // Si el mínimo sube (ej. cambió el flujo o el uso), ajustar selCant
+  // Si cambia el mínimo (ej. cambió el flujo o el uso), recalcular selCant al mínimo
+  // exacto, conservando el equipo elegido. No dispara al tocar +/−.
   useEffect(() => {
-    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+    if (selCant !== null && selCant !== cantMinima) setSelCant(cantMinima);
   }, [cantMinima]);
 
   const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
@@ -1110,9 +1113,10 @@ function BloqueFiltroArena({ flujoMaximo, onCargaChange = null, onEstadoChange =
     }
   }, [modo, rec?.seleccion?.modelo]);
 
-  // Si el mínimo sube (ej. cambió el flujo), ajustar selCant
+  // Si cambia el mínimo (ej. cambió el flujo), recalcular selCant al mínimo exacto,
+  // conservando el equipo elegido. No dispara al tocar +/− porque cantMinima no cambia.
   useEffect(() => {
-    if (selCant !== null && selCant < cantMinima) setSelCant(cantMinima);
+    if (selCant !== null && selCant !== cantMinima) setSelCant(cantMinima);
   }, [cantMinima]);
 
   const manualCalc = (modo === "manual") ? (calcBack?.efectivo ?? null) : null;
@@ -3062,6 +3066,7 @@ const IconoTabMotobomba = () => (
 );
 
 export default function Equipamiento({
+  proyectoVersion,
   setSeccion, sistemaActivo, datosPorSistema,
   setDatosPorSistema, configBombas, resultadoClorador,
   flujoMaxGlobal, cargaTotalGlobal,
@@ -3078,10 +3083,25 @@ export default function Equipamiento({
   cloradorEnLineaExcede: cloradorEnLineaExcedeFromApp,
 }) {
   const eqPrev = datosPorSistema?.equipamiento ?? {};
-  // Siempre arrancamos en sanitización: el usuario debe recorrer las pestañas en orden
-  // para que cada bloque se monte y recalcule con el flujo/área actuales. Restaurar la
-  // pestaña guardada saltaría bloques que nunca se re-evalúan (CDT contaminado).
-  const [tabActiva, setTabActiva] = useState("sanitizacion");
+  // Al CARGAR un proyecto (proyectoVersion distinta a la ya consumida), abrimos en la
+  // pestaña donde se guardó — los valores guardados son confiables. Al VOLVER navegando
+  // (misma versión), arrancamos en sanitización para recorrer el flujo normal en orden.
+  const [tabActiva, setTabActiva] = useState(() =>
+    eqPrev.proyectoVersionConsumida !== proyectoVersion
+      ? (eqPrev.tabActiva ?? "sanitizacion")
+      : "sanitizacion"
+  );
+
+  // Marcar esta proyectoVersion como consumida, para que el próximo montaje por
+  // navegación (mismo proyectoVersion) ya no se trate como carga de proyecto.
+  useEffect(() => {
+    if (eqPrev.proyectoVersionConsumida !== proyectoVersion) {
+      setDatosPorSistema(ps => ({
+        ...ps,
+        equipamiento: { ...(ps.equipamiento ?? {}), proyectoVersionConsumida: proyectoVersion },
+      }));
+    }
+  }, [proyectoVersion]);
 
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
@@ -3159,6 +3179,13 @@ export default function Equipamiento({
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), sistemasSeleccionadosFilt } }));
   }, [sistemasSeleccionadosFilt]);
+
+  // App.jsx lee tabActiva desde datosPorSistema para saber hasta dónde avanzó el usuario
+  // y decidir qué grupos suman al CDT total (vis.filtracion, vis.empotrables, etc.).
+  // Es un contrato, no solo estado de UI: si no se persiste, el CDT queda incompleto.
+  useEffect(() => {
+    setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), tabActiva } }));
+  }, [tabActiva]);
 
   useEffect(() => {
     setDatosPorSistema(ps => ({ ...ps, equipamiento: { ...(ps.equipamiento ?? {}), cargas } }));
