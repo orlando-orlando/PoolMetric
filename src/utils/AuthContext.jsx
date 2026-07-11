@@ -107,7 +107,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const registrarse = (email, password) =>
-    supabase.auth.signUp({ email, password });
+    supabase.auth.signUp({
+      email,
+      password,
+      // Tras confirmar el correo, Supabase redirige aquí en vez de a la raíz.
+      // La pestaña abierta desde el correo cae en /correo-confirmado (cartelito
+      // "cerrá esta pestaña"), mientras la pestaña original se loguea sola.
+      options: { emailRedirectTo: "https://app.poolmetric.app/correo-confirmado" },
+    });
   const iniciarSesion = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });
   const cerrarSesion = () => supabase.auth.signOut();
