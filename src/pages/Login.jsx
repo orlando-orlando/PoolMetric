@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../utils/AuthContext.jsx";
 
 export default function Login() {
@@ -8,6 +8,10 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState(null);
   const [cargando, setCargando] = useState(false);
+
+  // Login es dueño de su propio título; al montar (tras logout o entrada directa)
+  // reseteamos para no heredar "PoolMetric · <sección>" de la sesión anterior.
+  useEffect(() => { document.title = "PoolMetric · Iniciar sesión"; }, []);
 
   const enviar = async (e) => {
     e.preventDefault();

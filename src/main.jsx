@@ -44,7 +44,11 @@ function AppConAuth({ App }) {
   // Con sesión y acceso vigente → la app.
   return <App />;
 }
-if (window.location.pathname === "/memoria-calculo") {
+if (window.location.pathname === "/correo-confirmado") {
+  import("./pages/CorreoConfirmado.jsx").then((m) => {
+    ReactDOM.createRoot(root).render(<m.default />);
+  });
+} else if (window.location.pathname === "/memoria-calculo") {
   import("./pages/MemoriaCalculo.jsx").then((m) => {
     ReactDOM.createRoot(root).render(<m.default />);
   });

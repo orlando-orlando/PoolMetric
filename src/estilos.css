@@ -284,8 +284,8 @@ body.no-scroll { overflow: hidden !important; }
 .menu-usuario-cuenta { display: flex; align-items: center; gap: 0.65rem; padding: 0.85rem 1rem; }
 .menu-usuario-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #1d6fa8, #38bdf8); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #0f172a; flex-shrink: 0; letter-spacing: 0.03em; }
 .menu-usuario-avatar-sm { width: 26px; height: 26px; font-size: 0.58rem; }
-.menu-usuario-info { display: flex; flex-direction: column; gap: 1px; }
-.menu-usuario-nombre { font-size: 0.82rem; font-weight: 600; color: #f1f5f9; }
+.menu-usuario-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.menu-usuario-nombre { font-size: 0.82rem; font-weight: 600; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu-usuario-plan { font-size: 0.68rem; color: #94a3b8; }
 .menu-usuario-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 0.2rem 0; }
 .menu-usuario-item { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.5rem 1rem; background: transparent; border: none; color: #cbd5e1; font-size: 0.8rem; font-weight: 400; cursor: pointer; text-align: left; transition: background 0.15s ease, color 0.15s ease; }
