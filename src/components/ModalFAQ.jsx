@@ -101,7 +101,7 @@ const PREGUNTAS = [
   },
   {
     q: "¿También realizan la ingeniería por mí?",
-    a: "Sí. Si prefieres que nuestro equipo realice el diseño completo, ofrecemos un servicio de Ingeniería Asistida. Tú nos mandas el plano de la alberca y la ubicación del proyecto, y nosotros entregamos la memoria de cálculo completa lista para revisar y firmar. Contáctanos en hola@poolmetric.com para más información y precios.",
+    a: "Sí. Si prefieres que nuestro equipo realice el diseño completo, ofrecemos un servicio de Ingeniería Asistida. Tú nos mandas el plano de la alberca y la ubicación del proyecto, y nosotros entregamos la memoria de cálculo completa lista para revisar y firmar. Contáctanos en hola@poolmetric.app para más información y precios.",
   },
   {
     q: "¿Cómo puedo enviar comentarios o solicitar nuevas funciones?",

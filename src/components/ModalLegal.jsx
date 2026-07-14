@@ -14,7 +14,7 @@ const PRIVACIDAD = {
       h: "1. Responsable del tratamiento de datos",
       p: [
         "El responsable del tratamiento de los datos personales recopilados a través de PoolMetric es [RESPONSABLE LEGAL], operando bajo la marca comercial PoolMetric Hydraulic Design.",
-        "Correo de contacto: hola@poolmetric.com",
+        "Correo de contacto: hola@poolmetric.app",
       ],
     },
     {
@@ -55,7 +55,7 @@ const PRIVACIDAD = {
       p: [
         "Como usuario de PoolMetric tienes derecho a: acceder a los datos personales que tenemos sobre ti; corregir información incorrecta o desactualizada; eliminar tu cuenta y todos los datos asociados; exportar los reportes PDF de tus proyectos en cualquier momento; oponerte al tratamiento de tus datos para fines distintos a la prestación del servicio; y revocar tu consentimiento en cualquier momento, lo que implicará la cancelación del servicio.",
         "De acuerdo con la Ley 1581 de 2012 de Colombia y sus normas reglamentarias, tienes derecho a conocer, actualizar, rectificar y suprimir tus datos personales, así como a revocar la autorización otorgada para su tratamiento.",
-        "Para ejercer cualquiera de estos derechos escríbenos a hola@poolmetric.com con el asunto \"Privacidad — [tu solicitud]\". Responderemos en un plazo máximo de 15 días hábiles.",
+        "Para ejercer cualquiera de estos derechos escríbenos a hola@poolmetric.app con el asunto \"Privacidad — [tu solicitud]\". Responderemos en un plazo máximo de 15 días hábiles.",
       ],
     },
     {
@@ -79,7 +79,7 @@ const PRIVACIDAD = {
     {
       h: "10. Contacto",
       p: [
-        "Para cualquier duda, solicitud o reclamo relacionado con el tratamiento de tus datos personales, escríbenos a: hola@poolmetric.com — PoolMetric Hydraulic Design.",
+        "Para cualquier duda, solicitud o reclamo relacionado con el tratamiento de tus datos personales, escríbenos a: hola@poolmetric.app — PoolMetric Hydraulic Design.",
       ],
     },
   ],
@@ -158,20 +158,20 @@ const TERMINOS = {
       h: "10. Cancelación y terminación",
       p: [
         "Cancelación por el usuario: puedes cancelar tu suscripción en cualquier momento desde la configuración de tu cuenta. La cancelación es efectiva al término del período mensual ya pagado. No se realizan cargos adicionales después de la cancelación.",
-        "Suspensión por PoolMetric: PoolMetric puede suspender o cancelar tu cuenta de forma inmediata y sin reembolso si se detecta violación a estos términos, uso fraudulento, o actividades que comprometan la seguridad o integridad del servicio. En caso de suspensión por error, puedes contactarnos a hola@poolmetric.com para revisión.",
+        "Suspensión por PoolMetric: PoolMetric puede suspender o cancelar tu cuenta de forma inmediata y sin reembolso si se detecta violación a estos términos, uso fraudulento, o actividades que comprometan la seguridad o integridad del servicio. En caso de suspensión por error, puedes contactarnos a hola@poolmetric.app para revisión.",
         "Eliminación de datos: al cancelar tu cuenta puedes solicitar la eliminación completa de tus datos. Los reportes PDF ya descargados permanecen en posesión del usuario. Los datos en nuestros servidores serán eliminados en un plazo máximo de 30 días desde la solicitud.",
       ],
     },
     {
       h: "11. Legislación aplicable y resolución de disputas",
       p: [
-        "Estos Términos y Condiciones se rigen por las leyes de la República de Colombia. Cualquier disputa derivada del uso del servicio se resolverá preferentemente de forma amistosa mediante comunicación directa a hola@poolmetric.com. En caso de no llegar a un acuerdo, las partes se someten a la jurisdicción de los jueces y tribunales competentes de Colombia, renunciando expresamente a cualquier otro fuero que pudiera corresponderles.",
+        "Estos Términos y Condiciones se rigen por las leyes de la República de Colombia. Cualquier disputa derivada del uso del servicio se resolverá preferentemente de forma amistosa mediante comunicación directa a hola@poolmetric.app. En caso de no llegar a un acuerdo, las partes se someten a la jurisdicción de los jueces y tribunales competentes de Colombia, renunciando expresamente a cualquier otro fuero que pudiera corresponderles.",
       ],
     },
     {
       h: "12. Contacto",
       p: [
-        "Para cualquier duda, reclamo o comunicación relacionada con estos términos: hola@poolmetric.com — PoolMetric Hydraulic Design.",
+        "Para cualquier duda, reclamo o comunicación relacionada con estos términos: hola@poolmetric.app — PoolMetric Hydraulic Design.",
       ],
     },
   ],
