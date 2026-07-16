@@ -38,8 +38,8 @@ export default function PlanExpirado({ comoOverlay = false, onCerrar = null }) {
             {fundadorAgotado && <div style={S.selloAgotado}>AGOTADO</div>}
             <div style={S.planBadge}>Cupos limitados</div>
             <h2 style={S.planNombre}>Fundador</h2>
-            <div style={S.planPrecio}>$49 <span style={S.planPrecioSub}>USD/mes</span></div>
-            <div style={S.planNota}>Precio congelado de por vida — nunca sube</div>
+            <div style={S.planPrecio}>$49 <span style={S.planPrecioSub}>USD/mes*</span></div>
+            <div style={S.planNota}>Precio congelado de por vida — nunca sube · *Verás el precio en tu moneda local al pagar</div>
             <ul style={S.beneficios}>
               <li>Todo ilimitado</li>
               <li>Cálculos, reporte y memoria</li>
@@ -57,8 +57,8 @@ export default function PlanExpirado({ comoOverlay = false, onCerrar = null }) {
           {/* Plan Pro */}
           <div style={S.plan}>
             <h2 style={S.planNombre}>Pro</h2>
-            <div style={S.planPrecio}>$89 <span style={S.planPrecioSub}>USD/mes</span></div>
-            <div style={S.planNota}>&nbsp;</div>
+            <div style={S.planPrecio}>$89 <span style={S.planPrecioSub}>USD/mes*</span></div>
+            <div style={S.planNota}>*Verás el precio en tu moneda local al pagar</div>
             <ul style={S.beneficios}>
               <li>Todo ilimitado</li>
               <li>Cálculos, reporte y memoria</li>
