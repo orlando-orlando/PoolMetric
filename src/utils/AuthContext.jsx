@@ -12,32 +12,46 @@ export function AuthProvider({ children }) {
   // Carga el perfil del usuario desde la tabla profiles. Retorna el perfil (o null).
   const cargarPerfil = async (userId) => {
     if (!userId) { setPerfil(null); setPerfilCargado(true); return null; }
-    try {
-      // La consulta a Supabase, con un timeout: si en 8s no responde, no colgamos.
+
+    // Un solo intento: consulta a Supabase con timeout. Devuelve el perfil,
+    // o lanza si hubo error/timeout (para que el reintento lo capture).
+    const intento = async (ms) => {
       const consulta = supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .single();
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout cargando perfil")), 8000)
+        setTimeout(() => reject(new Error("Timeout cargando perfil")), ms)
       );
       const { data, error } = await Promise.race([consulta, timeout]);
-      if (error) {
-        console.error("Error cargando perfil:", error.message);
+      if (error) throw new Error(error.message);
+      return data;
+    };
+
+    try {
+      // Primer intento con timeout corto (6s). Si el servicio de Auth/DB estaba
+      // frío (cold-start), este intento suele fallar por timeout.
+      const data = await intento(6000);
+      setPerfil(data);
+      setPerfilCargado(true);
+      return data;
+    } catch (e1) {
+      // Reintento: el primer intento ya "despertó" a Supabase, así que este
+      // suele responder rápido. Timeout más holgado (8s) por si acaso.
+      console.warn("Perfil: primer intento falló (" + e1.message + "), reintentando…");
+      try {
+        const data = await intento(8000);
+        setPerfil(data);
+        setPerfilCargado(true);
+        return data;
+      } catch (e2) {
+        // Los dos intentos fallaron: ahora sí nos rendimos, sin dejar limbo.
+        console.error("Error cargando perfil:", e2.message);
         setPerfil(null);
         setPerfilCargado(true);
         return null;
       }
-      setPerfil(data);
-      setPerfilCargado(true); // el intento terminó, haya o no perfil
-      return data;
-    } catch (e) {
-      // Timeout o cualquier fallo inesperado: no dejamos el perfil en limbo.
-      console.error("Error cargando perfil:", e.message);
-      setPerfil(null);
-      setPerfilCargado(true);
-      return null;
     }
   };
   // Rastrea el id del usuario actualmente cargado, para ignorar eventos de auth
