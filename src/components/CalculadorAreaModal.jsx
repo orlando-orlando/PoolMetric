@@ -791,27 +791,89 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
                       )}
                     </div>
 
-                    {/* Estado escala definida */}
-                    {escala && !modoEscala && (
-                      <div style={{ marginTop: "0.4rem", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.4rem" }}>
+                  {/* Estado escala definida */}
+                  {escala && !modoEscala && (() => {
+
+                    const precision = escalaPixeles
+                      ? (100 / escalaPixeles)
+                      : null;
+
+                    let calidad = "🔴 Baja";
+                    let color = "#ef4444";
+
+                    if (escalaPixeles >= 300) {
+                      calidad = "🟢 Excelente";
+                      color = "#22c55e";
+                    } else if (escalaPixeles >= 150) {
+                      calidad = "🟡 Buena";
+                      color = "#eab308";
+                    } else if (escalaPixeles >= 80) {
+                      calidad = "🟠 Aceptable";
+                      color = "#f97316";
+                    }
+
+                    return (
+                      <div
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "10px",
+                          borderRadius: 8,
+                          background: "rgba(15,23,42,.45)",
+                          border: "1px solid rgba(148,163,184,.18)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px",
+                        }}
+                      >
+
                         <span className="badge-ok">
                           ✔ {escalaPixeles?.toFixed(1)} px = {distanciaReal} m
-                          → {(1/escala).toFixed(2)} px/m
+                          &nbsp;&nbsp;→&nbsp;&nbsp;
+                          {(1 / escala).toFixed(2)} px/m
                         </span>
-                        {escalaConfianza && (
-                          <span style={{
-                            fontSize: "0.68rem", fontWeight: 600,
-                            color: colorConfianza[escalaConfianza],
-                            border: `1px solid ${colorConfianza[escalaConfianza]}40`,
-                            borderRadius: 10, padding: "2px 8px",
-                          }}>
-                            {escalaConfianza === "horizontal" ? "Línea horizontal ✓"
-                              : escalaConfianza === "vertical" ? "Línea vertical ✓"
-                              : "⚠ Línea diagonal"}
-                          </span>
+
+                        <div style={{ fontSize: ".72rem", color: "#cbd5e1" }}>
+                          <strong>Longitud de referencia:</strong>{" "}
+                          {escalaPixeles?.toFixed(1)} px
+                        </div>
+
+                        <div style={{ fontSize: ".72rem", color }}>
+                          <strong>Calidad:</strong> {calidad}
+                        </div>
+
+                        {precision && (
+                          <div style={{ fontSize: ".72rem", color: "#94a3b8" }}>
+                            <strong>Error estimado:</strong> ±{precision.toFixed(2)} %
+                          </div>
                         )}
+
+                        {escalaPixeles < 80 && (
+                          <div
+                            style={{
+                              fontSize: ".72rem",
+                              color: "#fb923c",
+                              fontWeight: 600,
+                            }}
+                          >
+                            ⚠ Usa una referencia más larga para mejorar la precisión.
+                          </div>
+                        )}
+
+                        {escalaConfianza && (
+                          <div
+                            style={{
+                              fontSize: ".72rem",
+                              color: "#94a3b8",
+                            }}
+                          >
+                            Orientación detectada: <strong>{escalaConfianza}</strong>
+                          </div>
+                        )}
+
                       </div>
-                    )}
+                    );
+
+                  })()}
                     {escalaConfianza === "diagonal" && escala && (
                       <div style={{
                         marginTop: "0.4rem", fontSize: "0.68rem", color: "#ca8a04",
