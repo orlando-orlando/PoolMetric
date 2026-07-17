@@ -9,7 +9,11 @@ function adelgazarDatos(datos) {
   const d = structuredClone(datos);
   const vr = d?.datosPorSistema?.equipamiento?.verificacionResultado;
   if (vr && Array.isArray(vr.iteraciones)) {
-    vr.iteraciones = []; // vaciar las iteraciones (se regeneran al reverificar)
+    // No vaciamos del todo: los pasos intermedios del cálculo (esEquilibrio:false)
+    // son los que pesan (cientos con flujo alto). Pero la memoria SÍ necesita los
+    // puntos de equilibrio (esEquilibrio:true) y los separadores para reconstruir
+    // la progresión de iteraciones. Conservamos solo esos: son 3-4 objetos ligeros.
+    vr.iteraciones = vr.iteraciones.filter(it => it.esEquilibrio || it.separador);
   }
   return d;
 }
