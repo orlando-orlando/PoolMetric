@@ -137,15 +137,16 @@ function cantMinDesnatador(flujoMaximo, datos, capacidadFlujoPorEquipo) {
 /* Calcula la cantidad mínima de barredoras por geometría del área
    (misma lógica que barredora.js) para usarla en BloqueEmpotrable */
 function cantMinBarredora(flujoMaximo, datos) {
-  // La cantidad de barredoras NO depende del flujo — solo de la geometría del área
+  // La cantidad de barredoras NO depende del flujo — solo de la geometría del área.
+  // Debe coincidir EXACTAMENTE con el backend (src/utils/barredora.js): misma fórmula
+  // y mismo default de manguera (10), para que el mínimo del modo manual concuerde con
+  // la cantidad que recomienda el backend. Antes divergía (dos ramas + default 7.5),
+  // por eso 94m² daba 2 en manual y 3 en recomendado.
   const area = parseFloat(datos?.area) || 0;
   if (area <= 0) return 1;
-  const manguera = parseFloat(datos?.mangueraBarredora) || 7.5;
-  const largoFinal = manguera - manguera * 0.05;
-  const areaSemiCirculo = (Math.PI * largoFinal * largoFinal) / 2;
-  const numA = area / areaSemiCirculo;
-  const numB = Math.sqrt(area) / (largoFinal * 2);
-  const num = largoFinal > Math.sqrt(area) ? numB : numA;
+  const manguera = parseFloat(datos?.mangueraBarredora) || 10;
+  const largoFinal = manguera - manguera * 0.05;  // -5% de merma (igual que backend)
+  const num = (Math.sqrt(area) * 4) / (largoFinal * 2);
   return Math.max(1, Math.ceil(num));
 }
 
@@ -2922,9 +2923,86 @@ function ResumenEquiposConfirmacion({
           className="btn-primario"
           disabled={hayCambios && !confirmado}
           style={{ width: "100%", padding: "0.6rem 1rem", fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.02em", opacity: hayCambios && !confirmado ? 0.4 : 1, cursor: hayCambios && !confirmado ? "not-allowed" : "pointer" }}
-          onClick={() => {
+          onClick={async () => {
             if (hayCambios && !confirmado) return;
             try {
+              // Reconstruir el `res` de diseño de los empotrables que falten en el store.
+              // Al cargar un proyecto de cero (sesión nueva) los BloqueEmpotrable no se
+              // montan si vas directo de Motobomba a generar memoria, así que su `res`
+              // (que vive solo en resEmpotrablesStore, en memoria) nunca se llenó → la
+              // columna "Diseño original" salía en guiones. Aquí lo re-pedimos al backend
+              // a flujo de DISEÑO (flujoMaxGlobal), replicando lo que haría el bloque.
+              // Es idempotente: si el store ya lo tiene, no re-pide.
+              if (datosEmpotrable && flujoMaxGlobal > 0) {
+                const tiposEmp = ["retorno", "desnatador", "barredora", "drenFondo", "drenCanal"];
+                for (const tipoEmp of tiposEmp) {
+                  if (resEmpotrablesStore.current[tipoEmp]) continue; // ya está, no re-pedir
+                  const estEmp = estados?.[tipoEmp];
+                  if (!estEmp?.selId) continue; // sin selección persistida, no aplica
+                  try {
+                    const resDiseno = await apiEmpotrable({
+                      tipo: tipoEmp,
+                      modo: estEmp.modo ?? "recomendado",
+                      flujoMaximo: flujoMaxGlobal,
+                      datos: datosEmpotrable,
+                      equipoId: estEmp.selId,
+                      cantidad: estEmp.cantidad,
+                    });
+                    // apiEmpotrable devuelve { recomendado, efectivo }; el `res` está en
+                    // infoActiva.res, igual que en BloqueEmpotrable (línea ~556).
+                    const infoActiva = (estEmp.modo === "manual")
+                      ? (resDiseno?.efectivo ?? resDiseno?.recomendado)
+                      : resDiseno?.recomendado;
+                    if (infoActiva?.res) {
+                      guardarResEmpotrable(tipoEmp, infoActiva.res);
+                    }
+                  } catch (e) {
+                    // Degradación suave: si el backend falla, este empotrable queda en
+                    // guiones (como antes), pero no rompemos la generación de la memoria.
+                    console.warn(`Reconstruir res diseño ${tipoEmp}:`, e.message);
+                  }
+                }
+              }
+              // Reconstruir el `res` de diseño de la Lámpara UV si falta en el store.
+              // Mismo motivo que los empotrables: BloqueLamparaUV no se monta si vas
+              // directo de Motobomba a generar memoria en una sesión nueva, así que su
+              // `res` (en resSanitizacionStore) nunca se llenó → guiones en Diseño.
+              // La UV va por otro store (sanitización) y otra API (apiSanitizacion,
+              // tipo "generadorUV"). El `res` se desenvuelve distinto según modo:
+              //   - manual (selId presente): res en efectivo.hidraulica
+              //   - recomendado (sin selId): res en recomendado directo
+              // Decidimos el modo por si hay selId persistido, sin adivinar.
+              if (!resSanitizacionStore.current.lamparaUV && flujoMaxGlobal > 0) {
+                const estUV = estados?.lamparaUV;
+                if (estUV) {
+                  try {
+                    let resUV = null;
+                    if (estUV.selId) {
+                      // Equipo específico persistido: pedir ese equipo exacto.
+                      const r = await apiSanitizacion({
+                        tipo: "generadorUV",
+                        modo: "manual",
+                        flujoMaximo: flujoMaxGlobal,
+                        equipoId: estUV.selId,
+                        cantidad: estUV.cantidad ?? 1,
+                      });
+                      resUV = r?.efectivo?.hidraulica ?? null;
+                    } else {
+                      // Sin selId: dejar que el backend recomiende (mismo equipo original).
+                      const r = await apiSanitizacion({
+                        tipo: "generadorUV",
+                        modo: "recomendado",
+                        flujoMaximo: flujoMaxGlobal,
+                      });
+                      resUV = r?.recomendado ?? null;
+                    }
+                    if (resUV) guardarResSanitizacion("lamparaUV", resUV);
+                  } catch (e) {
+                    // Degradación suave: si falla, UV queda en guiones (como antes).
+                    console.warn("Reconstruir res diseño lamparaUV:", e.message);
+                  }
+                }
+              }
               // El estado del salino (manual o recomendado) ya viene completo del
               // componente vía onEstadoChange (marca, modelo, cantidad, flujoTotal,
               // cargaTotal, spec). No se recalcula aquí.
