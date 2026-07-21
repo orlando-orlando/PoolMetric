@@ -143,6 +143,9 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
   const [escala, setEscala]               = useState(null); // metros/pixel
   const [escalaConfianza, setEscalaConfianza] = useState(null);
   const [escalaPixeles, setEscalaPixeles] = useState(null); // longitud en px de la línea de escala
+  const [cotasDetectadas, setCotasDetectadas] = useState([]); // cotas de texto del PDF, mapeadas al canvas
+  const [verticesVect, setVerticesVect] = useState([]); // vértices vectoriales del PDF, mapeados al canvas (para snap exacto)
+  const [snapVertice, setSnapVertice] = useState(null); // vértice vectorial más cercano al cursor (modo escala)
 
   // Snap
   const SNAP_RADIO_PANTALLA = 22; // px de pantalla
@@ -195,7 +198,22 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     if (!canvas || !imagen) return;
     const wheel = (e) => {
       e.preventDefault();
-      setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + (e.deltaY < 0 ? 0.15 : -0.15))));
+      const canvasEl = canvasRef.current;
+      const rect = canvasEl.getBoundingClientRect();
+      // Posición del cursor en coords de canvas
+      const mx = (e.clientX - rect.left) * (canvasEl.width / rect.width);
+      const my = (e.clientY - rect.top)  * (canvasEl.height / rect.height);
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setZoom(zPrev => {
+        const zNew = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zPrev * factor));
+        const ratio = zNew / zPrev;
+        // Ajustar pan para que el punto bajo el cursor quede fijo
+        setPan(pPrev => ({
+          x: mx - (mx - pPrev.x) * ratio,
+          y: my - (my - pPrev.y) * ratio,
+        }));
+        return zNew;
+      });
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
     return () => canvas.removeEventListener("wheel", wheel);
@@ -224,10 +242,8 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     const img    = new Image();
     img.src      = imagen;
     img.onload   = () => {
-      canvas.width  = img.width;
-      canvas.height = img.height;
       imgRef.current = img;
-
+      // Edge detection sobre la imagen original (tamaño raster completo).
       const off  = document.createElement("canvas");
       off.width  = img.width; off.height = img.height;
       const octx = off.getContext("2d");
@@ -235,7 +251,9 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
       const imageData = octx.getImageData(0, 0, img.width, img.height);
       const umbral    = Math.max(20, Math.min(55, img.width / 90));
       edgeDataRef.current = detectEdges(imageData, umbral);
-      dibujar();
+      // Fit inicial diferido a que el layout aplique el tamaño del contenedor
+      // (evita medir 0 o un alto viejo). requestAnimationFrame asegura el layout.
+      requestAnimationFrame(() => ajustarVista());
     };
   }, [imagen]);
 
@@ -292,6 +310,18 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     const ny = hit.y + Math.sin(hit.normalAngle) * snapOffset;
     return { x: nx, y: ny, normalAngle: hit.normalAngle };
   }, [zoom, snapOffset]);
+  // Busca el vértice vectorial exacto más cercano al cursor, dentro de un radio.
+  // Devuelve {x,y} o null. Búsqueda lineal (ok para planos de cientos de vértices).
+  const snapVectorial = useCallback((worldPos) => {
+    if (!verticesVect.length) return null;
+    const radio = SNAP_RADIO_PANTALLA / zoom;
+    let mejor = null, mejorD = radio;
+    for (const v of verticesVect) {
+      const d = Math.hypot(v.x - worldPos.x, v.y - worldPos.y);
+      if (d < mejorD) { mejorD = d; mejor = v; }
+    }
+    return mejor;
+  }, [verticesVect, zoom]);
 
   /* =====================
      DIBUJO
@@ -447,6 +477,49 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
       ctx.strokeRect(s0.x, s0.y, s1.x - s0.x, s1.y - s0.y);
       ctx.restore();
     }
+
+    /* Cotas detectadas del PDF — marcador en su posición mapeada */
+    if (cotasDetectadas.length > 0) {
+      ctx.save();
+      cotasDetectadas.forEach(cota => {
+        const s = worldToScreen(cota.x, cota.y);
+        // Solo dibujar si está dentro del canvas visible
+        if (s.x < -20 || s.x > canvas.width + 20 || s.y < -20 || s.y > canvas.height + 20) return;
+        // Punto marcador
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(251,146,60,0.9)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Etiqueta con el valor
+        ctx.font = "bold 11px sans-serif";
+        const label = cota.txt;
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = "rgba(20,22,27,0.85)";
+        ctx.fillRect(s.x + 7, s.y - 8, tw + 8, 15);
+        ctx.fillStyle = "#fdba74";
+        ctx.fillText(label, s.x + 11, s.y + 3);
+      });
+      ctx.restore();
+    }
+
+    /* Snap vectorial: resaltar el vértice al que se pegará (escala y contorno) */
+    if (snapVertice) {
+      const s = worldToScreen(snapVertice.x, snapVertice.y);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 6, 0, Math.PI * 2);
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = "#38bdf8";
+      ctx.fill();
+      ctx.restore();
+    }
   };
 
   /* =====================
@@ -476,10 +549,12 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     setCursorMundo(worldPos);
     const snap = calcularSnap(worldPos);
     setSnapPoint(snap); setSnapActivo(!!snap);
-
+    // Snap a vértice vectorial exacto, tanto en escala como en contorno.
+    const vert = snapVectorial(worldPos);
+    setSnapVertice(vert);
     if (modoEscala && puntosEscala.length === 1) {
       const p0  = puntosEscala[0];
-      const tgt = snap ?? worldPos;
+      const tgt = vert ?? snap ?? worldPos;
       const dpx = Math.hypot(tgt.x - p0.x, tgt.y - p0.y);
       setDistPx(dpx.toFixed(1));
       setDistM(escala ? (dpx * escala).toFixed(3) : null);
@@ -519,8 +594,12 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     if (justZoomedRef.current || spaceDownRef.current || modoZoom) return;
     const worldPos = getWorldPos(e);
     const snap     = calcularSnap(worldPos);
-    const punto    = snap ?? worldPos;
-
+    // El vértice vectorial exacto tiene prioridad sobre el snap a bordes, tanto
+    // para la línea de escala como para el contorno. Si hay un vértice cerca, el
+    // punto se pega a él (esquina exacta); si no, cae libre. Esto hace la escala
+    // reproducible y el contorno preciso (área → ~exacta).
+    const vert     = snapVectorial(worldPos);
+    const punto    = vert ?? snap ?? worldPos;
     if (modoEscala) {
       if (puntosEscala.length < 2) {
         const nuevos = [...puntosEscala, punto];
@@ -531,6 +610,24 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
           const canvas    = canvasRef.current;
           setPan({ x: canvas.width / 2 - punto.x * nuevoZoom, y: canvas.height / 2 - punto.y * nuevoZoom });
           setZoom(nuevoZoom);
+        }
+        // Al completar la línea (2do punto): buscar cota cercana al punto medio
+        // y autollenar su valor, para no teclearlo (reduce error).
+        if (puntosEscala.length === 1 && cotasDetectadas.length > 0) {
+          const p0 = puntosEscala[0];
+          const midX = (p0.x + punto.x) / 2;
+          const midY = (p0.y + punto.y) / 2;
+          const largoLinea = Math.hypot(punto.x - p0.x, punto.y - p0.y);
+          // Radio de búsqueda proporcional al largo de la línea (mín 40px de imagen)
+          const radio = Math.max(40, largoLinea * 0.5);
+          let mejor = null, mejorDist = Infinity;
+          for (const cota of cotasDetectadas) {
+            const d = Math.hypot(cota.x - midX, cota.y - midY);
+            if (d < radio && d < mejorDist) { mejorDist = d; mejor = cota; }
+          }
+          if (mejor) {
+            setDistanciaReal(String(mejor.valor));
+          }
         }
       }
       return;
@@ -564,10 +661,28 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
     onConfirm(areaReal); onClose();
   };
 
-  const resetVista = () => {
-    setZoom(1); setPan({ x: 0, y: 0 });
+  // Ajusta la vista para que el plano completo quepa centrado en el canvas.
+  // Fuente única del "fit": la usa tanto la carga inicial como la tecla A.
+  // Mide el contenedor en el momento de llamarse (más confiable que en onload).
+  const ajustarVista = () => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) return;
+    const cont = canvas.parentElement;
+    const cw = cont.clientWidth - 24;
+    const ch = cont.clientHeight - 24;
+    canvas.width = cw;
+    canvas.height = ch;
+    const zoomFit = Math.min(cw / img.width, ch / img.height);
+    setZoom(zoomFit);
+    setPan({
+      x: (cw - img.width  * zoomFit) / 2,
+      y: (ch - img.height * zoomFit) / 2,
+    });
     setModoZoom(false); setZoomInicio(null); setZoomRect(null);
   };
+  // Alias para no romper otros llamados existentes a resetVista.
+  const resetVista = ajustarVista;
 
   const cerrarModal = () => { setCerrando(true); setTimeout(() => { setVisible(false); onClose(); }, 300); };
 
@@ -590,6 +705,77 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
         const c      = document.createElement("canvas");
         c.width = vp.width; c.height = vp.height;
         await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+
+        // Extraer cotas de texto (números tipo "22.00") con su posición mapeada
+        // al canvas rasterizado. Se usan como referencia para calibrar la escala
+        // sin teclear el valor a mano (reduce el error). Coords ya en px de canvas.
+        try {
+          const tc = await page.getTextContent();
+          const cotas = [];
+          for (const item of tc.items) {
+            const txt = item.str.trim();
+            if (!txt || !/^\d+\.?\d*$/.test(txt)) continue; // solo números
+            const valor = parseFloat(txt);
+            if (!(valor > 0)) continue;
+            const [,,,, px, py] = item.transform;
+            const [vx, vy] = vp.convertToViewportPoint(px, py);
+            cotas.push({ valor, txt, x: vx, y: vy });
+          }
+          setCotasDetectadas(cotas);
+        } catch (e) {
+          console.warn("No se pudieron extraer cotas:", e.message);
+          setCotasDetectadas([]);
+        }
+
+        // Extraer vértices vectoriales (endpoints de líneas y curvas) mapeados al
+        // canvas. Se usan para snap exacto de la línea de escala → escala precisa.
+        try {
+          const opList = await page.getOperatorList();
+          const verts = [];
+          // Rastrear la matriz de transformación (CTM) activa. Las coords del path
+          // están en un espacio que se lleva al de página aplicando la CTM vigente,
+          // y de ahí al viewport con convertToViewportPoint.
+          const applyM = (m, x, y) => [m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]];
+          const mulM = (a, b) => [ // a·b (matrices 2x3 estilo PDF)
+            a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1],
+            a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3],
+            a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5],
+          ];
+          let ctm = [1,0,0,1,0,0];
+          const stack = [];
+          for (let i = 0; i < opList.fnArray.length; i++) {
+            const fn = opList.fnArray[i];
+            if (fn === pdfjsLib.OPS.save) { stack.push(ctm.slice()); continue; }
+            if (fn === pdfjsLib.OPS.restore) { if (stack.length) ctm = stack.pop(); continue; }
+            if (fn === pdfjsLib.OPS.transform) {
+              const t = opList.argsArray[i];
+              ctm = mulM(ctm, [t[0],t[1],t[2],t[3],t[4],t[5]]);
+              continue;
+            }
+            if (fn !== pdfjsLib.OPS.constructPath) continue;
+            const a = opList.argsArray[i];
+            const buf = a[1] && a[1][0];
+            if (!buf) continue;
+            let n = 0; while (buf[n] !== undefined) n++;
+            let k = 0;
+            const pushPt = (px, py) => {
+              const [ux, uy] = applyM(ctm, px, py);          // path → espacio página
+              const [vx, vy] = vp.convertToViewportPoint(ux, uy); // página → viewport
+              verts.push({ x: vx, y: vy });
+            };
+            while (k < n) {
+              const flag = buf[k];
+              if (flag === 0 || flag === 1) { pushPt(buf[k+1], buf[k+2]); k += 3; }
+              else if (flag === 2) { pushPt(buf[k+5], buf[k+6]); k += 7; }
+              else { k += 1; }
+            }
+          }
+          setVerticesVect(verts);
+        } catch (e) {
+          console.warn("No se pudieron extraer vértices:", e.message);
+          setVerticesVect([]);
+        }
+
         setImagen(c.toDataURL()); setCargando(false);
       }
     } catch (err) { console.error(err); alert("Error al procesar el archivo"); setCargando(false); }
@@ -681,249 +867,69 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
                   style={{ cursor: "none" }}
                 />
               </div>
+              {/* ─── Barra de herramientas compacta ─── */}
+              <div className="barra-herramientas-area">
+                {/* Grupo escala */}
+                <div className="bha-grupo">
+                  <button className="btn-tool-primary" onClick={() => {
+                    setModoEscala(true); setPuntosEscala([]);
+                    setEscala(null); setEscalaConfianza(null); setEscalaPixeles(null); resetVista();
+                  }}>
+                    📏 Definir escala
+                  </button>
 
-              {/* ─── Panel de área + validación cruzada ─── */}
-              {validacion && (
-                <div style={{
-                  background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,188,212,0.2)",
-                  borderRadius: 10, padding: "10px 16px", margin: "8px 0",
-                  display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px",
-                }}>
-                  {/* Área polígono */}
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginBottom: 2 }}>Área trazada</div>
-                    <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#00e5ff" }}>
-                      {validacion.areaM.toFixed(2)} m²
+                  {modoEscala && (
+                    <div className="escala-inline">
+                      <input type="number" placeholder="Distancia (m)" value={distanciaReal}
+                        onChange={(e) => setDistanciaReal(e.target.value)} className="input-escala" />
+                      <button className="btn-confirmar-escala" onClick={calcularEscala}
+                        disabled={puntosEscala.length < 2 || !distanciaReal}>
+                        ✓
+                      </button>
                     </div>
-                  </div>
-                  {/* Dimensiones bounding box */}
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginBottom: 2 }}>Bounding box</div>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#fbbf24" }}>
-                      {validacion.wM.toFixed(2)} × {validacion.hM.toFixed(2)} m
-                    </div>
-                    <div style={{ fontSize: "0.65rem", color: "#64748b" }}>
-                      = {validacion.areaRef.toFixed(2)} m² si rectangular
-                    </div>
-                  </div>
-                  {/* Desviación */}
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginBottom: 2 }}>Desviación vs rect.</div>
-                    <div style={{
-                      fontSize: "0.85rem", fontWeight: 700,
-                      color: desviacionPorc < 5 ? "#4ade80" : desviacionPorc < 15 ? "#fbbf24" : "#f87171",
-                    }}>
-                      {desviacionPorc.toFixed(1)}%
-                    </div>
-                    <div style={{ fontSize: "0.62rem", color: "#64748b" }}>
-                      {desviacionPorc < 5 ? "polígono regular ✓" : desviacionPorc < 15 ? "forma irregular" : "revisar trazado"}
-                    </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {/* ─── Instrucciones ─── */}
-              <div className="instrucciones-area">
-                <h4>Instrucciones de uso</h4>
-                <ol>
-
-                  {/* PASO 1: Escala */}
-                  <li>
-                    Define la <strong>escala real</strong> sobre una distancia conocida del plano.
-                    <br />
-                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                      El snap detecta bordes automáticamente. Si la medida sale incorrecta, ajusta el offset de snap.
+                  {modoEscala && puntosEscala.length === 1 && distPx && (
+                    <span className="bha-chip bha-chip-naranja">
+                      📏 {distPx} px {distM && <>≈ {distM} m</>}
                     </span>
+                  )}
 
-                    {/* Control offset */}
-                    <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Offset snap:</span>
-                      {[
-                        { label: "Centro trazo", val: 0 },
-                        { label: "+2 px (exterior)", val: 2 },
-                        { label: "-2 px (interior)", val: -2 },
-                        { label: "+4 px", val: 4 },
-                        { label: "-4 px", val: -4 },
-                      ].map(o => (
-                        <button
-                          key={o.val}
-                          onClick={() => setSnapOffset(o.val)}
-                          style={{
-                            fontSize: "0.63rem", padding: "2px 7px", borderRadius: 6,
-                            border: `1px solid ${snapOffset === o.val ? "#00bcd4" : "rgba(100,116,139,0.3)"}`,
-                            background: snapOffset === o.val ? "rgba(0,188,212,0.15)" : "transparent",
-                            color: snapOffset === o.val ? "#00e5ff" : "#64748b",
-                            cursor: "pointer",
-                          }}
-                        >{o.label}</button>
-                      ))}
-                    </div>
+                  {escala && !modoEscala && (
+                    <span className="bha-chip bha-chip-verde">
+                      ✔ escala: {(1 / escala).toFixed(1)} px/m
+                      {escalaPixeles < 80 && <span className="bha-warn"> ⚠ ref. corta</span>}
+                    </span>
+                  )}
+                </div>
 
-                    <div className="acciones-instruccion">
-                      <button className="btn-tool-primary" onClick={() => {
-                        setModoEscala(true); setPuntosEscala([]);
-                        setEscala(null); setEscalaConfianza(null); setEscalaPixeles(null); resetVista();
-                      }}>
-                        📏 Definir escala
-                      </button>
-                      {modoEscala && (
-                        <div className="escala-inline">
-                          <input type="number" placeholder="Distancia (m)" value={distanciaReal}
-                            onChange={(e) => setDistanciaReal(e.target.value)} className="input-escala" />
-                          <button className="btn-confirmar-escala" onClick={calcularEscala}
-                            disabled={puntosEscala.length < 2 || !distanciaReal}>
-                            ✓ Confirmar
-                          </button>
-                        </div>
-                      )}
-                      {/* Indicador distancia tiempo real */}
-                      {modoEscala && puntosEscala.length === 1 && distPx && (
-                        <div style={{
-                          display: "inline-flex", alignItems: "center", gap: "0.5rem",
-                          fontSize: "0.72rem", color: "#ff9800", fontWeight: 600,
-                          background: "rgba(255,152,0,0.08)", border: "1px solid rgba(255,152,0,0.25)",
-                          borderRadius: 8, padding: "3px 10px", marginTop: "0.4rem",
-                        }}>
-                          <span>📏 {distPx} px</span>
-                          {distM && <span style={{ color: "#fbbf24" }}>≈ {distM} m</span>}
-                          {snapActivo && <span style={{ color: "#4ade80" }}>⊕ snap</span>}
-                        </div>
-                      )}
-                    </div>
+                {/* Grupo contorno */}
+                <div className="bha-grupo">
+                  <button className="btn-tool-secondary"
+                    onClick={() => { setPuntos([]); setPoligonoCerrado(false); setValidacion(null); }}>
+                    🗑️ Limpiar
+                  </button>
+                  <button className="btn-tool-secondary"
+                    onClick={() => { if (puntos.length > 0) { setPuntos(puntos.slice(0,-1)); setPoligonoCerrado(false); } }}
+                    disabled={puntos.length === 0}>
+                    ↶ Deshacer
+                  </button>
+                </div>
 
-                  {/* Estado escala definida */}
-                  {escala && !modoEscala && (() => {
-
-                    const precision = escalaPixeles
-                      ? (100 / escalaPixeles)
-                      : null;
-
-                    let calidad = "🔴 Baja";
-                    let color = "#ef4444";
-
-                    if (escalaPixeles >= 300) {
-                      calidad = "🟢 Excelente";
-                      color = "#22c55e";
-                    } else if (escalaPixeles >= 150) {
-                      calidad = "🟡 Buena";
-                      color = "#eab308";
-                    } else if (escalaPixeles >= 80) {
-                      calidad = "🟠 Aceptable";
-                      color = "#f97316";
-                    }
-
-                    return (
-                      <div
-                        style={{
-                          marginTop: "0.5rem",
-                          padding: "10px",
-                          borderRadius: 8,
-                          background: "rgba(15,23,42,.45)",
-                          border: "1px solid rgba(148,163,184,.18)",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "6px",
-                        }}
-                      >
-
-                        <span className="badge-ok">
-                          ✔ {escalaPixeles?.toFixed(1)} px = {distanciaReal} m
-                          &nbsp;&nbsp;→&nbsp;&nbsp;
-                          {(1 / escala).toFixed(2)} px/m
-                        </span>
-
-                        <div style={{ fontSize: ".72rem", color: "#cbd5e1" }}>
-                          <strong>Longitud de referencia:</strong>{" "}
-                          {escalaPixeles?.toFixed(1)} px
-                        </div>
-
-                        <div style={{ fontSize: ".72rem", color }}>
-                          <strong>Calidad:</strong> {calidad}
-                        </div>
-
-                        {precision && (
-                          <div style={{ fontSize: ".72rem", color: "#94a3b8" }}>
-                            <strong>Error estimado:</strong> ±{precision.toFixed(2)} %
-                          </div>
-                        )}
-
-                        {escalaPixeles < 80 && (
-                          <div
-                            style={{
-                              fontSize: ".72rem",
-                              color: "#fb923c",
-                              fontWeight: 600,
-                            }}
-                          >
-                            ⚠ Usa una referencia más larga para mejorar la precisión.
-                          </div>
-                        )}
-
-                        {escalaConfianza && (
-                          <div
-                            style={{
-                              fontSize: ".72rem",
-                              color: "#94a3b8",
-                            }}
-                          >
-                            Orientación detectada: <strong>{escalaConfianza}</strong>
-                          </div>
-                        )}
-
-                      </div>
-                    );
-
-                  })()}
-                    {escalaConfianza === "diagonal" && escala && (
-                      <div style={{
-                        marginTop: "0.4rem", fontSize: "0.68rem", color: "#ca8a04",
-                        background: "rgba(202,138,4,0.08)", border: "1px solid rgba(202,138,4,0.25)",
-                        borderRadius: 6, padding: "4px 10px",
-                      }}>
-                        ⚠ Línea diagonal — para mayor precisión usa una referencia H o V del plano.
-                      </div>
-                    )}
-                  </li>
-
-                  {/* PASO 2: Trazado */}
-                  <li>
-                    Traza el contorno dando clic en cada vértice. El <strong>área y las dimensiones</strong> se actualizan en tiempo real sobre el plano.
-                    <div className="acciones-instruccion">
-                      <button className="btn-tool-secondary"
-                        onClick={() => { setPuntos([]); setPoligonoCerrado(false); setValidacion(null); }}>
-                        🗑️ Limpiar contorno
-                      </button>
-                      <button className="btn-tool-secondary"
-                        onClick={() => { if (puntos.length > 0) { setPuntos(puntos.slice(0,-1)); setPoligonoCerrado(false); } }}
-                        disabled={puntos.length === 0}>
-                        ↶ Deshacer punto
-                      </button>
-                    </div>
-                  </li>
-
-                  {/* PASO 3: Confirmar */}
-                  <li>
-                    Verifica que el <strong>bounding box</strong> mostrado en el plano coincida con las dimensiones reales,
-                    luego confirma.
-                    {escala && (
-                      <div className="acciones-instruccion">
-                        <button className="btn-confirmar-area-dark" onClick={confirmarArea}
-                          disabled={puntos.length < 3}>
-                          ✓ Usar esta área
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                </ol>
-
-                <div className="instrucciones-navegacion">
-                  <strong>Navegación</strong>
-                  <ul>
-                    <li>Scroll: zoom · Tecla A: vista original</li>
-                    <li>Tecla Z + arrastrar: zoom por área</li>
-                    <li>Space + arrastrar: mover plano</li>
-                    <li>Snap detecta bordes — ajusta el offset si el área no coincide</li>
-                  </ul>
+                {/* Grupo confirmar + ayuda */}
+                <div className="bha-grupo bha-grupo-derecha">
+                  {validacion && (
+                    <span className="bha-chip bha-chip-area">
+                      📐 {validacion.areaM.toFixed(2)} m²
+                    </span>
+                  )}
+                  <span className="bha-ayuda" title="Scroll: zoom · Tecla A: vista original · Z + arrastrar: zoom por área · Space + arrastrar: mover plano">
+                    ?
+                  </span>
+                  <button className="btn-confirmar-area-dark bha-confirmar" onClick={confirmarArea}
+                    disabled={!escala || puntos.length < 3}>
+                    ✓ Usar esta área
+                  </button>
                 </div>
               </div>
             </>
