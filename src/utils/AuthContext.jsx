@@ -12,9 +12,10 @@ export function AuthProvider({ children }) {
   // Carga el perfil del usuario desde la tabla profiles. Retorna el perfil (o null).
   const cargarPerfil = async (userId) => {
     if (!userId) { setPerfil(null); setPerfilCargado(true); return null; }
-
-    // Un solo intento: consulta a Supabase con timeout. Devuelve el perfil,
-    // o lanza si hubo error/timeout (para que el reintento lo capture).
+    // Un solo intento: consulta a Supabase con timeout. Sin reintento a
+    // propósito: si Supabase está frío (cold-start), preferimos expulsar
+    // rápido al login antes que dejar al usuario esperando/colgado. Al
+    // reabrir, la sesión ya está caliente y entra instantáneo.
     const intento = async (ms) => {
       const consulta = supabase
         .from("profiles")
@@ -28,30 +29,17 @@ export function AuthProvider({ children }) {
       if (error) throw new Error(error.message);
       return data;
     };
-
     try {
-      // Primer intento con timeout corto (6s). Si el servicio de Auth/DB estaba
-      // frío (cold-start), este intento suele fallar por timeout.
-      const data = await intento(6000);
+      const data = await intento(8000);
       setPerfil(data);
       setPerfilCargado(true);
       return data;
-    } catch (e1) {
-      // Reintento: el primer intento ya "despertó" a Supabase, así que este
-      // suele responder rápido. Timeout más holgado (8s) por si acaso.
-      console.warn("Perfil: primer intento falló (" + e1.message + "), reintentando…");
-      try {
-        const data = await intento(8000);
-        setPerfil(data);
-        setPerfilCargado(true);
-        return data;
-      } catch (e2) {
-        // Los dos intentos fallaron: ahora sí nos rendimos, sin dejar limbo.
-        console.error("Error cargando perfil:", e2.message);
-        setPerfil(null);
-        setPerfilCargado(true);
-        return null;
-      }
+    } catch (e) {
+      // Un solo intento fallido: nos rendimos y mandamos al login, sin limbo.
+      console.error("Error cargando perfil:", e.message);
+      setPerfil(null);
+      setPerfilCargado(true);
+      return null;
     }
   };
   // Rastrea el id del usuario actualmente cargado, para ignorar eventos de auth
