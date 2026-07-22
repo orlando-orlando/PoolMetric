@@ -923,8 +923,15 @@ const CalculadorAreaModal = ({ open, onClose, onConfirm }) => {
                       📐 {validacion.areaM.toFixed(2)} m²
                     </span>
                   )}
-                  <span className="bha-ayuda" title="Scroll: zoom · Tecla A: vista original · Z + arrastrar: zoom por área · Space + arrastrar: mover plano">
+                  <span className="bha-ayuda">
                     ?
+                    <span className="bha-tooltip">
+                      <strong>Atajos de navegación</strong>
+                      Scroll: zoom<br/>
+                      Tecla A: ajustar vista<br/>
+                      Z + arrastrar: zoom por área<br/>
+                      Space + arrastrar: mover plano
+                    </span>
                   </span>
                   <button className="btn-confirmar-area-dark bha-confirmar" onClick={confirmarArea}
                     disabled={!escala || puntos.length < 3}>
