@@ -3180,6 +3180,20 @@ export default function Equipamiento({
       }));
     }
   }, [proyectoVersion]);
+  // Restaurar el modo de velocidad de tubería (recomendada/6-8) desde lo guardado.
+  // `_velMax` es estado de módulo global (limiteVelocidad.js) que NO se persiste y
+  // arranca en false en cada recarga. Pero las cargas de tubería del proyecto se
+  // guardaron calculadas con la velocidad activa al momento. Si un proyecto se guardó
+  // en 6/8 y al cargar el flag global vuelve a "recomendada", el equilibrio se calcula
+  // sobre cargas inconsistentes → flujo disparado (bug). Aquí re-sincronizamos el flag
+  // global con lo guardado, para que coincida con las cargas persistidas.
+  // Al cargar un proyecto, arrancar SIEMPRE en velocidad recomendada. La
+  // verificación se rehace limpia: si vuelve a salir sobredimensionada, el usuario
+  // reactiva 6/8. Esto evita el divorcio entre el flag global (que no se persiste)
+  // y las cargas guardadas, que disparaba el equilibrio a un flujo irreal.
+  useEffect(() => {
+    setVelocidadMaxima(false);
+  }, [proyectoVersion]);
 
   const [sistemasSeleccionadosSanit, setSistemasSeleccionadosSanit] = useState(eqPrev.sistemasSeleccionadosSanit ?? {});
   const [sistemasSeleccionadosFilt,  setSistemasSeleccionadosFilt]  = useState(eqPrev.sistemasSeleccionadosFilt  ?? {});
