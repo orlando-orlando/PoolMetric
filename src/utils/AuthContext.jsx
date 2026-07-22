@@ -108,14 +108,25 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  const registrarse = (email, password) =>
+  // Versión vigente de los términos/privacidad. Al cambiar los textos legales,
+  // sube esta versión para poder distinguir qué versión aceptó cada usuario.
+  const TERMINOS_VERSION = "2026-01";
+  const registrarse = (email, password, aceptoTerminos = false) =>
     supabase.auth.signUp({
       email,
       password,
-      // Tras confirmar el correo, Supabase redirige aquí en vez de a la raíz.
-      // La pestaña abierta desde el correo cae en /correo-confirmado (cartelito
-      // "cerrá esta pestaña"), mientras la pestaña original se loguea sola.
-      options: { emailRedirectTo: "https://app.poolmetric.app/correo-confirmado" },
+      options: {
+        // Tras confirmar el correo, Supabase redirige aquí en vez de a la raíz.
+        // La pestaña abierta desde el correo cae en /correo-confirmado (cartelito
+        // "cerrá esta pestaña"), mientras la pestaña original se loguea sola.
+        emailRedirectTo: "https://app.poolmetric.app/correo-confirmado",
+        // Consentimiento de términos: viaja en user_metadata y el trigger
+        // handle_new_user lo copia a profiles (terminos_aceptados_en / _version).
+        data: {
+          terminos_aceptados: aceptoTerminos ? "true" : "false",
+          terminos_version: TERMINOS_VERSION,
+        },
+      },
     });
   const iniciarSesion = (email, password) =>
     supabase.auth.signInWithPassword({ email, password });

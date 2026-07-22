@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../utils/AuthContext.jsx";
+import ModalLegal from "../components/ModalLegal.jsx";
 
 export default function Login() {
   const { iniciarSesion, registrarse } = useAuth();
@@ -8,7 +9,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState(null);
   const [cargando, setCargando] = useState(false);
-
+  const [aceptoTerminos, setAceptoTerminos] = useState(false);
+  const [modalLegal, setModalLegal] = useState(null); // null | "terminos" | "privacidad"
   // Login es dueño de su propio título; al montar (tras logout o entrada directa)
   // reseteamos para no heredar "PoolMetric · <sección>" de la sesión anterior.
   useEffect(() => { document.title = "PoolMetric · Iniciar sesión"; }, []);
@@ -18,8 +20,9 @@ export default function Login() {
     setMensaje(null);
     setCargando(true);
 
-    const fn = modo === "login" ? iniciarSesion : registrarse;
-    const { data, error } = await fn(email.trim(), password);
+    const { data, error } = modo === "login"
+      ? await iniciarSesion(email.trim(), password)
+      : await registrarse(email.trim(), password, aceptoTerminos);
 
     setCargando(false);
 
@@ -70,8 +73,34 @@ export default function Login() {
             style={S.input}
             placeholder="Mínimo 6 caracteres"
           />
-
-          <button type="submit" disabled={cargando} style={S.boton}>
+          {modo === "registro" && (
+            <label style={S.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={aceptoTerminos}
+                onChange={(e) => setAceptoTerminos(e.target.checked)}
+                style={S.checkbox}
+              />
+              <span>
+                He leído y acepto los{" "}
+                <span onClick={(e) => { e.preventDefault(); setModalLegal("terminos"); }} style={S.enlaceLegal}>
+                  Términos y Condiciones
+                </span>{" "}
+                y la{" "}
+                <span onClick={(e) => { e.preventDefault(); setModalLegal("privacidad"); }} style={S.enlaceLegal}>
+                  Política de Privacidad
+                </span>.
+              </span>
+            </label>
+          )}
+          <button
+            type="submit"
+            disabled={cargando || (modo === "registro" && !aceptoTerminos)}
+            style={{
+              ...S.boton,
+              ...(modo === "registro" && !aceptoTerminos ? { opacity: 0.5, cursor: "not-allowed" } : {}),
+            }}
+          >
             {cargando ? "Procesando..." : modo === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </button>
         </form>
@@ -91,6 +120,9 @@ export default function Login() {
             : "¿Ya tienes cuenta? Iniciar sesión"}
         </button>
       </div>
+      {modalLegal && (
+        <ModalLegal tipo={modalLegal} onCerrar={() => setModalLegal(null)} />
+      )}
     </div>
   );
 }
@@ -107,4 +139,7 @@ const S = {
   toggle: { marginTop: "1.2rem", background: "none", border: "none", color: "#38bdf8", fontSize: "0.85rem", cursor: "pointer", width: "100%", textAlign: "center" },
   error: { marginTop: "1rem", padding: "0.7rem", borderRadius: "8px", background: "rgba(239,68,68,0.15)", color: "#fca5a5", fontSize: "0.85rem", textAlign: "center" },
   exito: { marginTop: "1rem", padding: "0.7rem", borderRadius: "8px", background: "rgba(34,197,94,0.15)", color: "#86efac", fontSize: "0.85rem", textAlign: "center" },
+  checkboxRow: { display: "flex", alignItems: "flex-start", gap: "0.5rem", marginTop: "0.9rem", color: "#94a3b8", fontSize: "0.78rem", lineHeight: 1.45, cursor: "pointer" },
+  checkbox: { marginTop: "0.15rem", flexShrink: 0, width: "16px", height: "16px", cursor: "pointer", accentColor: "#0284c7" },
+  enlaceLegal: { color: "#38bdf8", cursor: "pointer", textDecoration: "underline" },
 };
